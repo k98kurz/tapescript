@@ -51,7 +51,7 @@ class TestParsing(unittest.TestCase):
             parsing.compile_script('OP_WTF d1')
         assert str(e.exception) == 'unrecognized opcode'
 
-    def test_compile_script_errors_on_invalid_syntax(self):
+    def test_compile_script_errors_on_invalid_opcode_use_syntax(self):
         with self.assertRaises(errors.SyntaxError) as e:
             parsing.compile_script('OP_DEF notnumeric OP_DEF 1 OP_PUSH x01 END_DEF END_DEF')
         assert str(e.exception) == 'def number must be numeric'
@@ -115,6 +115,38 @@ class TestParsing(unittest.TestCase):
         with self.assertRaises(ValueError) as e:
             parsing.compile_script('OP_DEF 0 { OP_PUSH2 dnotnumeric }')
         assert str(e.exception) == 'value prefaced by d must be decimal int'
+
+        with self.assertRaises(errors.SyntaxError) as e:
+            parsing.compile_script('OP_DEF 0 { OP_PUSH4 asd }')
+        assert str(e.exception) == 'values for OP_PUSH4 must be prefaced with d, x, or s'
+
+        with self.assertRaises(ValueError) as e:
+            parsing.compile_script('OP_DEF 0 { OP_PUSH4 dnotnumeric }')
+        assert str(e.exception) == 'value prefaced by d must be decimal int'
+
+        with self.assertRaises(errors.SyntaxError) as e:
+            parsing.compile_script('OP_DEF 0 { OP_DIV_FLOAT asd }')
+        assert str(e.exception) == 'numeric args must be prefaced with d or x'
+
+        with self.assertRaises(ValueError) as e:
+            parsing.compile_script('OP_DEF 0 { OP_DIV_FLOAT dnotnumeric }')
+        assert str(e.exception) == 'OP_DIV_FLOAT value prefaced by d must be decimal float'
+
+        with self.assertRaises(ValueError) as e:
+            parsing.compile_script('OP_DEF 0 { OP_MOD_FLOAT x123456 }')
+        assert str(e.exception) == 'OP_MOD_FLOAT value prefaced by x must be 8 long (4 bytes)'
+
+        with self.assertRaises(errors.SyntaxError) as e:
+            parsing.compile_script('OP_DEF 0 { OP_SWAP asd d123 }')
+        assert str(e.exception) == 'numeric args must be prefaced with d or x'
+
+        with self.assertRaises(ValueError) as e:
+            parsing.compile_script('OP_DEF 0 { OP_SWAP dnotnumeric x1234 }')
+        assert str(e.exception) == 'OP_SWAP value prefaced by d must be decimal int'
+
+        with self.assertRaises(ValueError) as e:
+            parsing.compile_script('OP_DEF 0 { OP_SWAP x1234 d123 }')
+        assert str(e.exception) == 'OP_SWAP value prefaced by x must be 2 long (1 byte)'
 
     def test_compile_script_ignores_comments(self):
         ...
