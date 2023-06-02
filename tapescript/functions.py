@@ -730,7 +730,7 @@ def OP_SET_FLAG(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     size = int.from_bytes(tape.read(1), 'big')
     flag = tape.read(size)
     sert(flag in flags, 'OP_SET_FLAG unrecognized flag')
-    tape.flags[flag] = flags[flag][0]
+    tape.flags[flag] = flags[flag]
 
 def OP_UNSET_FLAG(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int;
@@ -986,9 +986,8 @@ nopcodes_inverse = {
 
 # flags are intended to change how specific opcodes function
 flags = {
-    'ts_threshold': (60*60*12,),
-    'epoch_threshold': (60*60*12,),
-    b'dummy_flag': (1,)
+    'ts_threshold': 60*60*12,
+    'epoch_threshold': 60*60*12,
 }
 
 
@@ -1263,7 +1262,7 @@ def run_script(script: bytes, cache_vals: dict = {}) -> tuple[Tape, LifoQueue, d
     # set default flags
     for key in flags:
         if type(key) is str:
-            tape.flags[key] = flags[key][0]
+            tape.flags[key] = flags[key]
 
     run_tape(tape, queue, cache)
 

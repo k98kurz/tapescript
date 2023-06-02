@@ -819,10 +819,13 @@ class TestFunctions(unittest.TestCase):
         assert str(e.exception) == 'OP_SET_FLAG unrecognized flag'
 
     def test_OP_SET_FLAG_sets_tape_flag_to_default_value(self):
+        original_flags = functions.flags
+        functions.flags = {**original_flags, b'dummy_flag': 1}
         self.tape = classes.Tape(b'\x0adummy_flag')
         assert b'dummy_flag' not in self.tape.flags
         functions.OP_SET_FLAG(self.tape, self.queue, self.cache)
         assert b'dummy_flag' in self.tape.flags
+        functions.flags = original_flags
 
     def test_OP_UNSET_FLAG_unsets_tape_flag(self):
         self.tape = classes.Tape(b'\x0adummy_flag')
@@ -1044,6 +1047,42 @@ class TestFunctions(unittest.TestCase):
         functions.OP_CHECK_TRANSFER(self.tape, self.queue, self.cache)
         assert self.queue.get(False) == b'\x01'
         assert self.queue.empty()
+
+    def test_opcodes_is_dict_mapping_ints_to_tuple_str_function(self):
+        assert isinstance(functions.opcodes, dict)
+        for key, value in functions.opcodes.items():
+            assert type(key) is int
+            assert type(value) is tuple
+            assert len(value) == 2
+            assert type(value[0]) is str
+            assert callable(value[1])
+
+    def test_opcodes_inverse_is_dict_mapping_strs_to_tuple_int_function(self):
+        assert isinstance(functions.opcodes_inverse, dict)
+        for key, value in functions.opcodes_inverse.items():
+            assert type(key) is str
+            assert type(value) is tuple
+            assert len(value) == 2
+            assert type(value[0]) is int
+            assert callable(value[1])
+
+    def test_nopcodes_is_dict_mapping_ints_to_tuple_str_function(self):
+        assert isinstance(functions.nopcodes, dict)
+        for key, value in functions.nopcodes.items():
+            assert type(key) is int
+            assert type(value) is tuple
+            assert len(value) == 2
+            assert type(value[0]) is str
+            assert callable(value[1])
+
+    def test_nopcodes_inverse_is_dict_mapping_strs_to_tuple_int_function(self):
+        assert isinstance(functions.nopcodes_inverse, dict)
+        for key, value in functions.nopcodes_inverse.items():
+            assert type(key) is str
+            assert type(value) is tuple
+            assert len(value) == 2
+            assert type(value[0]) is int
+            assert callable(value[1])
 
 
     # skip OP_CALL test until run_tape tested
