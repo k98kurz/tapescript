@@ -1,6 +1,9 @@
 class ScriptExecutionError(BaseException):
     ...
 
+class SyntaxError(BaseException):
+    ...
+
 
 def vert(condition: bool, message: str = '') -> None:
     if condition:
@@ -16,3 +19,8 @@ def sert(condition: bool, message: str = '') -> None:
     if condition:
         return
     raise ScriptExecutionError(message)
+
+def yert(condition: bool, message: str = '') -> None:
+    if condition:
+        return
+    raise SyntaxError(message)
