@@ -154,6 +154,64 @@ class TestFunctions(unittest.TestCase):
         item = self.queue.get(False)
         assert item == functions.int_to_bytes(3)
 
+    def test_OP_WRITE_CACHE_reads_cache_key_and_int_from_tape_and_moves_from_queue_to_cache(self):
+        self.tape = classes.Tape(
+            functions.int_to_bytes(4) +
+            b'test' +
+            functions.int_to_bytes(2)
+        )
+        assert self.queue.empty()
+        assert not len(self.cache.keys())
+        self.queue.put(b'1')
+        self.queue.put(b'2')
+        functions.OP_WRITE_CACHE(self.tape, self.queue, self.cache)
+        assert self.queue.empty()
+        assert b'test' in self.cache
+        assert self.cache[b'test'] == [b'2', b'1']
+
+    def test_OP_READ_CACHE_reads_cache_key_from_tape_and_moves_values_from_cache_to_queue(self):
+        self.cache[b'test'] = [b'2', b'1']
+        self.tape = classes.Tape(functions.int_to_bytes(4) + b'test')
+        assert self.queue.empty()
+        functions.OP_READ_CACHE(self.tape, self.queue, self.cache)
+        assert not self.queue.empty()
+        assert self.cache[b'test'] == [b'2', b'1']
+        items = [self.queue.get(False), self.queue.get(False)]
+        assert items == [b'1', b'2']
+
+    def test_OP_READ_CACHE_SIZE_reads_cache_key_from_tape_and_puts_size_of_cache_on_queue(self):
+        self.cache[b'test'] = [b'2', b'1']
+        self.tape = classes.Tape(functions.int_to_bytes(4) + b'test')
+        assert self.queue.empty()
+        functions.OP_READ_CACHE_SIZE(self.tape, self.queue, self.cache)
+        assert not self.queue.empty()
+        assert self.cache[b'test'] == [b'2', b'1']
+        item = self.queue.get(False)
+        assert self.queue.empty()
+        assert item == functions.int_to_bytes(2)
+
+    def test_OP_READ_CACHE_Q_reads_cache_key_from_queue_and_moves_items_from_cache_to_queue(self):
+        self.cache[b'test'] = [b'2', b'1']
+        assert self.queue.empty()
+        self.queue.put(b'test')
+        functions.OP_READ_CACHE_Q(self.tape, self.queue, self.cache)
+        assert not self.queue.empty()
+        assert self.cache[b'test'] == [b'2', b'1']
+        items = [self.queue.get(False), self.queue.get(False)]
+        assert self.queue.empty()
+        assert items == [b'1', b'2']
+
+    def test_OP_READ_CACHE_Q_SIZE_reads_cache_key_from_queue_and_puts_size_of_cache_on_queue(self):
+        self.cache[b'test'] = [b'2', b'1']
+        assert self.queue.empty()
+        self.queue.put(b'test')
+        functions.OP_READ_CACHE_Q_SIZE(self.tape, self.queue, self.cache)
+        assert not self.queue.empty()
+        assert self.cache[b'test'] == [b'2', b'1']
+        item = self.queue.get(False)
+        assert self.queue.empty()
+        assert item == functions.int_to_bytes(2)
+
 
 if __name__ == '__main__':
     unittest.main()
