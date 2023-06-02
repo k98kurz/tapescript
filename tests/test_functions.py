@@ -604,13 +604,14 @@ class TestFunctions(unittest.TestCase):
         assert str(e.exception) == 'OP_VERIFY check failed'
         assert self.queue.empty()
 
-    def test_OP_CHECK_TIMESTAMP_raises_errors_for_invalid_constraint(self):
+    def test_OP_CHECK_TIMESTAMP_raises_error_for_invalid_constraint(self):
         assert self.queue.empty()
         self.queue.put(b'')
         with self.assertRaises(errors.ScriptExecutionError) as e:
             functions.OP_CHECK_TIMESTAMP(self.tape, self.queue, self.cache)
         assert str(e.exception) == 'OP_CHECK_TIMESTAMP malformed constraint encountered'
 
+    def test_OP_CHECKTIMESTAMP_raises_errors_for_invalid_cache_timestamp(self):
         assert self.queue.empty()
         self.queue.put(b'xxxx')
         with self.assertRaises(errors.ScriptExecutionError) as e:
@@ -624,6 +625,7 @@ class TestFunctions(unittest.TestCase):
             functions.OP_CHECK_TIMESTAMP(self.tape, self.queue, self.cache)
         assert str(e.exception) == 'OP_CHECK_TIMESTAMP malformed cache timestamp'
 
+    def test_OP_CHECKTIMESTAMP_raises_errors_for_invalid_ts_threshold_tape_flag(self):
         assert self.queue.empty()
         self.queue.put(b'xxxx')
         self.cache['timestamp'] = 3
@@ -641,7 +643,7 @@ class TestFunctions(unittest.TestCase):
 
     def test_OP_CHECK_TIMESTAMP_compares_top_queue_int_to_cache_timestamp(self):
         assert self.queue.empty()
-        self.tape = classes.Tape(b'', flags={'ts_threshold': 10})
+        self.tape.flags['ts_threshold'] = 10
         self.cache['timestamp'] = int(time())
         self.queue.put(int(time()).to_bytes(4, 'big'))
         functions.OP_CHECK_TIMESTAMP(self.tape, self.queue, self.cache)
@@ -663,6 +665,15 @@ class TestFunctions(unittest.TestCase):
         assert not self.queue.empty()
         item = self.queue.get(False)
         assert item == b'\x00'
+
+        assert self.queue.empty()
+        self.tape.flags['ts_threshold'] = 100
+        self.cache['timestamp'] = int(time())+12
+        self.queue.put(int(time()).to_bytes(4, 'big'))
+        functions.OP_CHECK_TIMESTAMP(self.tape, self.queue, self.cache)
+        assert not self.queue.empty()
+        item = self.queue.get(False)
+        assert item == b'\x01'
 
     def test_OP_CHECK_TIMESTAMP_VERIFY_runs_OP_CHECK_TIMESTAMP_then_OP_VERIFY(self):
         assert self.queue.empty()
@@ -686,6 +697,76 @@ class TestFunctions(unittest.TestCase):
         with self.assertRaises(errors.ScriptExecutionError) as e:
             functions.OP_CHECK_TIMESTAMP_VERIFY(self.tape, self.queue, self.cache)
         assert str(e.exception) == 'OP_VERIFY check failed'
+        assert self.queue.empty()
+
+    def test_OP_CHECK_EPOCH_raises_error_for_invalid_constraint(self):
+        assert self.queue.empty()
+        self.queue.put(b'')
+        with self.assertRaises(errors.ScriptExecutionError) as e:
+            functions.OP_CHECK_EPOCH(self.tape, self.queue, self.cache)
+        assert str(e.exception) == 'OP_CHECK_EPOCH malformed constraint encountered'
+
+    def test_OP_CHECK_EPOCH_raises_errors_for_invalid_epoch_threshold_tape_flag(self):
+        assert self.queue.empty()
+        self.queue.put(b'x')
+        with self.assertRaises(errors.ScriptExecutionError) as e:
+            functions.OP_CHECK_EPOCH(self.tape, self.queue, self.cache)
+        assert str(e.exception) == 'OP_CHECK_EPOCH missing epoch_threshold flag'
+
+        assert self.queue.empty()
+        self.queue.put(b'x')
+        self.tape.flags['epoch_threshold'] = 'not an int'
+        with self.assertRaises(errors.ScriptExecutionError) as e:
+            functions.OP_CHECK_EPOCH(self.tape, self.queue, self.cache)
+        assert str(e.exception) == 'OP_CHECK_EPOCH malformed epoch_threshold flag'
+
+        assert self.queue.empty()
+        self.queue.put(b'x')
+        self.tape.flags['epoch_threshold'] = -1
+        with self.assertRaises(errors.ScriptExecutionError) as e:
+            functions.OP_CHECK_EPOCH(self.tape, self.queue, self.cache)
+        assert str(e.exception) == 'OP_CHECK_EPOCH malformed epoch_threshold flag'
+
+    def test_OP_CHCECK_EPOCH_compares_current_time_to_constraint(self):
+        assert self.queue.empty()
+        self.tape.flags['epoch_threshold'] = 0
+        self.queue.put(int(time()-10).to_bytes(4, 'big'))
+        functions.OP_CHECK_EPOCH(self.tape, self.queue, self.cache)
+        assert not self.queue.empty()
+        assert self.queue.get(False) == b'\x01'
+
+        assert self.queue.empty()
+        self.queue.put(int(time()+10).to_bytes(4, 'big'))
+        functions.OP_CHECK_EPOCH(self.tape, self.queue, self.cache)
+        assert not self.queue.empty()
+        item = self.queue.get(False)
+        assert item == b'\x00'
+
+        assert self.queue.empty()
+        self.tape.flags['epoch_threshold'] = 100
+        self.queue.put(int(time()+10).to_bytes(4, 'big'))
+        functions.OP_CHECK_EPOCH(self.tape, self.queue, self.cache)
+        assert not self.queue.empty()
+        item = self.queue.get(False)
+        assert item == b'\x01'
+
+    def test_OP_CHECK_EPOCH_VERIFY_runs_OP_CHECK_EPOCH_then_OP_VERIFY(self):
+        assert self.queue.empty()
+        self.tape.flags['epoch_threshold'] = 0
+        self.queue.put(int(time()-10).to_bytes(4, 'big'))
+        functions.OP_CHECK_EPOCH_VERIFY(self.tape, self.queue, self.cache)
+        assert self.queue.empty()
+
+        assert self.queue.empty()
+        self.queue.put(int(time()+10).to_bytes(4, 'big'))
+        with self.assertRaises(errors.ScriptExecutionError) as e:
+            functions.OP_CHECK_EPOCH_VERIFY(self.tape, self.queue, self.cache)
+        assert self.queue.empty()
+
+        assert self.queue.empty()
+        self.tape.flags['epoch_threshold'] = 100
+        self.queue.put(int(time()+10).to_bytes(4, 'big'))
+        functions.OP_CHECK_EPOCH_VERIFY(self.tape, self.queue, self.cache)
         assert self.queue.empty()
 
 

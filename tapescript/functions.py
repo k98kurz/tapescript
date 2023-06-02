@@ -584,16 +584,16 @@ def OP_CHECK_EPOCH(tape: Tape, queue: LifoQueue, cache: dict) -> None:
         queue; otherwise, put True onto the queue.
     """
     constraint = queue.get(False)
-    assert type(constraint) is bytes and len(constraint) > 0, \
-        'OP_CHECK_EPOCH malformed constraint encountered'
+    sert(type(constraint) is bytes and len(constraint) > 0,
+        'OP_CHECK_EPOCH malformed constraint encountered')
     constraint = int.from_bytes(constraint, 'big')
 
-    assert 'epoch_threshold' in tape.flags, \
-        'OP_CHECK_EPOCH missing epoch_threshold flag'
-    assert type(tape.flags['epoch_threshold']) is int, \
-        'OP_CHECK_EPOCH malformed epoch_threshold flag'
-    assert tape.flags['epoch_threshold'] > 0, \
-        'OP_CHECK_EPOCH malformed epoch_threshold flag'
+    sert('epoch_threshold' in tape.flags,
+        'OP_CHECK_EPOCH missing epoch_threshold flag')
+    sert(type(tape.flags['epoch_threshold']) is int,
+        'OP_CHECK_EPOCH malformed epoch_threshold flag')
+    sert(tape.flags['epoch_threshold'] >= 0,
+        'OP_CHECK_EPOCH malformed epoch_threshold flag')
 
     if constraint - int(time()) >= tape.flags['epoch_threshold']:
         queue.put(b'\x00')
