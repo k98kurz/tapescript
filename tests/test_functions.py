@@ -4,6 +4,7 @@ from nacl.signing import SigningKey, VerifyKey
 from queue import LifoQueue
 from random import randint
 from secrets import token_bytes
+from time import time
 import nacl.bindings
 import unittest
 
@@ -600,6 +601,90 @@ class TestFunctions(unittest.TestCase):
         self.cache['sigfield1'] = b'not body'
         with self.assertRaises(errors.ScriptExecutionError) as e:
             functions.OP_CHECK_SIG_VERIFY(self.tape, self.queue, self.cache)
+        assert str(e.exception) == 'OP_VERIFY check failed'
+        assert self.queue.empty()
+
+    def test_OP_CHECK_TIMESTAMP_raises_errors_for_invalid_constraint(self):
+        assert self.queue.empty()
+        self.queue.put(b'')
+        with self.assertRaises(errors.ScriptExecutionError) as e:
+            functions.OP_CHECK_TIMESTAMP(self.tape, self.queue, self.cache)
+        assert str(e.exception) == 'OP_CHECK_TIMESTAMP malformed constraint encountered'
+
+        assert self.queue.empty()
+        self.queue.put(b'xxxx')
+        with self.assertRaises(errors.ScriptExecutionError) as e:
+            functions.OP_CHECK_TIMESTAMP(self.tape, self.queue, self.cache)
+        assert str(e.exception) == 'OP_CHECK_TIMESTAMP cache missing timestamp'
+
+        assert self.queue.empty()
+        self.queue.put(b'xxxx')
+        self.cache['timestamp'] = 'not an int'
+        with self.assertRaises(errors.ScriptExecutionError) as e:
+            functions.OP_CHECK_TIMESTAMP(self.tape, self.queue, self.cache)
+        assert str(e.exception) == 'OP_CHECK_TIMESTAMP malformed cache timestamp'
+
+        assert self.queue.empty()
+        self.queue.put(b'xxxx')
+        self.cache['timestamp'] = 3
+        with self.assertRaises(errors.ScriptExecutionError) as e:
+            functions.OP_CHECK_TIMESTAMP(self.tape, self.queue, self.cache)
+        assert str(e.exception) == 'OP_CHECK_TIMESTAMP missing ts_threshold flag'
+
+        assert self.queue.empty()
+        self.queue.put(b'xxxx')
+        self.cache['timestamp'] = 3
+        self.tape.flags['ts_threshold'] = 'not an int'
+        with self.assertRaises(errors.ScriptExecutionError) as e:
+            functions.OP_CHECK_TIMESTAMP(self.tape, self.queue, self.cache)
+        assert str(e.exception) == 'OP_CHECK_TIMESTAMP malformed ts_threshold flag'
+
+    def test_OP_CHECK_TIMESTAMP_compares_top_queue_int_to_cache_timestamp(self):
+        assert self.queue.empty()
+        self.tape = classes.Tape(b'', flags={'ts_threshold': 10})
+        self.cache['timestamp'] = int(time())
+        self.queue.put(int(time()).to_bytes(4, 'big'))
+        functions.OP_CHECK_TIMESTAMP(self.tape, self.queue, self.cache)
+        assert not self.queue.empty()
+        assert self.queue.get(False) == b'\x01'
+
+        assert self.queue.empty()
+        self.cache['timestamp'] = int(time())-1
+        self.queue.put(int(time()).to_bytes(4, 'big'))
+        functions.OP_CHECK_TIMESTAMP(self.tape, self.queue, self.cache)
+        assert not self.queue.empty()
+        item = self.queue.get(False)
+        assert item == b'\x00'
+
+        assert self.queue.empty()
+        self.cache['timestamp'] = int(time())+12
+        self.queue.put(int(time()).to_bytes(4, 'big'))
+        functions.OP_CHECK_TIMESTAMP(self.tape, self.queue, self.cache)
+        assert not self.queue.empty()
+        item = self.queue.get(False)
+        assert item == b'\x00'
+
+    def test_OP_CHECK_TIMESTAMP_VERIFY_runs_OP_CHECK_TIMESTAMP_then_OP_VERIFY(self):
+        assert self.queue.empty()
+        self.tape = classes.Tape(b'', flags={'ts_threshold': 10})
+        self.cache['timestamp'] = int(time())
+        self.queue.put(int(time()).to_bytes(4, 'big'))
+        functions.OP_CHECK_TIMESTAMP_VERIFY(self.tape, self.queue, self.cache)
+        assert self.queue.empty()
+
+        assert self.queue.empty()
+        self.cache['timestamp'] = int(time())-1
+        self.queue.put(int(time()).to_bytes(4, 'big'))
+        with self.assertRaises(errors.ScriptExecutionError) as e:
+            functions.OP_CHECK_TIMESTAMP_VERIFY(self.tape, self.queue, self.cache)
+        assert str(e.exception) == 'OP_VERIFY check failed'
+        assert self.queue.empty()
+
+        assert self.queue.empty()
+        self.cache['timestamp'] = int(time())+12
+        self.queue.put(int(time()).to_bytes(4, 'big'))
+        with self.assertRaises(errors.ScriptExecutionError) as e:
+            functions.OP_CHECK_TIMESTAMP_VERIFY(self.tape, self.queue, self.cache)
         assert str(e.exception) == 'OP_VERIFY check failed'
         assert self.queue.empty()
 

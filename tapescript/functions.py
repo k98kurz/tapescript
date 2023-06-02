@@ -547,27 +547,27 @@ def OP_CHECK_TIMESTAMP(tape: Tape, queue: LifoQueue, cache: dict) -> None:
         values; if the cache timestamp is less than the queue time, or
         if current Unix epoch is behind cache timestamp by the flagged
         amount, put False onto the queue; otherwise, put True onto the
-        queue.
+        queue. If the ts_threshold flag is <= 0, that check will be
+        skipped.
     """
     constraint = queue.get(False)
-    assert type(constraint) is bytes and len(constraint) > 0, \
-        'OP_CHECK_TIMESTAMP malformed constraint encountered'
+    sert(type(constraint) is bytes and len(constraint) > 0,
+        'OP_CHECK_TIMESTAMP malformed constraint encountered')
     constraint = int.from_bytes(constraint, 'big')
 
-    assert 'timestamp' in cache, 'OP_CHECK_TIMESTAMP cache missing timestamp'
-    assert type(cache['timestamp']) is int, \
-        'OP_CHECK_TIMESTAMP malformed cache timestamp'
+    sert('timestamp' in cache, 'OP_CHECK_TIMESTAMP cache missing timestamp')
+    sert(type(cache['timestamp']) is int,
+        'OP_CHECK_TIMESTAMP malformed cache timestamp')
 
-    assert 'ts_threshold' in tape.flags, \
-        'OP_CHECK_TIMESTAMP missing ts_threshold flag'
-    assert type(tape.flags['ts_threshold']) is int, \
-        'OP_CHECK_TIMESTAMP malformed ts_threshold flag'
-    assert tape.flags['ts_threshold'] > 0, \
-        'OP_CHECK_TIMESTAMP malformed ts_threshold flag'
+    sert('ts_threshold' in tape.flags,
+        'OP_CHECK_TIMESTAMP missing ts_threshold flag')
+    sert(type(tape.flags['ts_threshold']) is int,
+        'OP_CHECK_TIMESTAMP malformed ts_threshold flag')
 
     if cache['timestamp'] < constraint:
         queue.put(b'\x00')
-    elif cache['timestamp'] - int(time()) >= tape.flags['ts_threshold']:
+    elif cache['timestamp'] - int(time()) >= tape.flags['ts_threshold'] and \
+        tape.flags['ts_threshold'] > 0:
         queue.put(b'\x00')
     else:
         queue.put(b'\x01')
