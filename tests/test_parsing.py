@@ -19,6 +19,28 @@ class TestParsing(unittest.TestCase):
             parsing.get_symbols("OP_PUSH s'unterminated should error")
         assert str(e.exception) == 'unterminated string encountered'
 
+    def test_get_symbols_parses_properly(self):
+        symbols = parsing.get_symbols('OP_WHATEVER s"some string should be one symbol" OP_SOMETHING d123')
+        assert symbols == [
+            'OP_WHATEVER',
+            's"some string should be one symbol"',
+            'OP_SOMETHING',
+            'd123'
+        ]
+        symbols = parsing.get_symbols('OP_DEF 0 { OP_PUSH x1234 }')
+        assert symbols == [
+            'OP_DEF',
+            '0',
+            '{',
+            'OP_PUSH',
+            'x1234',
+            '}'
+        ]
+
+    def test_get_symbols_converts_any_whitespace_to_single_space(self):
+        symbols = parsing.get_symbols('s"should   be\nseparated\tby\njust    1 space"')
+        assert symbols == ['s"should be separated by just 1 space"']
+
     def test_compile_script_errors_on_nonstr_input(self):
         with self.assertRaises(ValueError) as e:
             parsing.compile_script(b'not a str')
