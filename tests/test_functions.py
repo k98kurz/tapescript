@@ -769,6 +769,288 @@ class TestFunctions(unittest.TestCase):
         functions.OP_CHECK_EPOCH_VERIFY(self.tape, self.queue, self.cache)
         assert self.queue.empty()
 
+    def test_OP_DEF_creates_subtape_definition(self):
+        assert self.queue.empty()
+        self.tape = classes.Tape(b'\x00\x00\x00\x0bhello world')
+        assert not self.tape.definitions
+        functions.OP_DEF(self.tape, self.queue, self.cache)
+        assert b'\x00' in self.tape.definitions
+        assert isinstance(self.tape.definitions[b'\x00'], classes.Tape)
+        assert self.tape.definitions[b'\x00'].data == b'hello world'
+        assert self.queue.empty()
+
+    def test_OP_NOT_inverts_bool_value_of_top_queue_value(self):
+        assert self.queue.empty()
+        self.queue.put(b'\x01')
+        functions.OP_NOT(self.tape, self.queue, self.cache)
+        assert not self.queue.empty()
+        assert self.queue.get(False) == b'\x00'
+
+        assert self.queue.empty()
+        self.queue.put(b'\x00')
+        functions.OP_NOT(self.tape, self.queue, self.cache)
+        assert not self.queue.empty()
+        assert self.queue.get(False) == b'\x01'
+        assert self.queue.empty()
+
+    def test_OP_RANDOM_puts_random_bytes_on_queue(self):
+        assert self.queue.empty()
+        n_bytes = randint(1, 250)
+        self.tape = classes.Tape(n_bytes.to_bytes(1, 'big'))
+        functions.OP_RANDOM(self.tape, self.queue, self.cache)
+        assert not self.queue.empty()
+        item = self.queue.get(False)
+        assert type(item) is bytes
+        assert len(item) == n_bytes
+        assert self.queue.empty()
+
+    def test_OP_RETURN_advances_tape_pointer_to_end(self):
+        self.tape = classes.Tape(b'asdkjhk123')
+        assert self.tape.pointer == 0
+        functions.OP_RETURN(self.tape, self.queue, self.cache)
+        assert self.tape.pointer == len(self.tape.data)
+        with self.assertRaises(errors.ScriptExecutionError) as e:
+            self.tape.read(1)
+
+    def test_OP_SET_FLAG_raises_error_for_unrecognized_flag(self):
+        self.tape = classes.Tape(b'\x03abc')
+        with self.assertRaises(errors.ScriptExecutionError) as e:
+            functions.OP_SET_FLAG(self.tape, self.queue, self.cache)
+        assert str(e.exception) == 'OP_SET_FLAG unrecognized flag'
+
+    def test_OP_SET_FLAG_sets_tape_flag_to_default_value(self):
+        self.tape = classes.Tape(b'\x0adummy_flag')
+        assert b'dummy_flag' not in self.tape.flags
+        functions.OP_SET_FLAG(self.tape, self.queue, self.cache)
+        assert b'dummy_flag' in self.tape.flags
+
+    def test_OP_UNSET_FLAG_unsets_tape_flag(self):
+        self.tape = classes.Tape(b'\x0adummy_flag')
+        self.tape.flags[b'dummy_flag'] = 1
+        assert b'dummy_flag' in self.tape.flags
+        functions.OP_UNSET_FLAG(self.tape, self.queue, self.cache)
+        assert b'dummy_flag' not in self.tape.flags
+
+    def test_OP_DEPTH_puts_queue_size_onto_queue(self):
+        assert self.queue.empty()
+        self.queue.put(b'123')
+        self.queue.put(b'321')
+        self.queue.put(b'asd')
+        functions.OP_DEPTH(self.tape, self.queue, self.cache)
+        assert not self.queue.empty()
+        item = self.queue.get(False)
+        assert functions.bytes_to_int(item) == 3
+        items = []
+        while not self.queue.empty():
+            items.append(self.queue.get(False))
+        assert items == [b'asd', b'321', b'123']
+
+    def test_OP_SWAP_swaps_order_of_queue_items_given_indices_from_tape(self):
+        assert self.queue.empty()
+        self.tape = classes.Tape(b'\x00\x02')
+        self.queue.put(b'bottom')
+        self.queue.put(b'middle')
+        self.queue.put(b'top')
+        functions.OP_SWAP(self.tape, self.queue, self.cache)
+        items = []
+        while not self.queue.empty():
+            items.append(self.queue.get(False))
+        assert items == [b'bottom', b'middle', b'top']
+
+    def test_OP_SWAP2_swaps_top_two_queue_items(self):
+        self.queue.put(b'second')
+        self.queue.put(b'first')
+        functions.OP_SWAP2(self.tape, self.queue, self.cache)
+        assert self.queue.get(False) == b'second'
+        assert self.queue.get(False) == b'first'
+
+    def test_OP_REVERSE_reads_uint_from_tape_and_reverses_order_of_that_many_queue_items(self):
+        assert self.queue.empty()
+        self.queue.put(4)
+        self.queue.put(3)
+        self.queue.put(2)
+        self.queue.put(1)
+        self.tape = classes.Tape(b'\x03')
+        functions.OP_REVERSE(self.tape, self.queue, self.cache)
+        items = []
+        while not self.queue.empty():
+            items.append(self.queue.get(False))
+        assert items == [3,2,1,4]
+
+    def test_OP_CONCAT_concatenates_top_two_items_from_queue(self):
+        self.queue.put(b'123')
+        self.queue.put(b'321')
+        functions.OP_CONCAT(self.tape, self.queue, self.cache)
+        assert self.queue.get(False) == b'321123'
+        assert self.queue.empty()
+
+    def test_OP_SPLIT_splits_top_queue_item_at_uint_index_read_from_tape(self):
+        self.tape = classes.Tape(b'\x02')
+        self.queue.put(b'12345')
+        functions.OP_SPLIT(self.tape, self.queue, self.cache)
+        assert self.queue.get(False) == b'345'
+        assert self.queue.get(False) == b'12'
+
+    def test_OP_CONCAT_STR_concatenates_top_two_utf8_str_items_from_queue(self):
+        self.queue.put(bytes('123', 'utf-8'))
+        self.queue.put(bytes('abc', 'utf-8'))
+        functions.OP_CONCAT_STR(self.tape, self.queue, self.cache)
+        item = self.queue.get(False)
+        assert str(item, 'utf-8') == 'abc123'
+        assert self.queue.empty()
+
+    def test_OP_SPLIT_STR_splits_top_queue_utf8_str_at_uint_index_read_from_tape(self):
+        self.tape = classes.Tape(b'\x02')
+        self.queue.put(bytes('12345', 'utf-8'))
+        functions.OP_SPLIT_STR(self.tape, self.queue, self.cache)
+        assert str(self.queue.get(False), 'utf-8') == '345'
+        assert str(self.queue.get(False), 'utf-8') == '12'
+
+    def test_NOP_reads_uint_from_tape_and_pulls_that_many_items_from_queue(self):
+        assert self.queue.empty()
+        self.queue.put(1)
+        self.queue.put(2)
+        self.queue.put(3)
+        self.tape = classes.Tape(b'\x02')
+        functions.NOP(self.tape, self.queue, self.cache)
+        assert self.queue.get(False) == 1
+        assert self.queue.empty()
+
+    def test_OP_CHECK_TRANSFER_errors_on_missing_or_invalid_contract_or_params(self):
+        def setup_transfer():
+            self.tape = classes.Tape(b'\x01')
+            self.queue.put(b'txn_proof')
+            self.queue.put(b'source')
+            self.queue.put(b'destination')
+            self.queue.put(b'constraint')
+            self.queue.put(b'amount')
+            self.queue.put(b'contractid')
+
+        valid_contract = {
+            'verify_txn_proof': lambda txn_proof: True,
+            'verify_transfer': lambda txn_proof, source, destination: True,
+            'verify_txn_constraint': lambda txn_proof, constraint: True,
+            'calc_txn_aggregates': lambda proofs, scope: {b'destination': 10}
+        }
+
+        setup_transfer()
+        with self.assertRaises(errors.ScriptExecutionError) as e:
+            functions.OP_CHECK_TRANSFER(self.tape, self.queue, self.cache)
+        assert str(e.exception) == 'OP_CHECK_TRANSFER missing contract'
+
+        setup_transfer()
+        self.tape.contracts[b'contractid'] = {}
+        with self.assertRaises(errors.ScriptExecutionError) as e:
+            functions.OP_CHECK_TRANSFER(self.tape, self.queue, self.cache)
+        assert str(e.exception) == 'OP_CHECK_TRANSFER contract missing verify_txn_proof'
+
+        setup_transfer()
+        self.tape.contracts[b'contractid'] = {'verify_txn_proof': 1}
+        with self.assertRaises(errors.ScriptExecutionError) as e:
+            functions.OP_CHECK_TRANSFER(self.tape, self.queue, self.cache)
+        assert str(e.exception) == 'OP_CHECK_TRANSFER malformed contract'
+
+        setup_transfer()
+        self.tape.contracts[b'contractid'] = {
+            'verify_txn_proof': valid_contract['verify_txn_proof']
+        }
+        with self.assertRaises(errors.ScriptExecutionError) as e:
+            functions.OP_CHECK_TRANSFER(self.tape, self.queue, self.cache)
+        assert str(e.exception) == 'OP_CHECK_TRANSFER contract missing verify_transfer'
+
+        setup_transfer()
+        self.tape.contracts[b'contractid'] = {
+            'verify_txn_proof': valid_contract['verify_txn_proof'],
+            'verify_transfer': 1
+        }
+        with self.assertRaises(errors.ScriptExecutionError) as e:
+            functions.OP_CHECK_TRANSFER(self.tape, self.queue, self.cache)
+        assert str(e.exception) == 'OP_CHECK_TRANSFER malformed contract'
+
+        setup_transfer()
+        self.tape.contracts[b'contractid'] = {
+            'verify_txn_proof': valid_contract['verify_txn_proof'],
+            'verify_transfer': valid_contract['verify_transfer']
+        }
+        with self.assertRaises(errors.ScriptExecutionError) as e:
+            functions.OP_CHECK_TRANSFER(self.tape, self.queue, self.cache)
+        assert str(e.exception) == 'OP_CHECK_TRANSFER contract missing verify_txn_constraint'
+
+        setup_transfer()
+        self.tape.contracts[b'contractid'] = {
+            'verify_txn_proof': valid_contract['verify_txn_proof'],
+            'verify_transfer': valid_contract['verify_transfer'],
+            'verify_txn_constraint': 1
+        }
+        with self.assertRaises(errors.ScriptExecutionError) as e:
+            functions.OP_CHECK_TRANSFER(self.tape, self.queue, self.cache)
+        assert str(e.exception) == 'OP_CHECK_TRANSFER malformed contract'
+
+        setup_transfer()
+        self.tape.contracts[b'contractid'] = {
+            'verify_txn_proof': valid_contract['verify_txn_proof'],
+            'verify_transfer': valid_contract['verify_transfer'],
+            'verify_txn_constraint': valid_contract['verify_txn_constraint']
+        }
+        with self.assertRaises(errors.ScriptExecutionError) as e:
+            functions.OP_CHECK_TRANSFER(self.tape, self.queue, self.cache)
+        assert str(e.exception) == 'OP_CHECK_TRANSFER contract missing calc_txn_aggregates'
+
+        setup_transfer()
+        self.tape.contracts[b'contractid'] = {
+            'verify_txn_proof': valid_contract['verify_txn_proof'],
+            'verify_transfer': valid_contract['verify_transfer'],
+            'verify_txn_constraint': valid_contract['verify_txn_constraint'],
+            'calc_txn_aggregates': 1
+        }
+        with self.assertRaises(errors.ScriptExecutionError) as e:
+            functions.OP_CHECK_TRANSFER(self.tape, self.queue, self.cache)
+        assert str(e.exception) == 'OP_CHECK_TRANSFER malformed contract'
+
+    def test_OP_CHECK_TRANSFER_works(self):
+        def setup_transfer():
+            self.tape = classes.Tape(b'\x01')
+            self.queue.put(b'txn_proof')
+            self.queue.put(b'source')
+            self.queue.put(b'destination')
+            self.queue.put(b'constraint')
+            self.queue.put((10).to_bytes(1, 'big')) # amount
+            self.queue.put(b'contractid')
+
+        amount = 10
+        valid_contract = {
+            'verify_txn_proof': lambda txn_proof: True,
+            'verify_transfer': lambda txn_proof, source, destination: True,
+            'verify_txn_constraint': lambda txn_proof, constraint: True,
+            'calc_txn_aggregates': lambda proofs, scope: {b'destination': amount}
+        }
+
+        setup_transfer()
+        self.tape.contracts[b'contractid'] = valid_contract
+        functions.OP_CHECK_TRANSFER(self.tape, self.queue, self.cache)
+        assert self.queue.get(False) == b'\x01'
+        assert self.queue.empty()
+
+        amount = 9
+        setup_transfer()
+        self.tape.contracts[b'contractid'] = valid_contract
+        functions.OP_CHECK_TRANSFER(self.tape, self.queue, self.cache)
+        assert self.queue.get(False) == b'\x00'
+        assert self.queue.empty()
+
+        amount = 11
+        setup_transfer()
+        self.tape.contracts[b'contractid'] = valid_contract
+        functions.OP_CHECK_TRANSFER(self.tape, self.queue, self.cache)
+        assert self.queue.get(False) == b'\x01'
+        assert self.queue.empty()
+
+
+    # skip OP_CALL test until run_tape tested
+    # skip OP_IF test until OP_CALL tested
+    # skip OP_IF_ELSE test until OP_CALL tested
+    # skip OP_EVAL test until OP_CALL tested
+
 
 if __name__ == '__main__':
     unittest.main()

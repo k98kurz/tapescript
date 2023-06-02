@@ -698,7 +698,7 @@ def OP_EVAL(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     subqueue.queue = [*queue.queue]
 
     # run
-    run_tape(subtape, subqueue, cache)
+    run_tape(subtape, subqueue, subcache)
 
     # copy results
     for item in subqueue.queue:
@@ -729,7 +729,7 @@ def OP_SET_FLAG(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """
     size = int.from_bytes(tape.read(1), 'big')
     flag = tape.read(size)
-    assert flag in flags, 'OP_SET_FLAG unrecognized flag'
+    sert(flag in flags, 'OP_SET_FLAG unrecognized flag')
     tape.flags[flag] = flags[flag][0]
 
 def OP_UNSET_FLAG(tape: Tape, queue: LifoQueue, cache: dict) -> None:
@@ -843,7 +843,7 @@ def OP_CHECK_TRANSFER(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     # get parameters
     count = int.from_bytes(tape.read(1), 'big')
     contract_id = queue.get(False)
-    amount = queue.get(False)
+    amount = bytes_to_int(queue.get(False))
     constraint = queue.get(False)
     destination = queue.get(False)
     sources = []
@@ -857,24 +857,24 @@ def OP_CHECK_TRANSFER(tape: Tape, queue: LifoQueue, cache: dict) -> None:
         txn_proofs.append(queue.get(False))
 
     # check contract is loaded and has required functions
-    assert contract_id in tape.contracts, \
-        'OP_CHECK_TRANSFER missing contract'
-    assert 'verify_txn_proof' in tape.contracts[contract_id], \
-        'OP_CHECK_TRANSFER contract missing verify_txn_proof'
-    assert callable(tape.contracts[contract_id]['verify_txn_proof']), \
-        'OP_CHECK_TRANSFER malformed contract'
-    assert 'verify_transfer' in tape.contracts[contract_id], \
-        'OP_CHECK_TRANSFER contract missing verify_transfer'
-    assert callable(tape.contracts[contract_id]['verify_transfer']), \
-        'OP_CHECK_TRANSFER malformed contract'
-    assert 'verify_txn_constraint' in tape.contracts[contract_id], \
-        'OP_CHECK_TRANSFER contract missing verify_txn_constraint'
-    assert callable(tape.contracts[contract_id]['verify_txn_constraint']), \
-        'OP_CHECK_TRANSFER malformed contract'
-    assert 'calc_txn_aggregates' in tape.contracts[contract_id], \
-        'OP_CHECK_TRANSFER contract missing calc_txn_aggregates'
-    assert callable(tape.contracts[contract_id]['calc_txn_aggregates']), \
-        'OP_CHECK_TRANSFER malformed contract'
+    sert(contract_id in tape.contracts,
+        'OP_CHECK_TRANSFER missing contract')
+    sert('verify_txn_proof' in tape.contracts[contract_id],
+        'OP_CHECK_TRANSFER contract missing verify_txn_proof')
+    sert(callable(tape.contracts[contract_id]['verify_txn_proof']),
+        'OP_CHECK_TRANSFER malformed contract')
+    sert('verify_transfer' in tape.contracts[contract_id],
+        'OP_CHECK_TRANSFER contract missing verify_transfer')
+    sert(callable(tape.contracts[contract_id]['verify_transfer']),
+        'OP_CHECK_TRANSFER malformed contract')
+    sert('verify_txn_constraint' in tape.contracts[contract_id],
+        'OP_CHECK_TRANSFER contract missing verify_txn_constraint')
+    sert(callable(tape.contracts[contract_id]['verify_txn_constraint']),
+        'OP_CHECK_TRANSFER malformed contract')
+    sert('calc_txn_aggregates' in tape.contracts[contract_id],
+        'OP_CHECK_TRANSFER contract missing calc_txn_aggregates')
+    sert(callable(tape.contracts[contract_id]['calc_txn_aggregates']),
+        'OP_CHECK_TRANSFER malformed contract')
 
     verify_txn_proof = tape.contracts[contract_id]['verify_txn_proof']
     verify_transfer = tape.contracts[contract_id]['verify_transfer']
@@ -988,6 +988,7 @@ nopcodes_inverse = {
 flags = {
     'ts_threshold': (60*60*12,),
     'epoch_threshold': (60*60*12,),
+    b'dummy_flag': (1,)
 }
 
 
