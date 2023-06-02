@@ -49,7 +49,7 @@ class TestParsing(unittest.TestCase):
     def test_compile_script_errors_on_invalid_opcode(self):
         with self.assertRaises(ValueError) as e:
             parsing.compile_script('OP_WTF d1')
-        assert str(e.exception) == 'unrecognized opcode'
+        assert str(e.exception) == 'unrecognized opcode: OP_WTF'
 
     def test_compile_script_errors_on_invalid_opcode_use_syntax(self):
         with self.assertRaises(errors.SyntaxError) as e:
@@ -149,7 +149,9 @@ class TestParsing(unittest.TestCase):
         assert str(e.exception) == 'OP_SWAP value prefaced by x must be 2 long (1 byte)'
 
     def test_compile_script_ignores_comments(self):
-        ...
+        code1 = parsing.compile_script('OP_POP0')
+        code2 = parsing.compile_script('# ignored # OP_POP0')
+        assert code1 == code2 == functions.opcodes_inverse['OP_POP0'][0].to_bytes(1)
 
 
 if __name__ == '__main__':

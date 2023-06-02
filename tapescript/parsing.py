@@ -35,7 +35,7 @@ def compile_script(script: str) -> bytes:
     """Compile the given human-readable script into byte code."""
     vert(type(script) is str, 'input script must be str')
 
-    def get_args(opcode: str, symbols: list[str]) -> tuple[int, bytes]:
+    def get_args(opcode: str, symbols: list[str]) -> tuple[int, tuple[bytes]]:
         """Get the number of symbols to advance and args for an op."""
         symbols_to_advance = 1
         args = []
@@ -76,10 +76,19 @@ def compile_script(script: str) -> bytes:
                         val = bytes.fromhex(val[1:])
 
                 if 1 < len(val) < 256:
+                    # tape syntax of OP_PUSH1 [size 0-255] [val]
+                    # human-readable decompiled syntax of OP_PUSH1 val
+                    symbols_to_advance += 1
                     args.append(len(val).to_bytes(1, 'big'))
                 elif 255 < len(val) < 65_536:
+                    # tape syntax of OP_PUSH2 [size 0-65_535] [val]
+                    # human-readable decompiled syntax of OP_PUSH2 val
+                    symbols_to_advance += 1
                     args.append(len(val).to_bytes(2, 'big'))
                 elif 65_535 < len(val) < 4_294_967_296:
+                    # tape syntax of OP_PUSH4 [size 0-4_294_967_295] [val]
+                    # human-readable decompiled syntax of OP_PUSH4 val
+                    symbols_to_advance += 1
                     args.append(len(val).to_bytes(4, 'big'))
                 args.append(val)
             case 'OP_PUSH1' | 'OP_WRITE_CACHE' | 'OP_READ_CACHE' | \
@@ -260,11 +269,14 @@ def compile_script(script: str) -> bytes:
 
         return (symbols_to_advance, tuple(args))
 
+    def parse_if(symbols: list[str]) -> tuple[int, tuple[bytes]]:
+        ...
+
+    def parse_if_else(symbols: list[str]) -> tuple[int, tuple[bytes]]:
+        ...
+
     # setup
     code = []
-    in_def, if_depth = False, 0
-    defs = {}
-    if_codes = []
 
     # get a list of symbols
     symbols = get_symbols(script)
@@ -276,10 +288,11 @@ def compile_script(script: str) -> bytes:
         # ignore comments (symbols between matchin #, ', or ")
         if symbol in ('"', "'", '#'):
             # skip forward past the matching symbol
-            index = symbols.index(symbol, index) + 1
+            index = symbols.index(symbol, index+1) + 1
             continue
 
-        vert(symbols[0] in opcodes_inverse, 'unrecognized opcode')
+        vert(symbol in opcodes_inverse or symbol == 'OP_PUSH',
+             f'unrecognized opcode: {symbol}')
 
         # handle definition
         if symbol == 'OP_DEF':
@@ -311,11 +324,31 @@ def compile_script(script: str) -> bytes:
                 yert(current_symbol != 'OP_DEF',
                     'cannot use OP_DEF within OP_DEF body')
 
+                if current_symbol[:3] == 'OP_' and current_symbol != 'OP_PUSH':
+                    def_code += opcodes_inverse[current_symbol][0].to_bytes(1, 'big')
+
                 if current_symbol == 'OP_IF':
-                    ...
+                    advance, args = parse_if(symbols[i+1:])
+                    i += advance
+                    def_code += b''.join(args)
+                elif current_symbol == 'OP_IF_ELSE':
+                    advance, args = parse_if_else(symbols[i+1:])
+                    i += advance
+                    def_code += b''.join(args)
                 else:
                     advance, args = get_args(current_symbol, symbols[i+1:])
                     i += advance
+                    if current_symbol == 'OP_PUSH':
+                        if len(args[0]) < 2:
+                            def_code += opcodes_inverse['OP_PUSH0'][0].to_bytes(1, 'big')
+                        elif 1 < len(args[0]) < 256:
+                            def_code += opcodes_inverse['OP_PUSH1'][0].to_bytes(1, 'big')
+                        elif 255 < len(args[0]) < 65_536:
+                            def_code += opcodes_inverse['OP_PUSH2'][0].to_bytes(1, 'big')
+                        elif 65_535 < len(args[0]) < 2**32:
+                            def_code += opcodes_inverse['OP_PUSH4'][0].to_bytes(1, 'big')
+                    else:
+                        code.append(opcodes_inverse[current_symbol][0].to_bytes(1, 'big'))
                     def_code += b''.join(args)
 
             # add def handle to code
@@ -323,7 +356,7 @@ def compile_script(script: str) -> bytes:
 
             # add def size to code
             def_size = len(def_code)
-            assert 0 < def_size < 2**24, 'def size limit exceeded'
+            yert(def_size < 2**24, 'def size limit exceeded')
             code.append(def_size.to_bytes(3, 'big'))
 
             # add def code to code
@@ -331,6 +364,33 @@ def compile_script(script: str) -> bytes:
 
             # advance the index
             index += search_idx
+        elif symbol == 'OP_IF':
+            advance, args = parse_if(symbols[index+1:])
+            index += advance
+            code.append(opcodes_inverse['OP_IF'][0].to_bytes(1, 'big'))
+            code.append(b''.join(args))
+        elif symbol == 'OP_IF_ELSE':
+            advance, args = parse_if_else(symbols[index+1:])
+            index += advance
+            code.append(opcodes_inverse['OP_IF_ELSE'][0].to_bytes(1, 'big'))
+            code.append(b''.join(args))
+        else:
+            advance, args = get_args(symbol, symbols[index+1:])
+            index += advance
+            if symbol == 'OP_PUSH':
+                if len(args[0]) < 2:
+                    def_code += opcodes_inverse['OP_PUSH0'][0].to_bytes(1, 'big')
+                elif 1 < len(args[0]) < 256:
+                    def_code += opcodes_inverse['OP_PUSH1'][0].to_bytes(1, 'big')
+                elif 255 < len(args[0]) < 65_536:
+                    def_code += opcodes_inverse['OP_PUSH2'][0].to_bytes(1, 'big')
+                elif 65_535 < len(args[0]) < 2**32:
+                    def_code += opcodes_inverse['OP_PUSH4'][0].to_bytes(1, 'big')
+            else:
+                code.append(opcodes_inverse[symbol][0].to_bytes(1, 'big'))
+            code.append(b''.join(args))
+
+    return b''.join(code)
 
 
 def decompile_script(script: bytes) -> str:
