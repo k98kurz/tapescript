@@ -37,6 +37,11 @@ class TestTape(unittest.TestCase):
         assert type(tape.has_terminated()) is bool
         assert tape.has_terminated() is True
 
+    def test_Tape_instance_has_dict_flags_property(self):
+        tape = classes.Tape(b'some data')
+        assert hasattr(tape, 'flags')
+        assert isinstance(tape.flags, dict)
+
 
 if __name__ == '__main__':
     unittest.main()
