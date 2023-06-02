@@ -1,7 +1,10 @@
 from context import classes, functions
-from hashlib import sha256, sha3_256
+from hashlib import sha256, shake_256
+from nacl.signing import SigningKey, VerifyKey
 from queue import LifoQueue
 from random import randint
+from secrets import token_bytes
+import nacl.bindings
 import unittest
 
 
@@ -419,6 +422,96 @@ class TestFunctions(unittest.TestCase):
         item = functions.bytes_to_float(item)
         assert self.queue.empty()
         assert (item-expected)/expected < 0.000001
+
+    def test_OP_ADD_POINTS_reads_uint_from_tape_pulls_that_many_points_from_queue_puts_sum_on_queue(self):
+        assert self.queue.empty()
+        self.tape = classes.Tape(functions.int_to_bytes(2))
+        point1 = bytes(SigningKey(token_bytes(32)).verify_key)
+        point2 = bytes(SigningKey(token_bytes(32)).verify_key)
+        expected = nacl.bindings.crypto_core_ed25519_add(point1, point2)
+        self.queue.put(point1)
+        self.queue.put(point2)
+        functions.OP_ADD_POINTS(self.tape, self.queue, self.cache)
+        assert not self.cache
+        assert not self.queue.empty()
+        item = self.queue.get(False)
+        assert item == bytes(expected)
+
+    def test_OP_COPY_reads_uint_from_tape_and_copies_top_queue_value_that_many_times(self):
+        assert self.queue.empty()
+        n_copies = randint(1, 255)
+        self.queue.put(b'1')
+        self.tape = classes.Tape(n_copies.to_bytes(1, 'big'))
+        functions.OP_COPY(self.tape, self.queue, self.cache)
+        expected = n_copies + 1
+        observed = 0
+        while not self.queue.empty():
+            observed += 1
+            assert self.queue.get(False) == b'1'
+        assert observed == expected
+
+    def test_OP_DUP_duplicates_top_queue_item(self):
+        assert self.queue.empty()
+        self.queue.put(b'1')
+        functions.OP_DUP(self.tape, self.queue, self.cache)
+        assert self.queue.get(False) == b'1'
+        assert self.queue.get(False) == b'1'
+        assert self.queue.empty()
+
+    def test_OP_SHA256_pulls_value_from_queue_and_puts_its_sha256_on_queue(self):
+        assert self.queue.empty()
+        preimage = b'123232'
+        self.queue.put(preimage)
+        functions.OP_SHA256(self.tape, self.queue, self.cache)
+        expected = sha256(preimage).digest()
+        assert self.queue.get(False) == expected
+        assert self.queue.empty()
+
+    def test_OP_SHAKE256_reads_uint_from_tape_pulls_value_from_queue_and_puts_its_shake256_on_queue(self):
+        assert self.queue.empty()
+        self.tape = classes.Tape((20).to_bytes(1, 'big'))
+        preimage = b'123232'
+        self.queue.put(preimage)
+        functions.OP_SHAKE256(self.tape, self.queue, self.cache)
+        expected = shake_256(preimage).digest(20)
+        assert self.queue.get(False) == expected
+        assert self.queue.empty()
+
+    def test_OP_VERIFY_raises_error_only_if_top_queue_item_is_not_true(self):
+        self.queue.put(b'\x00')
+        with self.assertRaises(AssertionError) as e:
+            functions.OP_VERIFY(self.tape, self.queue, self.cache)
+        assert str(e.exception) == 'OP_VERIFY check failed'
+
+        self.queue.put(b'\x01')
+        functions.OP_VERIFY(self.tape, self.queue, self.cache)
+        self.queue.put(b'12323')
+        functions.OP_VERIFY(self.tape, self.queue, self.cache)
+
+    def test_OP_EQUAL_compares_two_values_from_queue_and_puts_bool_on_queue(self):
+        self.queue.put(b'123')
+        self.queue.put(b'123')
+        functions.OP_EQUAL(self.tape, self.queue, self.cache)
+        assert self.queue.get(False) == b'\x01'
+
+        self.queue.put(b'321')
+        self.queue.put(b'123')
+        functions.OP_EQUAL(self.tape, self.queue, self.cache)
+        assert self.queue.get(False) == b'\x00'
+
+    def test_OP_EQUAL_VERIFY_runs_OP_EQUAL_then_OP_VERIFY(self):
+        assert self.queue.empty()
+        self.queue.put(b'123')
+        self.queue.put(b'123')
+        functions.OP_EQUAL_VERIFY(self.tape, self.queue, self.cache)
+        assert self.queue.empty()
+
+        self.queue.put(b'321')
+        self.queue.put(b'123')
+        with self.assertRaises(AssertionError) as e:
+            functions.OP_EQUAL_VERIFY(self.tape, self.queue, self.cache)
+        assert str(e.exception) == 'OP_VERIFY check failed'
+        assert self.queue.empty()
 
 
 if __name__ == '__main__':
