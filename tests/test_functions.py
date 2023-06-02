@@ -1,4 +1,4 @@
-from context import classes, functions
+from context import classes, errors, functions
 from hashlib import sha256, shake_256
 from nacl.signing import SigningKey, VerifyKey
 from queue import LifoQueue
@@ -479,7 +479,7 @@ class TestFunctions(unittest.TestCase):
 
     def test_OP_VERIFY_raises_error_only_if_top_queue_item_is_not_true(self):
         self.queue.put(b'\x00')
-        with self.assertRaises(AssertionError) as e:
+        with self.assertRaises(errors.ScriptExecutionError) as e:
             functions.OP_VERIFY(self.tape, self.queue, self.cache)
         assert str(e.exception) == 'OP_VERIFY check failed'
 
@@ -508,8 +508,98 @@ class TestFunctions(unittest.TestCase):
 
         self.queue.put(b'321')
         self.queue.put(b'123')
-        with self.assertRaises(AssertionError) as e:
+        with self.assertRaises(errors.ScriptExecutionError) as e:
             functions.OP_EQUAL_VERIFY(self.tape, self.queue, self.cache)
+        assert str(e.exception) == 'OP_VERIFY check failed'
+        assert self.queue.empty()
+
+    def test_OP_CHECK_SIG_pulls_VerifyKey_and_signature_from_queue_and_checks_against_cache(self):
+        body = b'hello world'
+        skey = SigningKey(token_bytes(32))
+        vkey = skey.verify_key
+        smsg = skey.sign(body)
+        sig = smsg[:64]
+        self.tape = classes.Tape(b'\x00')
+        assert self.queue.empty()
+        self.queue.put(sig)
+        self.queue.put(bytes(vkey))
+        self.cache['sigfield1'] = body
+        functions.OP_CHECK_SIG(self.tape, self.queue, self.cache)
+        assert not self.queue.empty()
+        assert self.queue.get(False) == b'\x01'
+        assert self.queue.empty()
+
+    def test_OP_CHECK_SIG_sigflag_omits_sigfields(self):
+        field1 = b'hello'
+        field3 = b' '
+        field8 = b'world'
+        body = field1 + field3 + field8
+        sigflag = 0b00000001 | 0b00000100 | 0b10000000
+        sigflag = (~sigflag) & 255
+        self.tape = classes.Tape(sigflag.to_bytes(1, 'big'))
+        skey = SigningKey(token_bytes(32))
+        vkey = skey.verify_key
+        smsg = skey.sign(body)
+        sig = smsg[:64] + sigflag.to_bytes(1, 'big')
+        assert self.queue.empty()
+        self.queue.put(sig)
+        self.queue.put(bytes(vkey))
+        self.cache['sigfield1'] = field1
+        self.cache['sigfield2'] = b'should be ignored'
+        self.cache['sigfield3'] = field3
+        self.cache['sigfield4'] = b'should be ignored'
+        self.cache['sigfield5'] = b'should be ignored'
+        self.cache['sigfield6'] = b'should be ignored'
+        self.cache['sigfield7'] = b'should be ignored'
+        self.cache['sigfield8'] = field8
+        functions.OP_CHECK_SIG(self.tape, self.queue, self.cache)
+        assert not self.queue.empty()
+        assert self.queue.get(False) == b'\x01'
+        assert self.queue.empty()
+
+    def test_OP_CHECK_SIG_errors_on_disallowed_sigflag(self):
+        field1 = b'hello'
+        body = field1
+        allowed_sigflags = 0b00000100 | 0b10000000
+        allowed_sigflags = (~allowed_sigflags) & 255
+        self.tape = classes.Tape(allowed_sigflags.to_bytes(1, 'big'))
+        attempted_sigflags = 0b10000000
+        attempted_sigflags = (~attempted_sigflags) & 255
+        skey = SigningKey(token_bytes(32))
+        vkey = skey.verify_key
+        smsg = skey.sign(body)
+        sig = smsg[:64] + attempted_sigflags.to_bytes(1, 'big')
+        assert self.queue.empty()
+        self.queue.put(sig)
+        self.queue.put(bytes(vkey))
+
+        with self.assertRaises(errors.ScriptExecutionError) as e:
+            functions.OP_CHECK_SIG(self.tape, self.queue, self.cache)
+        assert str(e.exception) == 'disallowed sigflag'
+        assert self.queue.empty()
+
+    def test_OP_CHECK_SIG_VERIFY_runs_OP_CHECK_SIG_then_OP_VERIFY(self):
+        body = b'hello world'
+        skey = SigningKey(token_bytes(32))
+        vkey = skey.verify_key
+        smsg = skey.sign(body)
+        sig = smsg[:64]
+        self.tape = classes.Tape(b'\x00')
+        assert self.queue.empty()
+        self.queue.put(sig)
+        self.queue.put(bytes(vkey))
+        self.cache['sigfield1'] = body
+        functions.OP_CHECK_SIG_VERIFY(self.tape, self.queue, self.cache)
+        assert self.queue.empty()
+
+        sig = smsg[:64]
+        self.tape = classes.Tape(b'\x00')
+        assert self.queue.empty()
+        self.queue.put(sig)
+        self.queue.put(bytes(vkey))
+        self.cache['sigfield1'] = b'not body'
+        with self.assertRaises(errors.ScriptExecutionError) as e:
+            functions.OP_CHECK_SIG_VERIFY(self.tape, self.queue, self.cache)
         assert str(e.exception) == 'OP_VERIFY check failed'
         assert self.queue.empty()
 

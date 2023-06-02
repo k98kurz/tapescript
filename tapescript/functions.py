@@ -1,6 +1,6 @@
 from __future__ import annotations
 from .classes import Tape
-from .errors import tert, vert
+from .errors import tert, vert, sert
 from hashlib import sha256, shake_256
 from math import ceil, floor, isnan, log2
 from nacl.exceptions import BadSignatureError
@@ -446,7 +446,7 @@ def OP_VERIFY(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Pull a value from the queue; evaluate it as a bool; and raise an
         AssertionError if it is False.
     """
-    assert bytes_to_bool(queue.get(False)), 'OP_VERIFY check failed'
+    sert(bytes_to_bool(queue.get(False)), 'OP_VERIFY check failed')
 
 def OP_EQUAL(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Pull 2 items from the queue; compare them; put the bool result
@@ -461,14 +461,17 @@ def OP_EQUAL_VERIFY(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     OP_VERIFY(tape, queue, cache)
 
 def OP_CHECK_SIG(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Pull a value from the queue, interpreting as a VerifyKey; pull a
-        value from the queue, interpreting as a signature; check the
-        signature against the VerifyKey and the cached sigfields not
-        disabled by a sig flag; put True onto the queue if verification
-        succeeds, otherwise put False onto the queue.
+    """Take a byte from the tape, interpreting as the encoded allowable
+        sigflags; pull a value from the queue, interpreting as a
+        VerifyKey; pull a value from the queue, interpreting as a
+        signature; check the signature against the VerifyKey and the
+        cached sigfields not disabled by a sig flag; put True onto the
+        queue if verification succeeds, otherwise put False onto the
+        queue.
     """
     vkey = queue.get(False)
     sig = queue.get(False)
+    allowable_flags = tape.read(1)[0]
 
     assert (type(vkey) is bytes and len(vkey) == nacl.bindings.crypto_sign_PUBLICKEYBYTES) \
         or type(vkey) is VerifyKey, \
@@ -490,6 +493,23 @@ def OP_CHECK_SIG(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     sig_flag6 = sig_flag & 0b00100000
     sig_flag7 = sig_flag & 0b01000000
     sig_flag8 = sig_flag & 0b10000000
+
+    if sig_flag1:
+        sert(allowable_flags & 0b00000001, 'disallowed sigflag')
+    if sig_flag2:
+        sert(allowable_flags & 0b00000010, 'disallowed sigflag')
+    if sig_flag3:
+        sert(allowable_flags & 0b00000100, 'disallowed sigflag')
+    if sig_flag4:
+        sert(allowable_flags & 0b00001000, 'disallowed sigflag')
+    if sig_flag5:
+        sert(allowable_flags & 0b00010000, 'disallowed sigflag')
+    if sig_flag6:
+        sert(allowable_flags & 0b00100000, 'disallowed sigflag')
+    if sig_flag7:
+        sert(allowable_flags & 0b01000000, 'disallowed sigflag')
+    if sig_flag8:
+        sert(allowable_flags & 0b10000000, 'disallowed sigflag')
 
     message = b''
 
