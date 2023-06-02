@@ -1084,6 +1084,39 @@ class TestFunctions(unittest.TestCase):
             assert type(value[0]) is int
             assert callable(value[1])
 
+    def test_compile_script_errors_on_nonstr_input(self):
+        with self.assertRaises(ValueError) as e:
+            functions.compile_script(b'not a str')
+        assert str(e.exception) == 'input script must be str'
+
+    def test_compile_script_errors_on_invalid_opcode(self):
+        with self.assertRaises(ValueError) as e:
+            functions.compile_script('OP_WTF d1')
+        assert str(e.exception) == 'unrecognized opcode'
+
+    def test_compile_script_errors_on_invalid_syntax(self):
+        with self.assertRaises(errors.SyntaxError) as e:
+            functions.compile_script('OP_DEF notnumeric OP_DEF 1 OP_PUSH x01 END_DEF END_DEF')
+        assert str(e.exception) == 'def number must be numeric'
+
+        with self.assertRaises(ValueError) as e:
+            functions.compile_script('OP_DEF 2000 OP_DEF 1 OP_PUSH x01 END_DEF END_DEF')
+        assert str(e.exception) == 'def number must be in 0-255'
+
+        with self.assertRaises(errors.SyntaxError) as e:
+            functions.compile_script('OP_DEF 1 { OP_PUSH x01')
+        assert str(e.exception) == 'missing matching }'
+
+        with self.assertRaises(errors.SyntaxError) as e:
+            functions.compile_script('OP_DEF 1 OP_PUSH x01')
+        assert str(e.exception) == 'missing END_DEF'
+
+        with self.assertRaises(errors.SyntaxError) as e:
+            functions.compile_script('OP_DEF 0 OP_DEF 1 OP_PUSH x01 END_DEF END_DEF')
+        assert str(e.exception) == 'cannot use OP_DEF within OP_DEF body'
+
+    def test_compile_script_ignores_comments(self):
+        ...
 
     # skip OP_CALL test until run_tape tested
     # skip OP_IF test until OP_CALL tested

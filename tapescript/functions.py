@@ -1,6 +1,6 @@
 from __future__ import annotations
 from .classes import Tape
-from .errors import tert, vert, sert
+from .errors import tert, vert, sert, yert
 from hashlib import sha256, shake_256
 from math import ceil, floor, isnan, log2
 from nacl.exceptions import BadSignatureError
@@ -993,7 +993,7 @@ flags = {
 
 def compile_script(script: str) -> bytes:
     """Compile the given human-readable script into byte code."""
-    assert type(script) is str, 'input script must be str'
+    vert(type(script) is str, 'input script must be str')
 
     def get_args(opcode: str, symbols: list[str]) -> tuple[int, bytes]:
         """Get the number of symbols to advance and args for an op."""
@@ -1015,8 +1015,8 @@ def compile_script(script: str) -> bytes:
                 # special case: OP_PUSH is a short hand for OP_PUSH[0,1,2,4]
                 symbols_to_advance += 1
                 val = symbols[0]
-                assert val[0].lower() in ('d', 'x'), \
-                    'numeric args must be prefaced with d or x'
+                vert(val[0].lower() in ('d', 'x'),
+                    'numeric args must be prefaced with d or x')
 
                 match val[0].lower():
                     case 'd':
@@ -1052,12 +1052,12 @@ def compile_script(script: str) -> bytes:
                     vals = (symbols[0])
 
                 for val in vals:
-                    assert val[0].lower() in ('d', 'x', 's'), \
-                        'values must be prefaced with d, x, or s'
+                    vert(val[0].lower() in ('d', 'x', 's'),
+                        'values must be prefaced with d, x, or s')
                     match val[0].lower():
                         case 'd':
-                            assert val[1:].isnumeric(), \
-                                'value prefaced by d must be decimal int or float'
+                            vert(val[1:].isnumeric(),
+                                'value prefaced by d must be decimal int or float')
                             if '.' in val:
                                 args.append((4).to_bytes(1, 'big'))
                                 args.append(struct.pack('!f', float(val[1:])))
@@ -1081,40 +1081,40 @@ def compile_script(script: str) -> bytes:
                 # ops that have tape argument of form [0-255]
                 symbols_to_advance += 1
                 val = symbols[0]
-                assert val[0].lower() in ('d', 'x'), \
-                    'numeric args must be prefaced with d or x'
+                vert(val[0].lower() in ('d', 'x'),
+                    'numeric args must be prefaced with d or x')
 
                 match val[0].lower():
                     case 'd':
-                        assert val[1:].isnumeric(), \
-                            'value prefaced by d must be decimal int'
+                        vert(val[1:].isnumeric(),
+                            'value prefaced by d must be decimal int')
                         if '.' in val:
                             args.append(int(val[1:].split('.')[0]).to_bytes(1, 'big'))
                         else:
                             args.append(int(val[1:]).to_bytes(1, 'big'))
                     case 'x':
-                        assert len(val[1:]) <= 2, \
-                            'value must be at most 1 byte long'
+                        vert(len(val[1:]) <= 2,
+                            'value must be at most 1 byte long')
                         val = bytes.fromhex(val[1:])
                         args.append(val if len(val) == 1 else b'\x00')
             case 'OP_PUSH2':
                 # ops that have tape argument of form [0-65535] [val]
                 symbols_to_advance += 1
                 val = symbols[0]
-                assert val[0].lower() in ('d', 'x'), \
-                    'numeric args must be prefaced with d or x'
+                vert(val[0].lower() in ('d', 'x'),
+                    'numeric args must be prefaced with d or x')
 
                 match val[0].lower():
                     case 'd':
-                        assert val[1:].isnumeric(), \
-                            'value prefaced by d must be decimal int'
+                        vert(val[1:].isnumeric(),
+                            'value prefaced by d must be decimal int')
                         if '.' in val:
                             args.append(int(val[1:].split('.')[0]).to_bytes(1, 'big'))
                         else:
                             args.append(int(val[1:]).to_bytes(1, 'big'))
                     case 'x':
-                        assert len(val[1:]) <= 4, \
-                            'value must be at most 2 bytes long'
+                        vert(len(val[1:]) <= 4,
+                            'value must be at most 2 bytes long')
                         val = bytes.fromhex(val[1:])
                         args.append(val if len(val) == 2 else b'\x00' + val)
             case 'OP_PUSH4':
@@ -1126,15 +1126,15 @@ def compile_script(script: str) -> bytes:
 
                 match val[0].lower():
                     case 'd':
-                        assert val[1:].isnumeric(), \
-                            'value prefaced by d must be decimal int'
+                        vert(val[1:].isnumeric(),
+                            'value prefaced by d must be decimal int')
                         if '.' in val:
                             args.append(int(val[1:].split('.')[0]).to_bytes(1, 'big'))
                         else:
                             args.append(int(val[1:]).to_bytes(1, 'big'))
                     case 'x':
-                        assert len(val[1:]) <= 8, \
-                            'value must be at most 4 bytes long'
+                        vert(len(val[1:]) <= 8,
+                            'value must be at most 4 bytes long')
                         val = bytes.fromhex(val[1:])
                         while len(val) < 4:
                             val = b'\x00' + val
@@ -1143,17 +1143,17 @@ def compile_script(script: str) -> bytes:
                 # ops that have tape argument of form [4-byte float]
                 symbols_to_advance += 1
                 val = symbols[0]
-                assert val[0].lower() in ('d', 'x'), \
-                    'numeric args must be prefaced with d or x'
+                vert(val[0].lower() in ('d', 'x'),
+                    'numeric args must be prefaced with d or x')
 
                 match val[0].lower():
                     case 'd':
-                        assert val[1:].isnumeric(), \
-                            'OP_[DIV|MOD]_FLOAT value prefaced by d must be decimal float'
+                        vert(val[1:].isnumeric(),
+                            'OP_[DIV|MOD]_FLOAT value prefaced by d must be decimal float')
                         args.append(struct.pack('!f', float(val[1:])))
                     case 'x':
-                        assert len(val[1:]) == 8, \
-                            'OP_[DIV|MOD]_FLOAT value prefaced by x must be 8 long (4 bytes)'
+                        vert(len(val[1:]) == 8,
+                            'OP_[DIV|MOD]_FLOAT value prefaced by x must be 8 long (4 bytes)')
                         args.append(bytes.fromhex(val[1:]))
             case 'OP_SWAP':
                 # ops that have tape arguments of form [0-255] [0-255]
@@ -1161,20 +1161,20 @@ def compile_script(script: str) -> bytes:
                 vals = symbols[:2]
 
                 for val in vals:
-                    assert val[0].lower() in ('d', 'x'), \
-                        'numeric args must be prefaced with d or x'
+                    vert(val[0].lower() in ('d', 'x'),
+                        'numeric args must be prefaced with d or x')
 
                     match val[0].lower():
                         case 'd':
-                            assert val[1:].isnumeric(), \
-                                'OP_SWAP value prefaced by d must be decimal int'
+                            vert(val[1:].isnumeric(),
+                                'OP_SWAP value prefaced by d must be decimal int')
                             if '.' in val:
                                 args.append(int_to_bytes(int(val[1:].split('.')[0])))
                             else:
                                 args.append(int_to_bytes(int(val[1:])))
                         case 'x':
-                            assert len(val[1:]) == 2, \
-                                'OP_SWAP value prefaced by x must b 2 long (1 byte)'
+                            vert(len(val[1:]) == 2,
+                                'OP_SWAP value prefaced by x must b 2 long (1 byte)')
                             args.append(bytes.fromhex(val[1:]))
             case _:
                 pass
@@ -1200,40 +1200,45 @@ def compile_script(script: str) -> bytes:
             index = symbols.index(symbol, index) + 1
             continue
 
-        assert symbols[0] in opcodes_inverse, 'unrecognized opcode'
+        vert(symbols[0] in opcodes_inverse, 'unrecognized opcode')
 
         # handle definition
         if symbol == 'OP_DEF':
             def_code = b''
             name = symbols[index + 1]
-            assert name.isnumeric(), 'def number must be numeric'
+            yert(name.isnumeric(), 'def number must be numeric')
             name = int(name)
-            assert 0 <= name < 256, 'def number must be in 0-255'
+            vert(0 <= name < 256, 'def number must be in 0-255')
 
             if symbols[index + 2] == '{':
                 # case 1: OP_DEF number { match }
-                assert '}' in symbols[index:], 'missing matching }'
+                yert('}' in symbols[index:], 'missing matching }')
                 search_idx = symbols.index('}', index)
+                index += 2
             else:
                 # case 2: find END_DEF
-                assert 'END_DEF' in symbols[index:], 'missing END_DEF'
+                yert('END_DEF' in symbols[index:], 'missing END_DEF')
                 search_idx = symbols.index('END_DEF')
+                index += 1
 
             # add OP_DEF to code
             code.append(opcodes_inverse['OP_DEF'][0].to_bytes(1, 'big'))
 
             i = index + 1
             while i < search_idx:
-                if symbols[i][3:] == 'OP_':
-                    assert symbols[i] != 'OP_DEF', \
-                        'cannot use OP_DEF within OP_DEF body'
+                current_symbol = symbols[i]
+                if current_symbol[:3] == 'OP_':
+                    yert(current_symbol != 'OP_DEF',
+                        'cannot use OP_DEF within OP_DEF body')
 
-                    if symbols[i] == 'OP_IF':
+                    if current_symbol == 'OP_IF':
                         ...
                     else:
-                        advance, args = get_args(symbols[i], symbols[i+1:])
+                        advance, args = get_args(current_symbol, symbols[i+1:])
                         i += advance
                         def_code += b''.join(args)
+                else:
+                    i += 1
 
             # add def handle to code
             code.append(name.to_bytes(1, 'big'))
