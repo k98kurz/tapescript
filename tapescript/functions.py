@@ -193,16 +193,12 @@ def OP_SUBTRACT_INTS(tape: Tape, queue: LifoQueue, cache: dict) -> None:
         back onto the queue; advance the pointer appropriately.
     """
     size = int.from_bytes(tape.read(1), 'big')
-    total, initialized = 0, False
+    total = bytes_to_int(queue.get(False))
 
     for _ in range(size-1):
         item = queue.get(False)
         number = bytes_to_int(item)
-
-        if not initialized:
-            total = number
-        else:
-            total -= number
+        total -= number
 
     queue.put(int_to_bytes(total))
 

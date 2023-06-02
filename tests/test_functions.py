@@ -212,6 +212,90 @@ class TestFunctions(unittest.TestCase):
         assert self.queue.empty()
         assert item == functions.int_to_bytes(2)
 
+    def test_OP_ADD_INTS_reads_int_from_tape_pulls_that_many_ints_from_queue_and_puts_sum_on_queue(self):
+        self.tape = classes.Tape(functions.int_to_bytes(3))
+        assert self.queue.empty()
+        self.queue.put(functions.int_to_bytes(2))
+        self.queue.put(functions.int_to_bytes(5))
+        self.queue.put(functions.int_to_bytes(-3))
+        functions.OP_ADD_INTS(self.tape, self.queue, self.cache)
+        assert not self.queue.empty()
+        item = self.queue.get(False)
+        assert self.queue.empty()
+        assert not self.cache
+        assert functions.bytes_to_int(item) == 4
+
+    def test_OP_SUBTRACT_INTS_reads_int_from_tape_pulls_that_many_ints_from_queue_and_puts_difference_on_queue(self):
+        self.tape = classes.Tape(functions.int_to_bytes(3))
+        assert self.queue.empty()
+        self.queue.put(functions.int_to_bytes(-3))
+        self.queue.put(functions.int_to_bytes(2))
+        self.queue.put(functions.int_to_bytes(5))
+        functions.OP_SUBTRACT_INTS(self.tape, self.queue, self.cache)
+        assert not self.queue.empty()
+        item = self.queue.get(False)
+        assert self.queue.empty()
+        assert not self.cache
+        assert functions.bytes_to_int(item) == 6
+
+    def test_OP_MULT_INTS_reads_int_from_tape_pulls_that_many_ints_from_queue_and_puts_product_on_queue(self):
+        self.tape = classes.Tape(functions.int_to_bytes(4))
+        assert self.queue.empty()
+        self.queue.put(functions.int_to_bytes(3))
+        self.queue.put(functions.int_to_bytes(2))
+        self.queue.put(functions.int_to_bytes(-2))
+        self.queue.put(functions.int_to_bytes(5))
+        functions.OP_MULT_INTS(self.tape, self.queue, self.cache)
+        assert not self.queue.empty()
+        item = self.queue.get(False)
+        assert self.queue.empty()
+        assert not self.cache
+        assert functions.bytes_to_int(item) == -60
+
+    def test_OP_DIV_INT_pulls_int_from_queue_reads_signed_int_from_tape_and_puts_quotient_on_queue(self):
+        self.tape = classes.Tape(functions.int_to_bytes(1) + functions.int_to_bytes(-2))
+        assert self.queue.empty()
+        self.queue.put(functions.int_to_bytes(-60))
+        functions.OP_DIV_INT(self.tape, self.queue, self.cache)
+        assert not self.queue.empty()
+        item = self.queue.get(False)
+        assert self.queue.empty()
+        assert not self.cache
+        assert functions.bytes_to_int(item) == 30
+
+    def test_OP_DIV_INTS_pulls_two_ints_from_queue_and_puts_quotient_on_queue(self):
+        assert self.queue.empty()
+        self.queue.put(functions.int_to_bytes(12))
+        self.queue.put(functions.int_to_bytes(-132))
+        functions.OP_DIV_INTS(self.tape, self.queue, self.cache)
+        assert not self.queue.empty()
+        item = self.queue.get(False)
+        assert self.queue.empty()
+        assert not self.cache
+        assert functions.bytes_to_int(item) == -11
+
+    def test_OP_MOD_INT_reads_int_from_tape_pulls_int_from_queue_and_puts_modulus_on_queue(self):
+        assert self.queue.empty()
+        self.tape = classes.Tape(functions.int_to_bytes(1) + functions.int_to_bytes(17))
+        self.queue.put(functions.int_to_bytes(1258))
+        functions.OP_MOD_INT(self.tape, self.queue, self.cache)
+        assert not self.queue.empty()
+        item = self.queue.get(False)
+        assert self.queue.empty()
+        assert not self.cache
+        assert functions.bytes_to_int(item) == (1258%17)
+
+    def test_OP_MOD_INT_pulls_two_ints_from_queue_and_puts_modulus_on_queue(self):
+        assert self.queue.empty()
+        self.queue.put(functions.int_to_bytes(17))
+        self.queue.put(functions.int_to_bytes(1258))
+        functions.OP_MOD_INTS(self.tape, self.queue, self.cache)
+        assert not self.queue.empty()
+        item = self.queue.get(False)
+        assert self.queue.empty()
+        assert not self.cache
+        assert functions.bytes_to_int(item) == (1258%17)
+
 
 if __name__ == '__main__':
     unittest.main()
