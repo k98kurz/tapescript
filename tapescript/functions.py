@@ -991,6 +991,33 @@ flags = {
 }
 
 
+def get_symbols(script: str) -> list[str]:
+    """Split the script source into symbols."""
+    splits = [s for s in script.split()]
+    splits.reverse()
+    symbols = []
+
+    while len(splits):
+        token = splits.pop()
+        if token[:2] in ('s"', "s'"):
+            # match to end of string value
+            found = False
+            parts = [token]
+            while not found and len(splits):
+                next = splits.pop()
+                parts.append(next)
+                if '"' in next or "'" in next:
+                    found = True
+            yert(found, 'unterminated string encountered')
+            token = ' '.join(parts)
+            symbols.append(token)
+        elif token[0] not in ('s', 'd', 'x'):
+            symbols.append(token.upper())
+        else:
+            symbols.append(token)
+
+    return symbols
+
 def compile_script(script: str) -> bytes:
     """Compile the given human-readable script into byte code."""
     vert(type(script) is str, 'input script must be str')
@@ -1013,15 +1040,16 @@ def compile_script(script: str) -> bytes:
                 pass
             case 'OP_PUSH':
                 # special case: OP_PUSH is a short hand for OP_PUSH[0,1,2,4]
+                # @todo prety sure this is wrong
                 symbols_to_advance += 1
                 val = symbols[0]
-                vert(val[0].lower() in ('d', 'x'),
+                yert(val[0].lower() in ('d', 'x'),
                     'numeric args must be prefaced with d or x')
 
                 match val[0].lower():
                     case 'd':
-                        assert val[1:].isnumeric(), \
-                            'value prefaced by d must be decimal int'
+                        vert(val[1:].isnumeric(),
+                            'value prefaced by d must be decimal int')
                         if '.' in val:
                             val = int(val[1:].split('.')[0])
                         else:
@@ -1029,15 +1057,15 @@ def compile_script(script: str) -> bytes:
                         size = 1 if val < 256 else 2 if val < 65536 else 4
                         val = val.to_bytes(size, 'big')
                     case 'x':
-                        assert len(val[1:]) <= 8, \
-                            'value must be at most 4 bytes long'
+                        vert(len(val[1:]) <= 8,
+                            'value must be at most 4 bytes long')
                         val = bytes.fromhex(val[1:])
 
                 if 1 < len(val) < 256:
                     args.append(len(val).to_bytes(1, 'big'))
-                elif 255 < len(val) < 65536:
+                elif 255 < len(val) < 65_536:
                     args.append(len(val).to_bytes(2, 'big'))
-                elif 65_536 < len(val) < 4_294_967_296:
+                elif 65_535 < len(val) < 4_294_967_296:
                     args.append(len(val).to_bytes(4, 'big'))
                 args.append(val)
             case 'OP_PUSH1' | 'OP_WRITE_CACHE' | 'OP_READ_CACHE' | \
@@ -1052,8 +1080,8 @@ def compile_script(script: str) -> bytes:
                     vals = (symbols[0])
 
                 for val in vals:
-                    vert(val[0].lower() in ('d', 'x', 's'),
-                        'values must be prefaced with d, x, or s')
+                    yert(val[0].lower() in ('d', 'x', 's'),
+                        f'values for {opcode} must be prefaced with d, x, or s')
                     match val[0].lower():
                         case 'd':
                             vert(val[1:].isnumeric(),
@@ -1070,7 +1098,14 @@ def compile_script(script: str) -> bytes:
                             args.append(len(val).to_bytes(1, 'big'))
                             args.append(val)
                         case 's':
-                            val = bytes(val[1:], 'utf-8')
+                            if val[1] == '"' and '"' in val[2:]:
+                                last_idx = val[2:].index('"')
+                                val = bytes(val[1:last_idx+2], 'utf-8')
+                            elif val[1] == "'" and "'" in val[2:]:
+                                last_idx = val[2:].index("'")
+                                val = bytes(val[1:last_idx+2], 'utf-8')
+                            else:
+                                val = bytes(val[1:], 'utf-8')
                             args.append(len(val).to_bytes(1, 'big'))
                             args.append(val)
             case 'OP_PUSH0' | 'OP_POP1' | 'OP_ADD_INTS' | 'OP_SUBTRACT_INTS' | \
@@ -1081,7 +1116,7 @@ def compile_script(script: str) -> bytes:
                 # ops that have tape argument of form [0-255]
                 symbols_to_advance += 1
                 val = symbols[0]
-                vert(val[0].lower() in ('d', 'x'),
+                yert(val[0].lower() in ('d', 'x'),
                     'numeric args must be prefaced with d or x')
 
                 match val[0].lower():
@@ -1099,24 +1134,35 @@ def compile_script(script: str) -> bytes:
                         args.append(val if len(val) == 1 else b'\x00')
             case 'OP_PUSH2':
                 # ops that have tape argument of form [0-65535] [val]
-                symbols_to_advance += 1
+                symbols_to_advance += 2
                 val = symbols[0]
-                vert(val[0].lower() in ('d', 'x'),
-                    'numeric args must be prefaced with d or x')
+                yert(val[0].lower() in ('d', 'x', 's'),
+                    'values for OP_PUSH2 must be prefaced with d, x, or s')
 
                 match val[0].lower():
+                    case 's':
+                        if val[1] == '"' and '"' in val[2:]:
+                            last_idx = val[2:].index('"')
+                            val = bytes(val[1:last_idx+2], 'utf-8')
+                        elif val[1] == "'" and "'" in val[2:]:
+                            last_idx = val[2:].index("'")
+                            val = bytes(val[1:last_idx+2], 'utf-8')
+                        else:
+                            val = bytes(val[1:], 'utf-8')
                     case 'd':
                         vert(val[1:].isnumeric(),
                             'value prefaced by d must be decimal int')
                         if '.' in val:
-                            args.append(int(val[1:].split('.')[0]).to_bytes(1, 'big'))
+                            val = int_to_bytes(int(val[1:].split('.')[0]))
                         else:
-                            args.append(int(val[1:]).to_bytes(1, 'big'))
+                            val = int_to_bytes(int(val[1:]))
+                        vert(len(val) < 65_536, 'OP_PUSH2 value overflow')
                     case 'x':
-                        vert(len(val[1:]) <= 4,
-                            'value must be at most 2 bytes long')
                         val = bytes.fromhex(val[1:])
-                        args.append(val if len(val) == 2 else b'\x00' + val)
+                        vert(len(val) < 65_536,
+                            'x-value for OP_PUSH2 must be at most 65_535 bytes long')
+                args.append(len(val).to_bytes(2, 'big'))
+                args.append(val)
             case 'OP_PUSH4':
                 # ops that have tape argument of form [0-4_294_967_295] [val]
                 symbols_to_advance += 1
@@ -1143,7 +1189,7 @@ def compile_script(script: str) -> bytes:
                 # ops that have tape argument of form [4-byte float]
                 symbols_to_advance += 1
                 val = symbols[0]
-                vert(val[0].lower() in ('d', 'x'),
+                yert(val[0].lower() in ('d', 'x'),
                     'numeric args must be prefaced with d or x')
 
                 match val[0].lower():
@@ -1161,7 +1207,7 @@ def compile_script(script: str) -> bytes:
                 vals = symbols[:2]
 
                 for val in vals:
-                    vert(val[0].lower() in ('d', 'x'),
+                    yert(val[0].lower() in ('d', 'x'),
                         'numeric args must be prefaced with d or x')
 
                     match val[0].lower():
@@ -1188,7 +1234,7 @@ def compile_script(script: str) -> bytes:
     if_codes = []
 
     # get a list of symbols
-    symbols = [s.upper() for s in script.split()]
+    symbols = get_symbols(script)
     index = 0
 
     while index < len(symbols):
@@ -1227,18 +1273,17 @@ def compile_script(script: str) -> bytes:
             i = index + 1
             while i < search_idx:
                 current_symbol = symbols[i]
-                if current_symbol[:3] == 'OP_':
-                    yert(current_symbol != 'OP_DEF',
-                        'cannot use OP_DEF within OP_DEF body')
+                yert(current_symbol[:3] == 'OP_' or (current_symbol == '}'),
+                     'statements must begin with valid op code')
+                yert(current_symbol != 'OP_DEF',
+                    'cannot use OP_DEF within OP_DEF body')
 
-                    if current_symbol == 'OP_IF':
-                        ...
-                    else:
-                        advance, args = get_args(current_symbol, symbols[i+1:])
-                        i += advance
-                        def_code += b''.join(args)
+                if current_symbol == 'OP_IF':
+                    ...
                 else:
-                    i += 1
+                    advance, args = get_args(current_symbol, symbols[i+1:])
+                    i += advance
+                    def_code += b''.join(args)
 
             # add def handle to code
             code.append(name.to_bytes(1, 'big'))
@@ -1250,6 +1295,9 @@ def compile_script(script: str) -> bytes:
 
             # add def code to code
             code.append(def_code)
+
+            # advance the index
+            index += search_idx
 
 
 def decompile_script(script: bytes) -> str:
