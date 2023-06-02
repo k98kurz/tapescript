@@ -61,6 +61,28 @@ class TestFunctions(unittest.TestCase):
         assert functions.bytes_to_bool(b'') is False
         assert functions.bytes_to_bool(b'1') is True
 
+    def test_bytes_to_float_raises_errors_for_invalid_input(self):
+        with self.assertRaises(TypeError) as e:
+            functions.bytes_to_float('not bytes')
+        assert str(e.exception) == 'number must be 4 bytes'
+
+        with self.assertRaises(ValueError) as e:
+            functions.bytes_to_float(b'not 4 bytes')
+        assert str(e.exception) == 'number must be 4 bytes'
+
+    def test_bytes_to_float_returns_float(self):
+        number = functions.bytes_to_float(b'2222')
+        assert type(number) is float
+
+    def test_float_to_bytes_raises_TypeError_for_invalid_input(self):
+        with self.assertRaises(TypeError) as e:
+            functions.float_to_bytes('not a float')
+        assert str(e.exception) == 'number must be float'
+
+    def test_float_to_bytes_returns_bytes(self):
+        number = functions.float_to_bytes(123.0394)
+        assert type(number) is bytes
+
     # ops
     def test_OP_FALSE_puts_null_byte_onto_queue(self):
         assert self.queue.empty()
@@ -87,7 +109,7 @@ class TestFunctions(unittest.TestCase):
         assert not len(self.cache.keys())
         assert self.queue.get() == b'1'
 
-    def test_OP_PUSH1_reads_next_byte_as_int_and_puts_that_many_from_tape_onto_queue(self):
+    def test_OP_PUSH1_reads_next_byte_as_uint_and_puts_that_many_from_tape_onto_queue(self):
         self.tape = classes.Tape(functions.int_to_bytes(11) + b'hello world')
         assert self.queue.empty()
         assert not len(self.cache.keys())
@@ -96,7 +118,7 @@ class TestFunctions(unittest.TestCase):
         assert not len(self.cache.keys())
         assert self.queue.get() == b'hello world'
 
-    def test_OP_PUSH2_reads_next_2_bytes_as_int_and_puts_that_many_from_tape_onto_queue(self):
+    def test_OP_PUSH2_reads_next_2_bytes_as_uint_and_puts_that_many_from_tape_onto_queue(self):
         self.tape = classes.Tape(b'\x00' + functions.int_to_bytes(11) + b'hello world')
         assert self.queue.empty()
         assert not len(self.cache.keys())
@@ -105,7 +127,7 @@ class TestFunctions(unittest.TestCase):
         assert not len(self.cache.keys())
         assert self.queue.get() == b'hello world'
 
-    def test_OP_PUSH4_reads_next_4_bytes_as_int_and_puts_that_many_from_tape_onto_queue(self):
+    def test_OP_PUSH4_reads_next_4_bytes_as_uint_and_puts_that_many_from_tape_onto_queue(self):
         self.tape = classes.Tape(b'\x00\x00\x00' + functions.int_to_bytes(11) + b'hello world')
         assert self.queue.empty()
         assert not len(self.cache.keys())
@@ -124,7 +146,7 @@ class TestFunctions(unittest.TestCase):
         assert b'P' in self.cache
         assert self.cache[b'P'] == [b'1234']
 
-    def test_OP_POP1_reads_next_bytes_from_tape_then_puts_that_many_items_from_queue_to_cache(self):
+    def test_OP_POP1_reads_uint_from_tape_then_puts_that_many_items_from_queue_to_cache(self):
         assert self.queue.empty()
         self.queue.put(b'12')
         self.queue.put(b'34')
@@ -212,7 +234,7 @@ class TestFunctions(unittest.TestCase):
         assert self.queue.empty()
         assert item == functions.int_to_bytes(2)
 
-    def test_OP_ADD_INTS_reads_int_from_tape_pulls_that_many_ints_from_queue_and_puts_sum_on_queue(self):
+    def test_OP_ADD_INTS_reads_uint_from_tape_pulls_that_many_ints_from_queue_and_puts_sum_on_queue(self):
         self.tape = classes.Tape(functions.int_to_bytes(3))
         assert self.queue.empty()
         self.queue.put(functions.int_to_bytes(2))
@@ -225,7 +247,7 @@ class TestFunctions(unittest.TestCase):
         assert not self.cache
         assert functions.bytes_to_int(item) == 4
 
-    def test_OP_SUBTRACT_INTS_reads_int_from_tape_pulls_that_many_ints_from_queue_and_puts_difference_on_queue(self):
+    def test_OP_SUBTRACT_INTS_reads_uint_from_tape_pulls_that_many_ints_from_queue_and_puts_difference_on_queue(self):
         self.tape = classes.Tape(functions.int_to_bytes(3))
         assert self.queue.empty()
         self.queue.put(functions.int_to_bytes(-3))
@@ -238,7 +260,7 @@ class TestFunctions(unittest.TestCase):
         assert not self.cache
         assert functions.bytes_to_int(item) == 6
 
-    def test_OP_MULT_INTS_reads_int_from_tape_pulls_that_many_ints_from_queue_and_puts_product_on_queue(self):
+    def test_OP_MULT_INTS_reads_uint_from_tape_pulls_that_many_ints_from_queue_and_puts_product_on_queue(self):
         self.tape = classes.Tape(functions.int_to_bytes(4))
         assert self.queue.empty()
         self.queue.put(functions.int_to_bytes(3))
@@ -274,7 +296,7 @@ class TestFunctions(unittest.TestCase):
         assert not self.cache
         assert functions.bytes_to_int(item) == -11
 
-    def test_OP_MOD_INT_reads_int_from_tape_pulls_int_from_queue_and_puts_modulus_on_queue(self):
+    def test_OP_MOD_INT_reads_uint_from_tape_pulls_int_from_queue_and_puts_modulus_on_queue(self):
         assert self.queue.empty()
         self.tape = classes.Tape(functions.int_to_bytes(1) + functions.int_to_bytes(17))
         self.queue.put(functions.int_to_bytes(1258))
@@ -295,6 +317,108 @@ class TestFunctions(unittest.TestCase):
         assert self.queue.empty()
         assert not self.cache
         assert functions.bytes_to_int(item) == (1258%17)
+
+    def test_OP_ADD_FLOATS_reads_uint_from_tape_pulls_that_many_floats_from_queue_put_sum_on_queue(self):
+        assert self.queue.empty()
+        self.tape = classes.Tape(functions.int_to_bytes(3))
+        self.queue.put(functions.float_to_bytes(0.01))
+        self.queue.put(functions.float_to_bytes(0.1))
+        self.queue.put(functions.float_to_bytes(1.0))
+
+        expected = functions.bytes_to_float(functions.float_to_bytes(0.01))
+        expected += functions.bytes_to_float(functions.float_to_bytes(0.1))
+        expected += functions.bytes_to_float(functions.float_to_bytes(1.0))
+
+        functions.OP_ADD_FLOATS(self.tape, self.queue, self.cache)
+        assert not self.cache
+        assert not self.queue.empty()
+        item = self.queue.get(False)
+        item = functions.bytes_to_float(item)
+        assert self.queue.empty()
+        assert str(item)[:5] == str(expected)[:5]
+
+    def test_OP_SUBTRACT_FLOATS_reads_uint_from_tape_pulls_that_many_floats_from_queue_put_difference_on_queue(self):
+        assert self.queue.empty()
+        self.tape = classes.Tape(functions.int_to_bytes(3))
+        self.queue.put(functions.float_to_bytes(0.01))
+        self.queue.put(functions.float_to_bytes(0.1))
+        self.queue.put(functions.float_to_bytes(1.0))
+
+        expected = functions.bytes_to_float(functions.float_to_bytes(1.0))
+        expected -= functions.bytes_to_float(functions.float_to_bytes(0.01))
+        expected -= functions.bytes_to_float(functions.float_to_bytes(0.1))
+
+        functions.OP_SUBTRACT_FLOATS(self.tape, self.queue, self.cache)
+        assert not self.cache
+        assert not self.queue.empty()
+        item = self.queue.get(False)
+        item = functions.bytes_to_float(item)
+        assert self.queue.empty()
+        assert str(item)[:5] == str(expected)[:5]
+
+    def test_OP_DIV_FLOAT_reads_float_from_tape_pulls_float_from_queue_put_quotient_on_queue(self):
+        assert self.queue.empty()
+        self.tape = classes.Tape(functions.float_to_bytes(0.01))
+        self.queue.put(functions.float_to_bytes(0.1))
+
+        expected = functions.bytes_to_float(functions.float_to_bytes(0.1))
+        expected /= functions.bytes_to_float(functions.float_to_bytes(0.01))
+
+        functions.OP_DIV_FLOAT(self.tape, self.queue, self.cache)
+        assert not self.cache
+        assert not self.queue.empty()
+        item = self.queue.get(False)
+        item = functions.bytes_to_float(item)
+        assert self.queue.empty()
+        assert (item-expected)/expected < 0.000001
+
+    def test_OP_DIV_FLOATS_pulls_two_floats_from_queue_put_quotient_on_queue(self):
+        assert self.queue.empty()
+        self.queue.put(functions.float_to_bytes(0.01))
+        self.queue.put(functions.float_to_bytes(0.1))
+
+        expected = functions.bytes_to_float(functions.float_to_bytes(0.1))
+        expected /= functions.bytes_to_float(functions.float_to_bytes(0.01))
+
+        functions.OP_DIV_FLOATS(self.tape, self.queue, self.cache)
+        assert not self.cache
+        assert not self.queue.empty()
+        item = self.queue.get(False)
+        item = functions.bytes_to_float(item)
+        assert self.queue.empty()
+        assert (item-expected)/expected < 0.000001
+
+    def test_OP_MOD_FLOAT_reads_float_from_tape_pulls_float_from_queue_put_modulus_on_queue(self):
+        assert self.queue.empty()
+        self.tape = classes.Tape(functions.float_to_bytes(13.0))
+        self.queue.put(functions.float_to_bytes(131.1))
+
+        expected = functions.bytes_to_float(functions.float_to_bytes(131.1))
+        expected = expected % functions.bytes_to_float(functions.float_to_bytes(13.0))
+
+        functions.OP_MOD_FLOAT(self.tape, self.queue, self.cache)
+        assert not self.cache
+        assert not self.queue.empty()
+        item = self.queue.get(False)
+        item = functions.bytes_to_float(item)
+        assert self.queue.empty()
+        assert (item-expected)/expected < 0.000001
+
+    def test_OP_MOD_FLOATS_pulls_two_floats_from_queue_put_modulus_on_queue(self):
+        assert self.queue.empty()
+        self.queue.put(functions.float_to_bytes(131.1))
+        self.queue.put(functions.float_to_bytes(13.0))
+
+        expected = functions.bytes_to_float(functions.float_to_bytes(131.1))
+        expected = expected % functions.bytes_to_float(functions.float_to_bytes(13.0))
+
+        functions.OP_MOD_FLOATS(self.tape, self.queue, self.cache)
+        assert not self.cache
+        assert not self.queue.empty()
+        item = self.queue.get(False)
+        item = functions.bytes_to_float(item)
+        assert self.queue.empty()
+        assert (item-expected)/expected < 0.000001
 
 
 if __name__ == '__main__':

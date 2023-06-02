@@ -43,6 +43,15 @@ def bytes_to_bool(val: bytes) -> bool:
     """Return True if any bits set, else False."""
     return int.from_bytes(val, 'big') > 0
 
+def bytes_to_float(number: bytes) -> float:
+    tert(type(number) is bytes, 'number must be 4 bytes')
+    vert(len(number) == 4, 'number must be 4 bytes')
+    return struct.unpack('!f', number)[0]
+
+def float_to_bytes(number: float) -> bytes:
+    tert(type(number) is float, 'number must be float')
+    return struct.pack('!f', number)
+
 
 def OP_FALSE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Puts a null byte onto the queue."""
@@ -345,7 +354,7 @@ def OP_MOD_FLOAT(tape: Tape, queue: LifoQueue, cache: dict) -> None:
         'OP_MOD_FLOAT malformed float'
     dividend, = struct.unpack('!f', item)
     divisor, = struct.unpack('!f', tape.read(4))
-    result = divisor % dividend
+    result = dividend % divisor
     assert not isnan(result), 'OP_MOD_FLOAT nan encountered'
     queue.put(struct.pack('!f', result))
 
@@ -363,7 +372,7 @@ def OP_MOD_FLOATS(tape: Tape, queue: LifoQueue, cache: dict) -> None:
         'OP_MOD_FLOATS malformed float'
     dividend, = struct.unpack('!f', item)
 
-    result = divisor % dividend
+    result = dividend % divisor
     assert not isnan(result), 'OP_MOD_FLOATS nan encountered'
     queue.put(struct.pack('!f', result))
 
