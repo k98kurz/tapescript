@@ -1,5 +1,6 @@
 from __future__ import annotations
-from classes import Tape
+from .classes import Tape
+from .errors import tert, vert
 from hashlib import sha256, shake_256
 from math import ceil, floor, isnan, log2
 from nacl.exceptions import BadSignatureError
@@ -13,7 +14,8 @@ import struct
 
 def bytes_to_int(number: bytes) -> int:
     """Convert from bytes to a signed int."""
-    assert type(number) is bytes and len(number) > 0
+    tert(type(number) is bytes, 'number must be bytes')
+    vert(len(number) > 0, 'number must not be empty')
     size = len(number) * 8
     number = int.from_bytes(number, 'big')
     negative = number >> (size - 1)
@@ -22,7 +24,7 @@ def bytes_to_int(number: bytes) -> int:
 
 def int_to_bytes(number: int) -> bytes:
     """Convert from arbitrarily large signed int to bytes."""
-    assert type(number) is int
+    tert(type(number) is int, 'number must be int')
     negative = number < 0
     number = abs(number)
     n_bits = floor(log2(number)) + 1 if number != 0 else 1
