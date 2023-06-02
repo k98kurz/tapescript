@@ -1,5 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
+from .errors import sert
 
 
 @dataclass
@@ -15,8 +16,8 @@ class Tape:
 
     def read(self, size: int, move_pointer: bool = True) -> bytes:
         """Read symbols from the data."""
-        assert self.pointer + size <= len(self.data), \
-            'cannot read that many bytes'
+        sert(self.pointer + size <= len(self.data),
+            'cannot read that many bytes')
         data = self.data[self.pointer:self.pointer+size]
 
         if move_pointer:
@@ -26,7 +27,7 @@ class Tape:
 
     def move_pointer(self, n: int) -> int:
         """Move the pointer the given number of places."""
-        assert self.pointer + n <= len(self.data), 'cannot move pointer that far'
+        sert(self.pointer + n <= len(self.data), 'cannot move pointer that far')
         self.pointer += n
         return self.pointer
 

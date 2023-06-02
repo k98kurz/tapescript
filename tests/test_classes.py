@@ -1,4 +1,4 @@
-from context import classes, interfaces
+from context import classes, errors, interfaces
 import unittest
 
 
@@ -21,11 +21,11 @@ class TestTape(unittest.TestCase):
     def test_Tape_raises_error_if_remaining_tape_too_short(self):
         tape = classes.Tape(b'some data')
 
-        with self.assertRaises(BaseException) as e:
+        with self.assertRaises(errors.ScriptExecutionError) as e:
             tape.read(20)
 
         assert tape.read(9) == b'some data'
-        with self.assertRaises(BaseException) as e:
+        with self.assertRaises(errors.ScriptExecutionError) as e:
             tape.read(1)
 
     def test_Tape_has_terminated_returns_correct_bool(self):
@@ -41,6 +41,21 @@ class TestTape(unittest.TestCase):
         tape = classes.Tape(b'some data')
         assert hasattr(tape, 'flags')
         assert isinstance(tape.flags, dict)
+
+    def test_Tape_instance_has_dict_definitions_property(self):
+        tape = classes.Tape(b'some data')
+        assert hasattr(tape, 'definitions')
+        assert isinstance(tape.definitions, dict)
+
+    def test_Tape_instance_has_int_pointer_property(self):
+        tape = classes.Tape(b'some data')
+        assert hasattr(tape, 'pointer')
+        assert isinstance(tape.pointer, int)
+
+    def test_Tape_instance_has_dict_contracts_property(self):
+        tape = classes.Tape(b'some data')
+        assert hasattr(tape, 'contracts')
+        assert isinstance(tape.contracts, dict)
 
 
 if __name__ == '__main__':
