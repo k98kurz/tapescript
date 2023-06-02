@@ -40,6 +40,11 @@ cache item from the message body during signature checks.
 allowable flags. If a signature is passed to a signature checker that uses a
 disallowed sigflag, a `ScriptExecutionError` will be raised.
 
+### Timestamp and epoch checking
+
+@todo ensure implementation semantics are correct, then write some documentation
+explaining it
+
 ### Testing
 
 First, clone the repo, set up the virtualenv, and install requirements.
