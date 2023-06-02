@@ -1,4 +1,4 @@
-from .errors import yert, vert
+from .errors import yert, vert, SyntaxError
 from .functions import int_to_bytes, opcodes_inverse
 import struct
 
@@ -288,7 +288,10 @@ def compile_script(script: str) -> bytes:
         # ignore comments (symbols between matchin #, ', or ")
         if symbol in ('"', "'", '#'):
             # skip forward past the matching symbol
-            index = symbols.index(symbol, index+1) + 1
+            try:
+                index = symbols.index(symbol, index+1) + 1
+            except ValueError:
+                raise SyntaxError(f'unterminated comment starting with {symbol}') from None
             continue
 
         vert(symbol in opcodes_inverse or symbol == 'OP_PUSH',

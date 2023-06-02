@@ -148,6 +148,11 @@ class TestParsing(unittest.TestCase):
             parsing.compile_script('OP_DEF 0 { OP_SWAP x1234 d123 }')
         assert str(e.exception) == 'OP_SWAP value prefaced by x must be 2 long (1 byte)'
 
+    def test_compile_script_errors_on_unterminated_comment(self):
+        with self.assertRaises(errors.SyntaxError) as e:
+            parsing.compile_script('" unterminated comment')
+        str(e.exception) == 'unterminated comment starting with "'
+
     def test_compile_script_ignores_comments(self):
         code1 = parsing.compile_script('OP_POP0')
         code2 = parsing.compile_script('# ignored # OP_POP0')
