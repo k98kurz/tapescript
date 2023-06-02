@@ -6,7 +6,7 @@ controls in a distributed system.
 
 ## Status
 
-- [ ] The code
+- [x] The code
 - [ ] The tests
 - [ ] The docs
 - [ ] The package
@@ -26,6 +26,19 @@ pip install tapescript
 ### Run a script
 
 @todo
+
+### Signature checking
+
+Notes for the `OP_CHECK_SIG` and `OP_CHECK_SIG_VERIFY` functions:
+
+1. The body of the message to be used in checking the signature is comprised of
+the `sigfield[1-8]` cache items.
+2. Each signature can have an additional (33rd) byte attached which encodes up
+to 8 bit flags. Each bit flag encoded will exclude the associated `sigfield{n}`
+cache item from the message body during signature checks.
+3. These function calls take a 1 byte param from the tap that encodes the
+allowable flags. If a signature is passed to a signature checker that uses a
+disallowed sigflag, a `ScriptExecutionError` will be raised.
 
 ### Testing
 
