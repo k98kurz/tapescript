@@ -469,9 +469,9 @@ def OP_CHECK_SIG(tape: Tape, queue: LifoQueue, cache: dict) -> None:
         queue if verification succeeds, otherwise put False onto the
         queue.
     """
+    allowable_flags = tape.read(1)[0]
     vkey = queue.get(False)
     sig = queue.get(False)
-    allowable_flags = tape.read(1)[0]
 
     assert (type(vkey) is bytes and len(vkey) == nacl.bindings.crypto_sign_PUBLICKEYBYTES) \
         or type(vkey) is VerifyKey, \
