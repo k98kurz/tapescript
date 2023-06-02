@@ -1,7 +1,5 @@
-from classes import (
-    Tape,
-    opcodes,
-    opcodes_inverse,
+from classes import Tape
+from functions import (
     compile_script,
     decompile_script,
     run_script,
