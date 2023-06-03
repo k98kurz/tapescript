@@ -197,6 +197,7 @@ class TestParsing(unittest.TestCase):
             '3.src': '3.hex',
             '4.src': '4.hex',
             '5.src': '5.hex',
+            'p2pk_locking_script.src': 'p2pk_locking_script.hex',
         }
         vectors = {}
 
@@ -208,8 +209,25 @@ class TestParsing(unittest.TestCase):
                     vectors[src] = hex
 
         for src, hex in vectors.items():
-            expected = bytes.fromhex(hex)
-            observed = parsing.compile_script(src)
+            expected = hex
+            observed = parsing.compile_script(src).hex()
+            if expected != observed:
+                print(expected)
+                print(observed)
+                diff = ''
+                if len(observed) > len(expected):
+                    for i in range(len(observed)):
+                        if i >= len(expected):
+                            diff += '+'
+                        else:
+                            diff += ' ' if expected[i] == observed[i] else '^'
+                if len(expected) >= len(observed):
+                    for i in range(len(expected)):
+                        if i >= len(observed):
+                            diff += '-'
+                        else:
+                            diff += ' ' if expected[i] == observed[i] else '^'
+                print(diff)
             assert expected == observed
 
 

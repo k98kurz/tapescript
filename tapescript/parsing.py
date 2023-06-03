@@ -65,7 +65,7 @@ def get_args(opcode: str, symbols: list[str]) -> tuple[int, tuple[bytes]]:
                         val = int(val[1:].split('.')[0])
                     else:
                         val = int(val[1:])
-                    size = ceil(log2(val))
+                    size = ceil(log2(val)/8)
                     val = val.to_bytes(size, 'big')
                 case 'x':
                     val = bytes.fromhex(val[1:])

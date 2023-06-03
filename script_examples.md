@@ -22,13 +22,13 @@ OP_DEF 0 {
     OP_PUSH d1694791613
     OP_CHECK_TIMESTAMP_VERIFY
     OP_PUSH x<hex pubkey0>
-    OP_CHECK_SIG
+    OP_CHECK_SIG x00
     OP_VERIFY
 }
 
 OP_DEF 1 {
     OP_PUSH x<hex pubkey1>
-    OP_CHECK_SIG
+    OP_CHECK_SIG x00
     OP_VERIFY
 }
 
@@ -42,9 +42,9 @@ OP_FALSE
 
 # locking script #
 OP_IF (
-    OP_CALL 0
+    OP_CALL d0
 ) ELSE (
-    OP_CALL 1
+    OP_CALL d1
 )
 ```
 
@@ -60,10 +60,10 @@ OP_IF (
     OP_PUSH d1694791613
     OP_CHECK_TIMESTAMP_VERIFY
     OP_PUSH x<hex pubkey0>
-    OP_CHECK_SIG
+    OP_CHECK_SIG x00
 ) ELSE (
     OP_PUSH x<hex pubkey1>
-    OP_CHECK_SIG
+    OP_CHECK_SIG x00
 )
 
 # unlocking script #
@@ -104,16 +104,16 @@ OP_IF (
     OP_CHECK_TRANSFER 1
     OP_VERIFY
     OP_PUSH x<hex pubkey_CDS_purchaser>
-    OP_CHECK_SIG
+    OP_CHECK_SIG x00
 ) ELSE (
     OP_IF (
         OP_PUSH d<unix epoch of maturation + grace period + 30 days>
         OP_CHECK_EPOCH_VERIFY
         OP_PUSH x<hex pubkey_CDS_issuer>
-        OP_CHECK_SIG
+        OP_CHECK_SIG x00
     ) ELSE (
         OP_PUSH x<hex pubkey_2of2>
-        OP_CHECK_SIG
+        OP_CHECK_SIG x00
     )
 )
 
@@ -150,13 +150,13 @@ OP_EVAL
 # committed script #
 OP_IF (
     OP_PUSH x<hex musig pubkey>
-    OP_CHECK_SIG
+    OP_CHECK_SIG x00
 ) ELSE (
     OP_PUSH x<hex pubkey1>
     OP_PUSH x<hex pubkey2>
     OP_SWAP 1 2
     OP_CHECK_SIG_VERIFY
-    OP_CHECK_SIG
+    OP_CHECK_SIG x00
 )
 
 # locking script #
