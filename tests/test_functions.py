@@ -1048,10 +1048,63 @@ class TestFunctions(unittest.TestCase):
         assert self.queue.get(False) == b'\x01'
         assert self.queue.empty()
 
-    # skip OP_CALL test until run_tape tested
-    # skip OP_IF test until OP_CALL tested
-    # skip OP_IF_ELSE test until OP_CALL tested
-    # skip OP_EVAL test until OP_CALL tested
+    def test_OP_CALL_reads_uint_from_tape_and_runs_that_definition(self):
+        self.tape = classes.Tape(b'\x00')
+        self.tape.definitions[b'\x00'] = classes.Tape(b'\x01')
+        assert self.queue.empty()
+        functions.OP_CALL(self.tape, self.queue, self.cache)
+        assert not self.queue.empty()
+        assert self.queue.get(False) == b'\x01'
+
+    def test_OP_IF_reads_3uint_length_from_tape_pulls_top_queue_bool_and_executes_if_true(self):
+        length = b'\x00\x00\x02'
+        op_push0 = b'\x02'
+        self.tape = classes.Tape(length + op_push0 + b'X')
+        assert self.queue.empty()
+        self.queue.put(b'\x01')
+        functions.OP_IF(self.tape, self.queue, self.cache)
+        assert self.tape.has_terminated()
+        assert self.queue.get(False) == b'X'
+        assert self.queue.empty()
+
+        length = b'\x00\x00\x02'
+        op_push0 = b'\x02'
+        self.tape = classes.Tape(length + op_push0 + b'X')
+        assert self.queue.empty()
+        self.queue.put(b'\x00')
+        functions.OP_IF(self.tape, self.queue, self.cache)
+        assert self.tape.has_terminated()
+        assert self.queue.empty()
+
+    def test_OP_IF_ELSE_reads_2_definitions_from_tape_and_executes_first_one_if_top_queue_value(self):
+        length = b'\x00\x00\x02'
+        if_def = b'\x02Y'
+        else_def = b'\x02N'
+        self.tape = classes.Tape(length + if_def + length + else_def)
+        assert self.queue.empty()
+        self.queue.put(b'\x01')
+        functions.OP_IF_ELSE(self.tape, self.queue, self.cache)
+        assert self.tape.has_terminated()
+        assert self.queue.get(False) == b'Y'
+        assert self.queue.empty()
+
+        self.tape = classes.Tape(length + if_def + length + else_def)
+        assert self.queue.empty()
+        self.queue.put(b'\x00')
+        functions.OP_IF_ELSE(self.tape, self.queue, self.cache)
+        assert self.tape.has_terminated()
+        assert self.queue.get(False) == b'N'
+        assert self.queue.empty()
+
+    def test_OP_EVAL_pulls_value_from_queue_and_runs_as_script(self):
+        code = b'\x02F'
+        assert self.queue.empty()
+        self.queue.put(code)
+        functions.OP_EVAL(self.tape, self.queue, self.cache)
+        assert self.tape.has_terminated()
+        assert not self.queue.empty()
+        assert self.queue.get(False) == b'F'
+        assert self.queue.empty()
 
     # values
     def test_opcodes_is_dict_mapping_ints_to_tuple_str_function(self):
@@ -1109,6 +1162,16 @@ class TestFunctions(unittest.TestCase):
         assert not self.queue.empty()
         item = self.queue.get(False)
         assert item == b'\x01'
+
+    def test_run_script_returns_tuple_of_tape_queue_and_cache(self):
+        code = bytes.fromhex('990099009900990099009900')
+        result = functions.run_script(code)
+        assert isinstance(result, tuple)
+        assert len(result) == 3
+        assert isinstance(result[0], classes.Tape)
+        assert isinstance(result[1], LifoQueue)
+        assert isinstance(result[2], dict)
+        assert result[0].has_terminated()
 
 
 if __name__ == '__main__':
