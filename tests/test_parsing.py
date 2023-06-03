@@ -208,6 +208,10 @@ class TestParsing(unittest.TestCase):
             'cds_unlocking_script1.src': 'cds_unlocking_script1.hex',
             'cds_unlocking_script2.src': 'cds_unlocking_script2.hex',
             'cds_unlocking_script3.src': 'cds_unlocking_script3.hex',
+            'correspondent_committed_script.src': 'correspondent_committed_script.hex',
+            'correspondent_locking_script.src': 'correspondent_locking_script.hex',
+            'correspondent_unlocking_script1.src': 'correspondent_unlocking_script1.hex',
+            'correspondent_unlocking_script2.src': 'correspondent_unlocking_script2.hex',
         }
         vectors = {}
 

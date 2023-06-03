@@ -154,14 +154,14 @@ OP_IF (
 ) ELSE (
     OP_PUSH x<hex pubkey1>
     OP_PUSH x<hex pubkey2>
-    OP_SWAP 1 2
-    OP_CHECK_SIG_VERIFY
+    OP_SWAP d1 d2
+    OP_CHECK_SIG_VERIFY x00
     OP_CHECK_SIG x00
 )
 
 # locking script #
 OP_DUP
-OP_SHAKE256 20
+OP_SHAKE256 d20
 OP_PUSH x<hex committed script shake256 hash>
 OP_EQUAL_VERIFY
 OP_EVAL
