@@ -1,5 +1,6 @@
 from .errors import yert, vert, SyntaxError
 from .functions import int_to_bytes, opcodes_inverse
+from math import ceil, log2
 from typing import Any
 import struct
 
@@ -14,7 +15,7 @@ def get_symbols(script: str) -> list[str]:
         token = splits.pop()
         if token[:2] in ('s"', "s'"):
             # match to end of string value
-            found = False
+            found = '"' in token[3:] or "'" in token[3:]
             parts = [token]
             while not found and len(splits):
                 next = splits.pop()
@@ -51,11 +52,10 @@ def get_args(opcode: str, symbols: list[str]) -> tuple[int, tuple[bytes]]:
             pass
         case 'OP_PUSH':
             # special case: OP_PUSH is a short hand for OP_PUSH[0,1,2,4]
-            # @todo prety sure this is wrong
             symbols_to_advance += 1
             val = symbols[0]
-            yert(val[0].lower() in ('d', 'x'),
-                'numeric args must be prefaced with d or x')
+            yert(val[0].lower() in ('d', 'x', 's'),
+                'values for OP_PUSH must be prefaced with d, x, or s')
 
             match val[0].lower():
                 case 'd':
@@ -65,27 +65,31 @@ def get_args(opcode: str, symbols: list[str]) -> tuple[int, tuple[bytes]]:
                         val = int(val[1:].split('.')[0])
                     else:
                         val = int(val[1:])
-                    size = 1 if val < 256 else 2 if val < 65536 else 4
+                    size = ceil(log2(val))
                     val = val.to_bytes(size, 'big')
                 case 'x':
-                    vert(len(val[1:]) <= 8,
-                        'value must be at most 4 bytes long')
                     val = bytes.fromhex(val[1:])
+                case 's':
+                    if val[1] == '"' and '"' in val[2:]:
+                        last_idx = val[2:].index('"')
+                        val = bytes(val[2:last_idx+2], 'utf-8')
+                    elif val[1] == "'" and "'" in val[2:]:
+                        last_idx = val[2:].index("'")
+                        val = bytes(val[2:last_idx+2], 'utf-8')
+                    else:
+                        val = bytes(val[1:], 'utf-8')
 
             if 1 < len(val) < 256:
                 # tape syntax of OP_PUSH1 [size 0-255] [val]
                 # human-readable decompiled syntax of OP_PUSH1 val
-                symbols_to_advance += 1
                 args.append(len(val).to_bytes(1, 'big'))
             elif 255 < len(val) < 65_536:
                 # tape syntax of OP_PUSH2 [size 0-65_535] [val]
                 # human-readable decompiled syntax of OP_PUSH2 val
-                symbols_to_advance += 1
                 args.append(len(val).to_bytes(2, 'big'))
             elif 65_535 < len(val) < 4_294_967_296:
                 # tape syntax of OP_PUSH4 [size 0-4_294_967_295] [val]
                 # human-readable decompiled syntax of OP_PUSH4 val
-                symbols_to_advance += 1
                 args.append(len(val).to_bytes(4, 'big'))
             args.append(val)
         case 'OP_PUSH1' | 'OP_WRITE_CACHE' | 'OP_READ_CACHE' | \
@@ -310,17 +314,17 @@ def parse_if(symbols: list[str]) -> tuple[int, tuple[bytes]]:
             has_else = 'ELSE' in symbols[index:]
             code.extend(parts)
         else:
-            yert(current_symbol in opcodes_inverse,
+            yert(current_symbol in opcodes_inverse or current_symbol == 'OP_PUSH',
                 f'unrecognized opcode: {current_symbol}')
             advance, args = get_args(current_symbol, symbols[index+1:])
             if current_symbol == 'OP_PUSH':
-                if len(args[0]) < 2:
+                if len(args) < 2:
                     code.append(opcodes_inverse['OP_PUSH0'][0].to_bytes(1, 'big'))
-                elif 1 < len(args[0]) < 256:
+                elif len(args[0]) == 1:
                     code.append(opcodes_inverse['OP_PUSH1'][0].to_bytes(1, 'big'))
-                elif 255 < len(args[0]) < 65_536:
+                elif len(args[0]) == 2:
                     code.append(opcodes_inverse['OP_PUSH2'][0].to_bytes(1, 'big'))
-                elif 65_535 < len(args[0]) < 2**32:
+                elif len(args[0]) == 4:
                     code.append(opcodes_inverse['OP_PUSH4'][0].to_bytes(1, 'big'))
             else:
                 code.append(opcodes_inverse[current_symbol][0].to_bytes(1, 'big'))
@@ -367,18 +371,18 @@ def parse_else(symbols: list[str]) -> tuple[int, tuple[bytes]]:
             index += advance
             code.extend(parts)
         else:
-            yert(current_symbol in opcodes_inverse,
+            yert(current_symbol in opcodes_inverse or current_symbol == 'OP_PUSH',
                 f'unrecognized opcode: {current_symbol}')
             advance, args = get_args(current_symbol, symbols[index+1:])
             index += advance
             if current_symbol == 'OP_PUSH':
-                if len(args[0]) < 2:
+                if len(args) < 2:
                     code.append(opcodes_inverse['OP_PUSH0'][0].to_bytes(1, 'big'))
-                elif 1 < len(args[0]) < 256:
+                elif len(args[0]) == 1:
                     code.append(opcodes_inverse['OP_PUSH1'][0].to_bytes(1, 'big'))
-                elif 255 < len(args[0]) < 65_536:
+                elif len(args[0]) == 2:
                     code.append(opcodes_inverse['OP_PUSH2'][0].to_bytes(1, 'big'))
-                elif 65_535 < len(args[0]) < 2**32:
+                elif len(args[0]) == 4:
                     code.append(opcodes_inverse['OP_PUSH4'][0].to_bytes(1, 'big'))
             else:
                 code.append(opcodes_inverse[current_symbol][0].to_bytes(1, 'big'))
@@ -465,13 +469,13 @@ def compile_script(script: str) -> bytes:
                     advance, args = get_args(current_symbol, symbols[i+1:])
                     i += advance
                     if current_symbol == 'OP_PUSH':
-                        if len(args[0]) < 2:
+                        if len(args) < 2:
                             def_code += opcodes_inverse['OP_PUSH0'][0].to_bytes(1, 'big')
-                        elif 1 < len(args[0]) < 256:
+                        elif len(args[0]) == 1:
                             def_code += opcodes_inverse['OP_PUSH1'][0].to_bytes(1, 'big')
-                        elif 255 < len(args[0]) < 65_536:
+                        elif len(args[0]) == 2:
                             def_code += opcodes_inverse['OP_PUSH2'][0].to_bytes(1, 'big')
-                        elif 65_535 < len(args[0]) < 2**32:
+                        elif len(args[0]) == 4:
                             def_code += opcodes_inverse['OP_PUSH4'][0].to_bytes(1, 'big')
                     else:
                         def_code += opcodes_inverse[current_symbol][0].to_bytes(1, 'big')
@@ -498,13 +502,13 @@ def compile_script(script: str) -> bytes:
             advance, args = get_args(symbol, symbols[index+1:])
             index += advance
             if symbol == 'OP_PUSH':
-                if len(args[0]) < 2:
+                if len(args) < 2:
                     code.append(opcodes_inverse['OP_PUSH0'][0].to_bytes(1, 'big'))
-                elif 1 < len(args[0]) < 256:
+                elif len(args[0]) == 1:
                     code.append(opcodes_inverse['OP_PUSH1'][0].to_bytes(1, 'big'))
-                elif 255 < len(args[0]) < 65_536:
+                elif len(args[0]) == 2:
                     code.append(opcodes_inverse['OP_PUSH2'][0].to_bytes(1, 'big'))
-                elif 65_535 < len(args[0]) < 2**32:
+                elif len(args[0]) == 4:
                     code.append(opcodes_inverse['OP_PUSH4'][0].to_bytes(1, 'big'))
             else:
                 code.append(opcodes_inverse[symbol][0].to_bytes(1, 'big'))

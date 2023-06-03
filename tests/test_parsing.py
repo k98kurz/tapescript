@@ -36,6 +36,11 @@ class TestParsing(unittest.TestCase):
             'x1234',
             '}'
         ]
+        symbols = parsing.get_symbols('OP_PUSH s"word"')
+        assert symbols == [
+            'OP_PUSH',
+            's"word"'
+        ]
 
     def test_get_symbols_converts_any_whitespace_to_single_space(self):
         symbols = parsing.get_symbols('s"should   be\nseparated\tby\njust    1 space"')
@@ -95,15 +100,11 @@ class TestParsing(unittest.TestCase):
 
         with self.assertRaises(errors.SyntaxError) as e:
             parsing.compile_script('OP_DEF 0 { OP_PUSH 123 }')
-        assert str(e.exception) == 'numeric args must be prefaced with d or x'
+        assert str(e.exception) == 'values for OP_PUSH must be prefaced with d, x, or s'
 
         with self.assertRaises(ValueError) as e:
             parsing.compile_script('OP_DEF 0 { OP_PUSH dabc }')
         assert str(e.exception) == 'value prefaced by d must be decimal int'
-
-        with self.assertRaises(ValueError) as e:
-            parsing.compile_script('OP_DEF 0 { OP_PUSH xabcd12345d }')
-        assert str(e.exception) == 'value must be at most 4 bytes long'
 
         with self.assertRaises(errors.SyntaxError) as e:
             parsing.compile_script('OP_DEF 0 { OP_PUSH1 asd }')
@@ -200,6 +201,39 @@ class TestParsing(unittest.TestCase):
         assert code == expected
         code = parsing.compile_script('OP_DEF x01 OP_DIV_INTS END_DEF')
         expected = bytes.fromhex('290100000112')
+        assert code == expected
+
+        code = parsing.compile_script(''.join([
+            '# comment should be ignored # ',
+            'OP_DEF 0 { ',
+                'OP_DUP ',
+                'OP_SHA256 ',
+                'OP_PUSH s"hello world" ',
+                'OP_SHA256 ',
+                'OP_EQUAL ',
+            '} ',
+            'OP_CALL d0 ',
+            'OP_IF ( ',
+                'OP_PUSH s"success" ',
+            ') else ( ',
+                'OP_FALSE ',
+                'OP_VERIFY ',
+            ')'
+        ]))
+        expected = bytes.fromhex(''.join([
+            '2900', '000011',
+                '1d',
+                '1e',
+                '030b', (b'hello world').hex(),
+                '1e',
+                '21',
+            '2a00',
+            '2c', '000009',
+                '0307', (b'success').hex(),
+            '000002',
+                '00',
+                '20'
+        ]))
         assert code == expected
 
 
