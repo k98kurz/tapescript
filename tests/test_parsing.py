@@ -41,6 +41,15 @@ class TestParsing(unittest.TestCase):
         symbols = parsing.get_symbols('s"should   be\nseparated\tby\njust    1 space"')
         assert symbols == ['s"should be separated by just 1 space"']
 
+    def test_parse_if_errors_on_incomplete_OP_IF(self):
+        with self.assertRaises(errors.SyntaxError) as e:
+            parsing.parse_if(['(', 'OP_POP0'])
+        assert str(e.exception) == 'unterminated OP_IF: missing matching )'
+
+        with self.assertRaises(errors.SyntaxError) as e:
+            parsing.parse_if(['OP_POP0'])
+        assert str(e.exception) == 'missing END_IF'
+
     def test_compile_script_errors_on_nonstr_input(self):
         with self.assertRaises(ValueError) as e:
             parsing.compile_script(b'not a str')
@@ -157,6 +166,15 @@ class TestParsing(unittest.TestCase):
         code1 = parsing.compile_script('OP_POP0')
         code2 = parsing.compile_script('# ignored # OP_POP0')
         assert code1 == code2 == functions.opcodes_inverse['OP_POP0'][0].to_bytes(1)
+
+    def test_compile_script_errors_on_incomplete_OP_IF(self):
+        with self.assertRaises(errors.SyntaxError) as e:
+            parsing.compile_script('OP_IF ( OP_POP0')
+        assert str(e.exception) == 'unterminated OP_IF: missing matching )'
+
+        with self.assertRaises(errors.SyntaxError) as e:
+            parsing.compile_script('OP_IF OP_POP0')
+        assert str(e.exception) == 'missing END_IF'
 
 
 if __name__ == '__main__':
