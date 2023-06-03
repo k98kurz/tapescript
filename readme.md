@@ -6,10 +6,14 @@ controls in a distributed system.
 
 ## Status
 
-- [x] The code
-- [ ] The tests
-- [ ] The docs
-- [ ] The package
+- [x] OPs
+- [x] Interpreter functions and classes
+- [x] Byte-code compiler
+- [ ] Decompiler
+- [x] Unit tests
+- [ ] E2e tests
+- [ ] Decent docs
+- [ ] Package published
 
 ## Usage
 
