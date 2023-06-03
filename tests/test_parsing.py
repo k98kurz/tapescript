@@ -198,6 +198,8 @@ class TestParsing(unittest.TestCase):
             '4.src': '4.hex',
             '5.src': '5.hex',
             'p2pk_locking_script.src': 'p2pk_locking_script.hex',
+            'p2pk_unlocking_script1.src': 'p2pk_unlocking_script1.hex',
+            'p2pk_unlocking_script2.src': 'p2pk_unlocking_script2.hex',
         }
         vectors = {}
 
@@ -212,6 +214,8 @@ class TestParsing(unittest.TestCase):
             expected = hex
             observed = parsing.compile_script(src).hex()
             if expected != observed:
+                # just to make it easier to step through the broken test vectors
+                observed = parsing.compile_script(src).hex()
                 print(expected)
                 print(observed)
                 diff = ''
