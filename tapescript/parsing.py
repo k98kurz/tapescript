@@ -135,7 +135,7 @@ def get_args(opcode: str, symbols: list[str]) -> tuple[int, tuple[bytes]]:
                         args.append(len(val).to_bytes(1, 'big'))
                         args.append(val)
         case 'OP_PUSH0' | 'OP_POP1' | 'OP_ADD_INTS' | 'OP_SUBTRACT_INTS' | \
-            'OP_MULT_INTS' | 'OP_ADD_FLOATS' | \
+            'OP_MULT_INTS' | 'OP_ADD_FLOATS' | 'OP_CHECK_TRANSFER' | \
             'OP_SUBTRACT_FLOATS' | 'OP_ADD_POINTS' | 'OP_CALL' | \
             'OP_COPY' | 'OP_SHAKE256' | 'OP_RANDOM' | 'OP_REVERSE' | \
             'OP_SPLIT' | 'OP_SPLIT_STR' | 'OP_CHECK_SIG' | 'OP_CHECK_SIG_VERIFY':

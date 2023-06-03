@@ -203,6 +203,7 @@ class TestParsing(unittest.TestCase):
             'p2sh_committed_script.src': 'p2sh_committed_script.hex',
             'p2sh_unlocking_script.src': 'p2sh_unlocking_script.hex',
             'p2sh_locking_script.src': 'p2sh_locking_script.hex',
+            'cds_committed_script.src': 'cds_committed_script.hex',
         }
         vectors = {}
 
