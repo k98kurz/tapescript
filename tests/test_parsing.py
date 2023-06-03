@@ -198,6 +198,9 @@ class TestParsing(unittest.TestCase):
         code = parsing.compile_script('OP_DEF 0 { OP_PUSH x01 } OP_CALL d0')
         expected = bytes.fromhex('290000000202012a00')
         assert code == expected
+        code = parsing.compile_script('OP_DEF x01 OP_DIV_INTS END_DEF')
+        expected = bytes.fromhex('290100000112')
+        assert code == expected
 
 
 if __name__ == '__main__':

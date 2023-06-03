@@ -45,7 +45,7 @@ def get_args(opcode: str, symbols: list[str]) -> tuple[int, tuple[bytes]]:
             'OP_CHECK_TIMESTAMP' | 'OP_CHECK_TIMESTAMP_VERIFY' | \
             'OP_CHECK_EPOCH' | 'OP_CHECK_EPOCH_VERIFY' | 'OP_EVAL' | \
             'OP_NOT' | 'OP_RETURN' | 'OP_DEPTH' | 'OP_SWAP2' | \
-            'OP_CONCAT' | 'OP_CONCAT_STR' | 'OP_DIV_INTS':
+            'OP_CONCAT' | 'OP_CONCAT_STR':
             # ops that have no arguments on the tape
             # human-readable syntax of OP_[whatever]
             pass
@@ -456,9 +456,6 @@ def compile_script(script: str) -> bytes:
                      'statements must begin with valid op code')
                 yert(current_symbol != 'OP_DEF',
                     'cannot use OP_DEF within OP_DEF body')
-
-                if current_symbol[:3] == 'OP_' and current_symbol not in ('OP_PUSH', 'OP_IF'):
-                    def_code += opcodes_inverse[current_symbol][0].to_bytes(1, 'big')
 
                 if current_symbol == 'OP_IF':
                     advance, parts = parse_if(symbols[i+1:])
