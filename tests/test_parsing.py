@@ -176,6 +176,18 @@ class TestParsing(unittest.TestCase):
             parsing.compile_script('OP_IF OP_POP0')
         assert str(e.exception) == 'missing END_IF'
 
+    def test_compile_script_returns_bytes(self):
+        code = parsing.compile_script('OP_POP0')
+        assert type(code) is bytes
+        assert len(code) == 1
+
+    def test_compile_script_e2e_vectors(self):
+        code = parsing.compile_script('OP_IF ( OP_POP0 )')
+        assert code == b'\x2b\x00\x00\x01\x06'
+        code = parsing.compile_script('OP_IF ( OP_POP0 ) ELSE OP_PUSH0 d5 END_IF')
+        expected = b'\x2c\x00\x00\x01\x06\x00\x00\x02\x02\x05'
+        assert code == expected
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -267,22 +267,6 @@ def get_args(opcode: str, symbols: list[str]) -> tuple[int, tuple[bytes]]:
     return (symbols_to_advance, tuple(args))
 
 
-def reverse_index(stack: list, search: Any) -> int:
-    """Like list.index, but in reverse."""
-    index = len(stack) - 1
-    found = False
-
-    while index >= 0:
-        if stack[index] == search:
-            found = True
-            break
-        index -= 1
-
-    if not found:
-        raise ValueError(f'{search} is not in list')
-    return index
-
-
 def parse_if(symbols: list[str]) -> tuple[int, tuple[bytes]]:
     """Parses a statement starting with OP_IF. Returns tuple (int
         advance, tuple[bytes] parts). Called recursively to handle nested
@@ -292,27 +276,34 @@ def parse_if(symbols: list[str]) -> tuple[int, tuple[bytes]]:
     yert(len(symbols) > 0, 'missing OP_IF clause contents')
     opcode = 'OP_IF'
     code = []
+    index = 0
+    else_len = 0
 
     if symbols[0] == '(':
         # case 1: OP_IF ( statements )
         yert(')' in symbols[1:], 'unterminated OP_IF: missing matching )')
+        index += 1
     else:
         # case 2: OP_IF statements END_IF
         yert('END_IF' in symbols[1:], 'missing END_IF')
 
-    index = 0
     has_else = 'ELSE' in symbols
     while index < len(symbols):
         current_symbol = symbols[index]
 
         if current_symbol in (')', 'END_IF') and not has_else:
+            index += 2
             break
+        elif current_symbol in (')', 'END_IF'):
+            index += 1
+            continue
         elif current_symbol == 'ELSE':
             opcode = 'OP_IF_ELSE'
             advance, parts = parse_else(symbols[index+1:])
             has_else = False
             index += advance
             code.extend(parts)
+            else_len = len(b''.join(parts))
         elif current_symbol == 'OP_IF':
             advance, parts = parse_if(symbols[index+1:])
             index += advance
@@ -334,8 +325,19 @@ def parse_if(symbols: list[str]) -> tuple[int, tuple[bytes]]:
             else:
                 code.append(opcodes_inverse[current_symbol][0].to_bytes(1, 'big'))
             code.append(b''.join(args))
+            index += advance
 
-    return (index, (opcodes_inverse[opcode][0].to_bytes(1, 'big'), *code))
+    code = b''.join(code)
+
+    return (
+        index,
+        (
+            opcodes_inverse[opcode][0].to_bytes(1, 'big'),
+            (len(code) - else_len).to_bytes(3, 'big'),
+            code
+        )
+    )
+
 
 def parse_else(symbols: list[str]) -> tuple[int, tuple[bytes]]:
     """Parses an ELSE clause. Returns tuple (int advance, tuple[bytes]
@@ -343,18 +345,20 @@ def parse_else(symbols: list[str]) -> tuple[int, tuple[bytes]]:
     """
     yert(len(symbols) > 0, 'missing ELSE clause contents')
     code = []
+    index = 0
 
     if symbols[0] == '(':
         # case 1: ELSE ( statements )
         yert(')' in symbols[1:], 'unterminated ELSE: missing matching )')
+        index = 1
     else:
         yert('END_IF' in symbols[1:], 'missing END_IF')
 
-    index = 0
     while index < len(symbols):
         current_symbol = symbols[index]
 
         if current_symbol in (')', 'END_IF'):
+            index += 2
             break
         elif current_symbol == 'ELSE':
             raise SyntaxError('cannot have multiple ELSE clauses')
@@ -366,6 +370,7 @@ def parse_else(symbols: list[str]) -> tuple[int, tuple[bytes]]:
             yert(current_symbol in opcodes_inverse,
                 f'unrecognized opcode: {current_symbol}')
             advance, args = get_args(current_symbol, symbols[index+1:])
+            index += advance
             if current_symbol == 'OP_PUSH':
                 if len(args[0]) < 2:
                     code.append(opcodes_inverse['OP_PUSH0'][0].to_bytes(1, 'big'))
@@ -379,7 +384,14 @@ def parse_else(symbols: list[str]) -> tuple[int, tuple[bytes]]:
                 code.append(opcodes_inverse[current_symbol][0].to_bytes(1, 'big'))
             code.append(b''.join(args))
 
-    return (index, code)
+    code = b''.join(code)
+    return (
+        index,
+        (
+            len(code).to_bytes(3, 'big'),
+            code
+        )
+    )
 
 
 def compile_script(script: str) -> bytes:
@@ -476,7 +488,7 @@ def compile_script(script: str) -> bytes:
             index += search_idx
         elif symbol == 'OP_IF':
             advance, parts = parse_if(symbols[index+1:])
-            index += advance
+            index += advance + 1
             code.append(b''.join(parts))
         else:
             advance, args = get_args(symbol, symbols[index+1:])
