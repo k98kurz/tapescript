@@ -204,6 +204,10 @@ class TestParsing(unittest.TestCase):
             'p2sh_unlocking_script.src': 'p2sh_unlocking_script.hex',
             'p2sh_locking_script.src': 'p2sh_locking_script.hex',
             'cds_committed_script.src': 'cds_committed_script.hex',
+            'cds_locking_script.src': 'cds_locking_script.hex',
+            'cds_unlocking_script1.src': 'cds_unlocking_script1.hex',
+            'cds_unlocking_script2.src': 'cds_unlocking_script2.hex',
+            'cds_unlocking_script3.src': 'cds_unlocking_script3.hex',
         }
         vectors = {}
 

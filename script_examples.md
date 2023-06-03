@@ -137,7 +137,7 @@ OP_PUSH x<hex committed P2PK script src>
 
 # locking script #
 OP_DUP
-OP_SHAKE256 20
+OP_SHAKE256 d20
 OP_PUSH x<hex committed script shake256 hash>
 OP_EQUAL_VERIFY
 OP_EVAL
