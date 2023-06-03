@@ -191,50 +191,26 @@ class TestParsing(unittest.TestCase):
         assert len(code) == 1
 
     def test_compile_script_e2e_vectors(self):
-        code = parsing.compile_script('OP_IF ( OP_POP0 )')
-        assert code == b'\x2b\x00\x00\x01\x06'
-        code = parsing.compile_script('OP_IF ( OP_POP0 ) ELSE OP_PUSH0 d5 END_IF')
-        expected = b'\x2c\x00\x00\x01\x06\x00\x00\x02\x02\x05'
-        assert code == expected
-        code = parsing.compile_script('OP_DEF 0 { OP_PUSH x01 } OP_CALL d0')
-        expected = bytes.fromhex('290000000202012a00')
-        assert code == expected
-        code = parsing.compile_script('OP_DEF x01 OP_DIV_INTS END_DEF')
-        expected = bytes.fromhex('290100000112')
-        assert code == expected
+        vector_files = {
+            '1.src': '1.hex',
+            '2.src': '2.hex',
+            '3.src': '3.hex',
+            '4.src': '4.hex',
+            '5.src': '5.hex',
+        }
+        vectors = {}
 
-        code = parsing.compile_script(''.join([
-            '# comment should be ignored # ',
-            'OP_DEF 0 { ',
-                'OP_DUP ',
-                'OP_SHA256 ',
-                'OP_PUSH s"hello world" ',
-                'OP_SHA256 ',
-                'OP_EQUAL ',
-            '} ',
-            'OP_CALL d0 ',
-            'OP_IF ( ',
-                'OP_PUSH s"success" ',
-            ') else ( ',
-                'OP_FALSE ',
-                'OP_VERIFY ',
-            ')'
-        ]))
-        expected = bytes.fromhex(''.join([
-            '2900', '000011',
-                '1d',
-                '1e',
-                '030b', (b'hello world').hex(),
-                '1e',
-                '21',
-            '2a00',
-            '2c', '000009',
-                '0307', (b'success').hex(),
-            '000002',
-                '00',
-                '20'
-        ]))
-        assert code == expected
+        for src_fname, hex_fname in vector_files.items():
+            with open(f'tests/vectors/{src_fname}', 'r') as fsrc:
+                with open(f'tests/vectors/{hex_fname}', 'r') as fhex:
+                    src = fsrc.read()
+                    hex = ''.join(fhex.read().split())
+                    vectors[src] = hex
+
+        for src, hex in vectors.items():
+            expected = bytes.fromhex(hex)
+            observed = parsing.compile_script(src)
+            assert expected == observed
 
 
 if __name__ == '__main__':

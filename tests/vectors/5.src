@@ -1,0 +1,15 @@
+# comment should be ignored #
+OP_DEF 0 {
+    OP_DUP
+    OP_SHA256
+    OP_PUSH s"hello world"
+    OP_SHA256
+    OP_EQUAL
+}
+OP_CALL d0
+OP_IF (
+    OP_PUSH s"success"
+) else (
+    OP_FALSE
+    OP_VERIFY
+)

@@ -1,0 +1,5 @@
+OP_IF (
+    OP_POP0
+) ELSE
+    OP_PUSH0 d5
+END_IF
