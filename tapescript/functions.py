@@ -1010,6 +1010,8 @@ def run_tape(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Run the given tape using the queue and cache."""
     while not tape.has_terminated():
         op_code = tape.read(1)[0]
-        assert op_code not in opcodes, 'unrecognized opcode'
-        op = opcodes[op_code][1]
+        if op_code in opcodes:
+            op = opcodes[op_code][1]
+        else:
+            op = nopcodes[op_code][1]
         op(tape, queue, cache)

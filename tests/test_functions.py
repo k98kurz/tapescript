@@ -1048,6 +1048,12 @@ class TestFunctions(unittest.TestCase):
         assert self.queue.get(False) == b'\x01'
         assert self.queue.empty()
 
+    # skip OP_CALL test until run_tape tested
+    # skip OP_IF test until OP_CALL tested
+    # skip OP_IF_ELSE test until OP_CALL tested
+    # skip OP_EVAL test until OP_CALL tested
+
+    # values
     def test_opcodes_is_dict_mapping_ints_to_tuple_str_function(self):
         assert isinstance(functions.opcodes, dict)
         for key, value in functions.opcodes.items():
@@ -1084,10 +1090,25 @@ class TestFunctions(unittest.TestCase):
             assert type(value[0]) is int
             assert callable(value[1])
 
-    # skip OP_CALL test until run_tape tested
-    # skip OP_IF test until OP_CALL tested
-    # skip OP_IF_ELSE test until OP_CALL tested
-    # skip OP_EVAL test until OP_CALL tested
+    # code running functions
+    def test_run_tape_executes_ops_until_tape_has_terminated(self):
+        code = bytes.fromhex('990099009900990099009900')
+        self.tape = classes.Tape(code)
+        assert self.queue.empty()
+        assert not self.cache
+        functions.run_tape(self.tape, self.queue, self.cache)
+        assert self.tape.has_terminated()
+        assert self.queue.empty()
+
+        code = bytes.fromhex('290000000202012a00')
+        self.tape = classes.Tape(code)
+        assert self.queue.empty()
+        assert not self.cache
+        functions.run_tape(self.tape, self.queue, self.cache)
+        assert self.tape.has_terminated()
+        assert not self.queue.empty()
+        item = self.queue.get(False)
+        assert item == b'\x01'
 
 
 if __name__ == '__main__':
