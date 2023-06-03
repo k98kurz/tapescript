@@ -66,8 +66,16 @@ class TestParsing(unittest.TestCase):
         assert str(e.exception) == 'def number must be numeric'
 
         with self.assertRaises(ValueError) as e:
+            parsing.compile_script('OP_DEF x123 OP_DEF 1 OP_PUSH x01 END_DEF END_DEF')
+        assert str(e.exception) == 'def number must be in x00-xff'
+
+        with self.assertRaises(ValueError) as e:
             parsing.compile_script('OP_DEF 2000 OP_DEF 1 OP_PUSH x01 END_DEF END_DEF')
         assert str(e.exception) == 'def number must be in 0-255'
+
+        with self.assertRaises(ValueError) as e:
+            parsing.compile_script('OP_DEF d2000 OP_DEF 1 OP_PUSH x01 END_DEF END_DEF')
+        assert str(e.exception) == 'def number must be in d0-d255'
 
         with self.assertRaises(errors.SyntaxError) as e:
             parsing.compile_script('OP_DEF 1 { OP_PUSH x01')
@@ -186,6 +194,9 @@ class TestParsing(unittest.TestCase):
         assert code == b'\x2b\x00\x00\x01\x06'
         code = parsing.compile_script('OP_IF ( OP_POP0 ) ELSE OP_PUSH0 d5 END_IF')
         expected = b'\x2c\x00\x00\x01\x06\x00\x00\x02\x02\x05'
+        assert code == expected
+        code = parsing.compile_script('OP_DEF 0 { OP_PUSH x01 } OP_CALL d0')
+        expected = bytes.fromhex('290000000202012a00')
         assert code == expected
 
 

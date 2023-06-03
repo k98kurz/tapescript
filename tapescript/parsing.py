@@ -424,9 +424,16 @@ def compile_script(script: str) -> bytes:
         if symbol == 'OP_DEF':
             def_code = b''
             name = symbols[index + 1]
-            yert(name.isnumeric(), 'def number must be numeric')
-            name = int(name)
-            vert(0 <= name < 256, 'def number must be in 0-255')
+            yert(name.isnumeric() or name[0] in ('d', 'x'), 'def number must be numeric')
+            if name[0] == 'd':
+                name = int(name[1:])
+                vert(0 <= name < 256, 'def number must be in d0-d255')
+            elif name[0] == 'x':
+                vert(len(name[1:]) < 3, 'def number must be in x00-xff')
+                name = bytes.fromhex(name[1:])[0]
+            else:
+                name = int(name)
+                vert(0 <= name < 256, 'def number must be in 0-255')
 
             if symbols[index + 2] == '{':
                 # case 1: OP_DEF number { match }
@@ -485,7 +492,7 @@ def compile_script(script: str) -> bytes:
             code.append(def_code)
 
             # advance the index
-            index += search_idx
+            index = search_idx + 1
         elif symbol == 'OP_IF':
             advance, parts = parse_if(symbols[index+1:])
             index += advance + 1
