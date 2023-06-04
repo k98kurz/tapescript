@@ -243,8 +243,28 @@ class TestParsing(unittest.TestCase):
                             diff += '-'
                         else:
                             diff += ' ' if expected[i] == observed[i] else '^'
-                print(diff)
+                if len(expected) < 200 and len(observed) < 200:
+                    print(diff)
+                else:
+                    print(
+                        self.bytes_xor(
+                            bytes.fromhex(expected),
+                            bytes.fromhex(observed)
+                        ).hex()
+                    )
             assert expected == observed
+
+    def bytes_xor(self, first: bytes, second: bytes) -> bytes:
+        while len(first) > len(second):
+            second = second + b'\x00'
+        while len(first) < len(second):
+            first = first + b'\x00'
+
+        result = bytearray(len(first))
+        for i in range(len(first)):
+            result[i] = first[i] ^ second[i]
+
+        return bytes(result)
 
 
 if __name__ == '__main__':
