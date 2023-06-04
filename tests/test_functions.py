@@ -1242,6 +1242,62 @@ class TestFunctions(unittest.TestCase):
 
         functions.flags = original_flags
 
+    def test_cds_e2e(self):
+        original_flags = {**functions.flags}
+        # disable additional time check
+        functions.flags['ts_threshold'] = 0
+        with open('tests/vectors/cds_locking_script.hex', 'r') as f:
+            hexdata = ''.join(f.read().split())
+            locking_script = bytes.fromhex(hexdata)
+
+        # redemption spending path
+        message = b'redeem CDS: proved sending 1000 back to CDS issuer'
+        ts = int(time())
+        cache_vals = {
+            'sigfield1': message,
+            'timestamp': ts,
+        }
+        amount = 1000
+        destination = bytes.fromhex('49001a64110769ed9154ecb60799d1b4adabf5f07c93e1d8964ab58bb2449f7f')
+        contract = {
+            'verify_txn_proof': lambda txn_proof: True,
+            'verify_transfer': lambda txn_proof, source, destination: True,
+            'verify_txn_constraint': lambda txn_proof, constraint: True,
+            'calc_txn_aggregates': lambda proofs, scope: {destination: amount}
+        }
+        contract_id = bytes.fromhex('49001a64110769ed9154ecb60799d1b4adabf5f07c93e1d8964ab58bb2449f7f')
+        with open('tests/vectors/cds_unlocking_script1.hex', 'r') as f:
+            hexdata = ''.join(f.read().split())
+            unlocking_script1 = bytes.fromhex(hexdata)
+        result = functions.run_auth_script(unlocking_script1 + locking_script, cache_vals, {
+            contract_id: contract
+        })
+        assert result
+
+        # CDS expiration spending path
+        message = b'CDS expiration: issuer regains collateral'
+        cache_vals['sigfield1'] = message
+        with open('tests/vectors/cds_unlocking_script2.hex', 'r') as f:
+            hexdata = ''.join(f.read().split())
+            unlocking_script2 = bytes.fromhex(hexdata)
+        result = functions.run_auth_script(unlocking_script2 + locking_script, cache_vals, {
+            contract_id: contract
+        })
+        assert result
+
+        # CDS transfer spending path
+        message = b'CDS transfer'
+        cache_vals['sigfield1'] = message
+        with open('tests/vectors/cds_unlocking_script3.hex', 'r') as f:
+            hexdata = ''.join(f.read().split())
+            unlocking_script3 = bytes.fromhex(hexdata)
+        result = functions.run_auth_script(unlocking_script3 + locking_script, cache_vals, {
+            contract_id: contract
+        })
+        assert result
+
+        functions.flags = original_flags
+
 
 if __name__ == '__main__':
     unittest.main()

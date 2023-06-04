@@ -616,7 +616,12 @@ def OP_DEF(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     def_size = int.from_bytes(tape.read(3), 'big')
 
     def_data = tape.read(def_size)
-    tape.definitions[def_handle] = Tape(def_data, callstack_limit=tape.callstack_limit)
+    tape.definitions[def_handle] = Tape(
+        def_data,
+        callstack_limit=tape.callstack_limit,
+        contracts=tape.contracts,
+        flags=tape.flags
+    )
 
 def OP_CALL(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Read the next byte from the tape as the definition number; call
@@ -671,6 +676,7 @@ def OP_IF_ELSE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
         callstack_limit=tape.callstack_limit,
         callstack_count=tape.callstack_count,
         definitions={**tape.definitions},
+        contracts=tape.contracts,
     )
     run_tape(subtape, queue, cache)
 
@@ -693,18 +699,12 @@ def OP_EVAL(tape: Tape, queue: LifoQueue, cache: dict) -> None:
         callstack_count=tape.callstack_count+1,
         callstack_limit=tape.callstack_limit,
         definitions={**tape.definitions},
+        contracts={**tape.contracts},
         flags={**tape.flags, 'disallow_OP_EVAL': True}
     )
-    subcache = {**cache}
-    subqueue = LifoQueue()
-    subqueue.queue = [*queue.queue]
 
     # run
-    run_tape(subtape, subqueue, subcache)
-
-    # copy results
-    for item in subqueue.queue:
-        queue.put(item)
+    run_tape(subtape, queue, cache)
 
 def OP_NOT(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Pulls a value from the queue, interpreting as a bool; performs
@@ -999,11 +999,13 @@ def set_tape_flags(tape: Tape) -> Tape:
             tape.flags[key] = flags[key]
     return tape
 
-def run_script(script: bytes, cache_vals: dict = {}) -> tuple[Tape, LifoQueue, dict]:
+def run_script(script: bytes, cache_vals: dict = {},
+               contracts: dict = {}) -> tuple[Tape, LifoQueue, dict]:
     """Run the given script byte code. Returns a tape, queue, and dict."""
     tape = Tape(script)
     queue = LifoQueue()
     cache = {**cache_vals}
+    tape.contracts = {**contracts}
     run_tape(tape, queue, cache)
     return (tape, queue, cache)
 
@@ -1018,18 +1020,18 @@ def run_tape(tape: Tape, queue: LifoQueue, cache: dict) -> None:
             op = nopcodes[op_code][1]
         op(tape, queue, cache)
 
-def run_auth_script(script: bytes, cache_vals: dict = {}) -> bool:
+def run_auth_script(script: bytes, cache_vals: dict = {}, contracts: dict = {}) -> bool:
     """Run the given auth script byte code. Returns True iff the queue
         has a single \x01 value after script execution and no errors were
         raised; otherwise, returns False.
     """
     try:
-        tape, queue, cache = run_script(script, cache_vals)
+        tape, queue, cache = run_script(script, cache_vals, contracts)
         assert tape.has_terminated()
         assert not queue.empty()
         item = queue.get(False)
         assert item == b'\x01'
         assert queue.empty()
         return True
-    except:
+    except BaseException as e:
         return False
