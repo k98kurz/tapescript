@@ -1,6 +1,6 @@
 from context import classes, errors, functions
 from hashlib import sha256, shake_256
-from nacl.signing import SigningKey, VerifyKey
+from nacl.signing import SigningKey
 from queue import LifoQueue
 from random import randint
 from secrets import token_bytes
@@ -1178,6 +1178,42 @@ class TestFunctions(unittest.TestCase):
         assert functions.run_auth_script(b'\x00\x20') == False
         assert functions.run_auth_script(b'\x01') == True
         assert functions.run_auth_script(b'\x01\x01') == False
+
+    # e2e vectors
+    def test_p2pk_e2e(self):
+        message = b'spending bitcoinz or something'
+        ts = int(time())
+        ts_bytes = ts.to_bytes(4)
+        old_ts = (1694791613).to_bytes(4)
+        cache_vals = {
+            'sigfield1': message,
+            'timestamp': ts,
+        }
+
+        with open('tests/vectors/p2pk_locking_script.hex', 'r') as f:
+            hexdata = ''.join(f.read().split())
+            locking_script = bytes.fromhex(hexdata)
+            locking_script = locking_script.replace(old_ts, ts_bytes)
+
+        with open('tests/vectors/p2pk_unlocking_script1.hex', 'r') as f:
+            hexdata = ''.join(f.read().split())
+            unlocking_script1 = bytes.fromhex(hexdata)
+            script = unlocking_script1 + locking_script
+            tape, queue, _ = functions.run_script(script, cache_vals)
+            assert tape.has_terminated()
+            assert not queue.empty()
+            item = queue.get(False)
+            assert item == b'\x01'
+
+        with open('tests/vectors/p2pk_unlocking_script2.hex', 'r') as f:
+            hexdata = ''.join(f.read().split())
+            unlocking_script2 = bytes.fromhex(hexdata)
+            script = unlocking_script2 + locking_script
+            tape, queue, _ = functions.run_script(script, cache_vals)
+            assert tape.has_terminated()
+            assert not queue.empty()
+            item = queue.get(False)
+            assert item == b'\x01'
 
 
 if __name__ == '__main__':

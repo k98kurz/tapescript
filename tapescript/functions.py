@@ -564,9 +564,10 @@ def OP_CHECK_TIMESTAMP(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     sert(type(tape.flags['ts_threshold']) is int,
         'OP_CHECK_TIMESTAMP malformed ts_threshold flag')
 
+    difference = cache['timestamp'] - int(time())
     if cache['timestamp'] < constraint:
         queue.put(b'\x00')
-    elif cache['timestamp'] - int(time()) >= tape.flags['ts_threshold'] and \
+    elif difference >= tape.flags['ts_threshold'] and \
         tape.flags['ts_threshold'] > 0:
         queue.put(b'\x00')
     else:
@@ -668,7 +669,8 @@ def OP_IF_ELSE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     subtape = Tape(
         if_def_data if bytes_to_bool(queue.get(False)) else else_def_data,
         callstack_limit=tape.callstack_limit,
-        callstack_count=tape.callstack_count
+        callstack_count=tape.callstack_count,
+        definitions={**tape.definitions},
     )
     run_tape(subtape, queue, cache)
 
@@ -991,16 +993,17 @@ flags = {
 }
 
 
+def set_tape_flags(tape: Tape) -> Tape:
+    for key in flags:
+        if type(key) is str:
+            tape.flags[key] = flags[key]
+    return tape
+
 def run_script(script: bytes, cache_vals: dict = {}) -> tuple[Tape, LifoQueue, dict]:
     """Run the given script byte code. Returns a tape, queue, and dict."""
     tape = Tape(script)
     queue = LifoQueue()
     cache = {**cache_vals}
-
-    # set default flags
-    for key in flags:
-        if type(key) is str:
-            tape.flags[key] = flags[key]
 
     run_tape(tape, queue, cache)
 
@@ -1008,6 +1011,7 @@ def run_script(script: bytes, cache_vals: dict = {}) -> tuple[Tape, LifoQueue, d
 
 def run_tape(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Run the given tape using the queue and cache."""
+    tape = set_tape_flags(tape)
     while not tape.has_terminated():
         op_code = tape.read(1)[0]
         if op_code in opcodes:
