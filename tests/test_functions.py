@@ -1173,6 +1173,12 @@ class TestFunctions(unittest.TestCase):
         assert isinstance(result[2], dict)
         assert result[0].has_terminated()
 
+    def test_run_auth_script_returns_True_only_if_queue_has_single_True_value(self):
+        assert functions.run_auth_script(b'\x00') == False
+        assert functions.run_auth_script(b'\x00\x20') == False
+        assert functions.run_auth_script(b'\x01') == True
+        assert functions.run_auth_script(b'\x01\x01') == False
+
 
 if __name__ == '__main__':
     unittest.main()
