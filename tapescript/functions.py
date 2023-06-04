@@ -1004,9 +1004,7 @@ def run_script(script: bytes, cache_vals: dict = {}) -> tuple[Tape, LifoQueue, d
     tape = Tape(script)
     queue = LifoQueue()
     cache = {**cache_vals}
-
     run_tape(tape, queue, cache)
-
     return (tape, queue, cache)
 
 def run_tape(tape: Tape, queue: LifoQueue, cache: dict) -> None:
