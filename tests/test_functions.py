@@ -1569,6 +1569,43 @@ class TestFunctions(unittest.TestCase):
 
         functions.flags = original_flags
 
+    def test_correspondents_e2e(self):
+        message = b'spending bitcoinz or something'
+        original_flags = {**functions.flags}
+        # disable additional time check
+        functions.flags['ts_threshold'] = 0
+        ts = int(time())
+        cache_vals = {
+            'sigfield1': message,
+            'timestamp': ts,
+        }
+
+        with open('tests/vectors/correspondent_locking_script.hex', 'r') as f:
+            hexdata = ''.join(f.read().split())
+            locking_script = bytes.fromhex(hexdata)
+
+        with open('tests/vectors/correspondent_unlocking_script1.hex', 'r') as f:
+            hexdata = ''.join(f.read().split())
+            unlocking_script = bytes.fromhex(hexdata)
+            script = unlocking_script + locking_script
+            tape, queue, _ = functions.run_script(script, cache_vals)
+            assert tape.has_terminated()
+            assert not queue.empty()
+            item = queue.get(False)
+            assert item == b'\x01'
+
+        with open('tests/vectors/correspondent_unlocking_script2.hex', 'r') as f:
+            hexdata = ''.join(f.read().split())
+            unlocking_script = bytes.fromhex(hexdata)
+            script = unlocking_script + locking_script
+            tape, queue, _ = functions.run_script(script, cache_vals)
+            assert tape.has_terminated()
+            assert not queue.empty()
+            item = queue.get(False)
+            assert item == b'\x01'
+
+        functions.flags = original_flags
+
 
 if __name__ == '__main__':
     unittest.main()
