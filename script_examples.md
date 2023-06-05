@@ -208,9 +208,10 @@ OP_PUSH x<hex pubkey1>
 OP_CHECK_SIG x00
 
 # unlocking script BA: 147 bytes #
+OP_PUSH x<hex signature from pubkey1>
 OP_PUSH x<hex 32 byte branch BB sha256 hash>
 OP_PUSH x<hex branch BA script>
-OP_FALSE
+OP_TRUE
 OP_PUSH x<hex 32 byte branch A sha256 hash>
 OP_PUSH x<hex branch B script>
 OP_FALSE
@@ -220,9 +221,10 @@ OP_PUSH x<hex pubkey2>
 OP_CHECK_SIG x00
 
 # unlocking script BB: 147 bytes #
+OP_PUSH x<hex signature from pubkey2>
 OP_PUSH x<hex 32 byte branch BA sha256 hash>
 OP_PUSH x<hex branch BB script>
-OP_TRUE
+OP_FALSE
 OP_PUSH x<hex 32 byte branch A sha256 hash>
 OP_PUSH x<hex branch B script>
 OP_FALSE
