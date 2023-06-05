@@ -994,6 +994,17 @@ class TestFunctions(unittest.TestCase):
             items.append(self.queue.get(False))
         assert items == [b'bottom', b'middle', b'top']
 
+        self.queue = LifoQueue()
+        self.tape = classes.Tape(b'\x00\x01')
+        self.queue.put(b'bottom')
+        self.queue.put(b'middle')
+        self.queue.put(b'top')
+        functions.OP_SWAP(self.tape, self.queue, self.cache)
+        items = []
+        while not self.queue.empty():
+            items.append(self.queue.get(False))
+        assert items == [b'middle', b'top', b'bottom']
+
     def test_OP_SWAP_raises_ScriptExecutionError_for_queue_depth_overflow(self):
         self.queue.put(b'sds')
         self.tape = classes.Tape(b'\x00\xff')
@@ -1192,7 +1203,7 @@ class TestFunctions(unittest.TestCase):
             'verify_txn_proof': lambda txn_proof: True,
             'verify_transfer': lambda txn_proof, source, destination: True,
             'verify_txn_constraint': lambda txn_proof, constraint: True,
-            'calc_txn_aggregates': lambda proofs, scope: {b'destination': amount}
+            'calc_txn_aggregates': lambda proofs, scope: {scope: amount}
         }
 
         setup_transfer()
@@ -1291,6 +1302,63 @@ class TestFunctions(unittest.TestCase):
         with self.assertRaises(ValueError) as e:
             functions.OP_EVAL(self.tape, self.queue, self.cache)
         assert str(e.exception) == 'OP_EVAL encountered empty script'
+
+    def test_OP_MERKLEVAL_single_branch(self):
+        committed_branch_a = b'\x02A'
+        committed_branch_b = b'\x02B'
+        commitment_a = sha256(committed_branch_a).digest()
+        commitment_b = sha256(committed_branch_b).digest()
+        commitment_root = sha256(commitment_a + commitment_b).digest()
+        self.queue.put(commitment_b)
+        self.queue.put(committed_branch_a)
+        self.queue.put(b'\x01')
+        self.tape = classes.Tape(commitment_root)
+        functions.OP_MERKLEVAL(self.tape, self.queue, self.cache)
+        assert not self.queue.empty()
+        assert self.queue.get(False) == b'A'
+        assert self.queue.empty()
+
+        self.queue.put(commitment_a)
+        self.queue.put(committed_branch_b)
+        self.queue.put(b'\x00')
+        self.tape = classes.Tape(commitment_root)
+        functions.OP_MERKLEVAL(self.tape, self.queue, self.cache)
+        assert not self.queue.empty()
+        assert self.queue.get(False) == b'B'
+        assert self.queue.empty()
+
+    def test_OP_MERKLEVAL_double_branch(self):
+        committed_branch_a = b'\x02A'
+        committed_branch_ba = b'\x03\x02BA'
+        committed_branch_bb = b'\x02\x02BB'
+        commitment_a = sha256(committed_branch_a).digest()
+        commitment_ba = sha256(committed_branch_ba).digest()
+        commitment_bb = sha256(committed_branch_bb).digest()
+        commitment_b_root = sha256(commitment_ba + commitment_bb).digest()
+        committed_branch_b_root = b'\x3c' + commitment_b_root
+        commitment_b = sha256(committed_branch_b_root).digest()
+
+        commitment_root = sha256(commitment_a + commitment_b).digest()
+        self.queue.put(commitment_b)
+        self.queue.put(committed_branch_a)
+        self.queue.put(b'\x01')
+        self.tape = classes.Tape(commitment_root)
+        functions.OP_MERKLEVAL(self.tape, self.queue, self.cache)
+        assert not self.queue.empty()
+        assert self.queue.get(False) == b'A'
+        assert self.queue.empty()
+
+        self.queue.put(commitment_bb)
+        self.queue.put(committed_branch_ba)
+        self.queue.put(b'\x01')
+        self.queue.put(commitment_a)
+        self.queue.put(committed_branch_b_root)
+        self.queue.put(b'\x00')
+        self.tape = classes.Tape(commitment_root)
+        functions.OP_MERKLEVAL(self.tape, self.queue, self.cache)
+        assert not self.queue.empty()
+        assert self.queue.get(False) == b'BA'
+        assert self.queue.empty()
 
     # values
     def test_opcodes_is_dict_mapping_ints_to_tuple_str_function(self):

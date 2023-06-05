@@ -698,7 +698,7 @@ def OP_EVAL(tape: Tape, queue: LifoQueue, cache: dict) -> None:
         callstack_limit=tape.callstack_limit,
         definitions={**tape.definitions},
         contracts={**tape.contracts},
-        flags={**tape.flags, 'disallow_OP_EVAL': True}
+        flags={**tape.flags}
     )
 
     # run
@@ -759,6 +759,10 @@ def OP_SWAP(tape: Tape, queue: LifoQueue, cache: dict) -> None:
 
     max_idx = first_idx if first_idx > second_idx else second_idx
     sert(len(queue.queue) >= max_idx, 'OP_SWAP queue size exceeded by index')
+
+    length = len(queue.queue)
+    first_idx = length - first_idx - 1
+    second_idx = length - second_idx - 1
 
     first = queue.queue[first_idx]
     second = queue.queue[second_idx]
@@ -895,6 +899,25 @@ def OP_CHECK_TRANSFER(tape: Tape, queue: LifoQueue, cache: dict) -> None:
 
     queue.put(b'\x01' if all_proofs_valid and amount <= aggregate else b'\x00')
 
+def OP_MERKLEVAL(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+    """Read 32 bytes from the tape as the root digest; pull a bool from
+        the queue; call OP_DUP then OP_SHA256; call OP_SWAP 1 2; if not
+        bool, call OP_SWAP2; call OP_CONCAT; call OP_SHA256; push root
+        hash onto the queue; call OP_EQUAL_VERIFY; call OP_EVAL.
+    """
+    root_hash = tape.read(32)
+    is_branch_A = bytes_to_bool(queue.get(False))
+    OP_DUP(tape, queue, cache)
+    OP_SHA256(tape, queue, cache)
+    OP_SWAP(Tape(b'\x01\x02'), queue, cache)
+    if not is_branch_A:
+        OP_SWAP2(tape, queue, cache)
+    OP_CONCAT(tape, queue, cache)
+    OP_SHA256(tape, queue, cache)
+    queue.put(root_hash)
+    OP_EQUAL_VERIFY(tape, queue, cache)
+    OP_EVAL(tape, queue, cache)
+
 def NOP(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int
         and pull that many values from the queue. Does nothing with the
@@ -967,6 +990,7 @@ opcodes = [
     ('OP_CONCAT_STR', OP_CONCAT_STR),
     ('OP_SPLIT_STR', OP_SPLIT_STR),
     ('OP_CHECK_TRANSFER', OP_CHECK_TRANSFER),
+    ('OP_MERKLEVAL', OP_MERKLEVAL),
 ]
 opcodes = {x: opcodes[x] for x in range(len(opcodes))}
 
