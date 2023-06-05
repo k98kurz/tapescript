@@ -262,6 +262,8 @@ class TestParsing(unittest.TestCase):
                     )
             assert expected == observed
 
+        print(f'{len(vectors.items())} vectors tested')
+
     def bytes_xor(self, first: bytes, second: bytes) -> bytes:
         while len(first) > len(second):
             second = second + b'\x00'
