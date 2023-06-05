@@ -1330,7 +1330,7 @@ class TestFunctions(unittest.TestCase):
     def test_OP_MERKLEVAL_double_branch(self):
         committed_branch_a = b'\x02A'
         committed_branch_ba = b'\x03\x02BA'
-        committed_branch_bb = b'\x02\x02BB'
+        committed_branch_bb = b'\x03\x02BB'
         commitment_a = sha256(committed_branch_a).digest()
         commitment_ba = sha256(committed_branch_ba).digest()
         commitment_bb = sha256(committed_branch_bb).digest()
@@ -1358,6 +1358,18 @@ class TestFunctions(unittest.TestCase):
         functions.OP_MERKLEVAL(self.tape, self.queue, self.cache)
         assert not self.queue.empty()
         assert self.queue.get(False) == b'BA'
+        assert self.queue.empty()
+
+        self.queue.put(commitment_ba)
+        self.queue.put(committed_branch_bb)
+        self.queue.put(b'\x00')
+        self.queue.put(commitment_a)
+        self.queue.put(committed_branch_b_root)
+        self.queue.put(b'\x00')
+        self.tape = classes.Tape(commitment_root)
+        functions.OP_MERKLEVAL(self.tape, self.queue, self.cache)
+        assert not self.queue.empty()
+        assert self.queue.get(False) == b'BB'
         assert self.queue.empty()
 
     # values
