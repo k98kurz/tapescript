@@ -262,7 +262,85 @@ class TestParsing(unittest.TestCase):
                     )
             assert expected == observed
 
-        print(f'{len(vectors.items())} vectors tested')
+        print(f'{len(vectors.items())} vectors tested for compile_script')
+
+    def test_decompile_script_returns_list_of_str(self):
+        code = parsing.decompile_script(b'\x00')
+        assert type(code) is list
+        assert code == ['OP_FALSE']
+
+    def test_decompile_script_e2e_vectors(self):
+        vector_files = {
+            '1.hex': '1.src',
+            '2.hex': '2_decompiled.src',
+            '3.hex': '3_decompiled.src',
+            '4.hex': '4_decompiled.src',
+            '5.hex': '5_decompiled.src',
+            'cds_committed_script.hex': 'cds_committed_script_decompiled.src',
+            'cds_locking_script.hex': 'cds_locking_script_decompiled.src',
+            'cds_unlocking_script1.hex': 'cds_unlocking_script1_decompiled.src',
+            'cds_unlocking_script2.hex': 'cds_unlocking_script2_decompiled.src',
+            'cds_unlocking_script3.hex': 'cds_unlocking_script3_decompiled.src',
+            'correspondent_committed_script.hex': 'correspondent_committed_script_decompiled.src',
+            'correspondent_locking_script.hex': 'correspondent_locking_script_decompiled.src',
+            'correspondent_unlocking_script1.hex': 'correspondent_unlocking_script1_decompiled.src',
+            'correspondent_unlocking_script2.hex': 'correspondent_unlocking_script2_decompiled.src',
+            'merkleval_committed_script_a.hex': 'merkleval_committed_script_a_decompiled.src',
+            'merkleval_committed_script_b.hex': 'merkleval_committed_script_b.src',
+            'merkleval_committed_script_ba.hex': 'merkleval_committed_script_ba_decompiled.src',
+            'merkleval_committed_script_bb.hex': 'merkleval_committed_script_bb_decompiled.src',
+            'merkleval_locking_script.hex': 'merkleval_locking_script.src',
+            'merkleval_unlocking_script_a.hex': 'merkleval_unlocking_script_a_decompiled.src',
+            'merkleval_unlocking_script_ba.hex': 'merkleval_unlocking_script_ba_decompiled.src',
+            'merkleval_unlocking_script_bb.hex': 'merkleval_unlocking_script_bb_decompiled.src',
+            'p2pk_locking_script.hex': 'p2pk_locking_script_decompiled.src',
+            'p2pk_unlocking_script1.hex': 'p2pk_unlocking_script1_decompiled.src',
+            'p2pk_unlocking_script2.hex': 'p2pk_unlocking_script2_decompiled.src',
+            'p2sh_committed_script.hex': 'p2sh_committed_script_decompiled.src',
+            'p2sh_locking_script.hex': 'p2sh_locking_script_decompiled.src',
+            'p2sh_unlocking_script.hex': 'p2sh_unlocking_script_decompiled.src',
+        }
+        vectors = {}
+
+        for hex_fname, src_fname in vector_files.items():
+            with open(f'tests/vectors/{src_fname}', 'r') as fsrc:
+                with open(f'tests/vectors/{hex_fname}', 'r') as fhex:
+                    src = fsrc.read()
+                    hex = ''.join(fhex.read().split())
+                    src_lines = src.split('\n')
+                    # keep only non-empty lines
+                    vectors[hex] = [line for line in src_lines if line != '']
+
+        for hex, src in vectors.items():
+            expected = src
+            observed = parsing.decompile_script(bytes.fromhex(hex))
+            if expected != observed:
+                # just to make it easier to step through the broken test vectors
+                observed = parsing.decompile_script(bytes.fromhex(hex))
+                print('\nexpected: ')
+                for line in expected:
+                    print(line)
+                print('\nobserved: ')
+                for line in observed:
+                    print(line)
+                print('\ndifferences:')
+                if len(expected) > len(observed):
+                    for i in range(len(expected)):
+                        if i >= len(observed):
+                            print(f'expected line {i+1}: {expected[i]}')
+                        elif observed[i] != expected[i]:
+                            print(f'expected line {i+1}: {expected[i]}')
+                            print(f'observed line {i+1}: {observed[i]}')
+                else:
+                    for i in range(len(observed)):
+                        if i >= len(expected):
+                            print(f'observed line {i+1}: {observed[i]}')
+                        elif observed[i] != expected[i]:
+                            print(f'expected line {i+1}: {expected[i]}')
+                            print(f'observed line {i+1}: {observed[i]}')
+            assert expected == observed
+
+        print(f'{len(vectors.items())} vectors tested for decompile_script')
 
     def bytes_xor(self, first: bytes, second: bytes) -> bytes:
         while len(first) > len(second):
@@ -275,6 +353,13 @@ class TestParsing(unittest.TestCase):
             result[i] = first[i] ^ second[i]
 
         return bytes(result)
+
+    def line_diff(self, first: str, second: str) -> None:
+        diff = ''
+        if len(first) > len(second):
+            for i in range(len(first)):
+                if i >= len(second):
+                    diff += first[i]
 
 
 if __name__ == '__main__':

@@ -1,0 +1,4 @@
+OP_DEF 0 {
+    OP_PUSH0 d1
+}
+OP_CALL d0

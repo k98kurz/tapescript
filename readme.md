@@ -9,10 +9,10 @@ controls in a distributed system.
 - [x] OPs
 - [x] Interpreter functions and classes
 - [x] Byte-code compiler
-- [ ] Decompiler
+- [x] Decompiler
 - [x] Unit tests
 - [ ] E2e tests
-- [ ] Taproot test vector
+- [x] Merkleval test vectors
 - [ ] Decent docs
 - [ ] Package published
 

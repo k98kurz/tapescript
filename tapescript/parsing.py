@@ -1,5 +1,6 @@
 from .errors import yert, vert, SyntaxError
-from .functions import int_to_bytes, opcodes_inverse
+from .classes import Tape
+from .functions import int_to_bytes, opcodes, opcodes_inverse, nopcodes
 from math import ceil, log2
 from typing import Any
 import struct
@@ -564,7 +565,106 @@ def compile_script(script: str) -> bytes:
     return b''.join(code)
 
 
-def decompile_script(script: bytes) -> str:
+def decompile_script(script: bytes, indent: int = 0) -> list[str]:
     """Decompile the byte code into human-readable script."""
-    # @todo write decompiler once compiler finished
-    ...
+    vert(type(script) is bytes, 'input script must be bytes')
+    tape = Tape(script)
+    code_lines = []
+
+    def add_line(line):
+        code_lines.append(''.join(['    ' for _ in range(indent)]) + line)
+
+    while not tape.has_terminated():
+        op_code = tape.read(1)[0]
+        vert(op_code in opcodes or op_code in nopcodes, f'unrecognized opcode {op_code}')
+        op_name = opcodes[op_code][0] if op_code in opcodes else nopcodes[op_code][0]
+
+        match op_name:
+            case 'OP_DEF':
+                def_handle = tape.read(1)[0]
+                def_length = int.from_bytes(tape.read(3), 'big')
+                def_body = tape.read(def_length)
+                def_lines = decompile_script(def_body, indent+1)
+                add_line(f'OP_DEF {def_handle}' + ' {')
+                code_lines.extend(def_lines)
+                add_line('}')
+            case 'OP_IF':
+                if_len = int.from_bytes(tape.read(3), 'big')
+                if_body = tape.read(if_len)
+                if_lines = decompile_script(if_body, indent+1)
+                add_line('OP_IF (')
+                code_lines.extend(if_lines)
+                add_line(')')
+            case 'OP_IF_ELSE':
+                if_len = int.from_bytes(tape.read(3), 'big')
+                if_body = tape.read(if_len)
+                if_lines = decompile_script(if_body, indent+1)
+                else_len = int.from_bytes(tape.read(3), 'big')
+                else_body = tape.read(else_len)
+                else_lines = decompile_script(else_body, indent+1)
+                add_line('OP_IF (')
+                code_lines.extend(if_lines)
+                add_line(') ELSE (')
+                code_lines.extend(else_lines)
+                add_line(')')
+            case 'OP_FALSE' | 'OP_TRUE' | 'OP_POP0' | 'OP_SIZE' | \
+                'OP_READ_CACHE_Q' | 'OP_READ_CACHE_Q_SIZE' | 'OP_DIV_INTS' | \
+                'OP_MOD_INTS' | 'OP_DIV_FLOATS' | 'OP_MOD_FLOATS' | 'OP_DUP' | \
+                'OP_SHA256' | 'OP_VERIFY' | 'OP_EQUAL' | 'OP_EQUAL_VERIFY' | \
+                'OP_CHECK_TIMESTAMP' | 'OP_CHECK_TIMESTAMP_VERIFY' | \
+                'OP_CHECK_EPOCH' | 'OP_CHECK_EPOCH_VERIFY' | 'OP_EVAL' | \
+                'OP_NOT' | 'OP_RETURN' | 'OP_DEPTH' | 'OP_SWAP2' | \
+                'OP_CONCAT' | 'OP_CONCAT_STR':
+                # ops that have no arguments on the tape
+                # human-readable syntax of OP_[whatever]
+                add_line(op_name)
+            case 'OP_PUSH1' | 'OP_WRITE_CACHE' | 'OP_READ_CACHE' | \
+                'OP_READ_CACHE_SIZE' | 'OP_DIV_INT' | \
+                'OP_MOD_INT' | 'OP_SET_FLAG' | 'OP_UNSET_FLAG':
+                # ops that have tape arguments of form [size 0-255] [val]
+                size = tape.read(1)[0]
+                val = tape.read(size)
+                add_line(f'{op_name} d{size} x{val.hex()}')
+            case 'OP_PUSH0' | 'OP_POP1' | 'OP_ADD_INTS' | 'OP_SUBTRACT_INTS' | \
+                'OP_MULT_INTS' | 'OP_ADD_FLOATS' | 'OP_CHECK_TRANSFER' | \
+                'OP_SUBTRACT_FLOATS' | 'OP_ADD_POINTS' | 'OP_CALL' | \
+                'OP_COPY' | 'OP_SHAKE256' | 'OP_RANDOM' | 'OP_REVERSE' | \
+                'OP_SPLIT' | 'OP_SPLIT_STR':
+                # ops that have tape argument of form [0-255]
+                # human-readable syntax of OP_[whatever] [int]
+                val = tape.read(1)[0]
+                add_line(f'{op_name} d{val}')
+            case 'OP_CHECK_SIG' | 'OP_CHECK_SIG_VERIFY':
+                # ops that have tape argument of form [0-255]
+                # human-readable syntax of OP_[whatever] [int]
+                val = tape.read(1)
+                add_line(f'{op_name} x{val.hex()}')
+            case 'OP_PUSH2':
+                # ops that have tape argument of form [0-65535] [val]
+                # human-readable syntax of simply OP_PUSH2 [val]
+                size = int.from_bytes(tape.read(2), 'big')
+                val = tape.read(size)
+                add_line(f'{op_name} d{size} x{val.hex()}')
+            case 'OP_PUSH4':
+                # ops that have tape argument of form [0-4_294_967_295] [val]
+                # human-readable syntax of simply OP_PUSH4 [val]
+                size = int.from_bytes(tape.read(4), 'big')
+                val = tape.read(size)
+                add_line(f'{op_name} d{size} x{val.hex()}')
+            case 'OP_DIV_FLOAT' | 'OP_MOD_FLOAT':
+                # ops that have tape argument of form [4-byte float]
+                # human-readable syntax of OP_[DIV|MOD]_FLOAT [val]
+                val = tape.read(4)
+                add_line(f'{op_name} x{val.hex()}')
+            case 'OP_SWAP':
+                # ops that have tape arguments of form [0-255] [0-255]
+                # human-readable syntax of OP_SWAP [idx1] [idx2]
+                idx1 = tape.read(1)[0]
+                idx2 = tape.read(1)[0]
+                add_line(f'OP_SWAP d{idx1} d{idx2}')
+            case 'OP_MERKLEVAL':
+                # op has tape argument of form [32-byte val]
+                digest = tape.read(32)
+                add_line(f'OP_MERKLEVAL x{digest.hex()}')
+
+    return code_lines
