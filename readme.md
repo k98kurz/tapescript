@@ -12,6 +12,7 @@ controls in a distributed system.
 - [ ] Decompiler
 - [x] Unit tests
 - [ ] E2e tests
+- [ ] Taproot test vector
 - [ ] Decent docs
 - [ ] Package published
 
