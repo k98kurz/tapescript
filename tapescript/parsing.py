@@ -208,6 +208,57 @@ def _get_OP_PUSH4_args(opcode: str, symbols: list[str], symbols_to_advance: int)
     args.append(val)
     return (symbols_to_advance, args)
 
+def _get_OP_DIV_FLOAT_args(opcode: str, symbols: list[str], symbols_to_advance: int) -> tuple[int, tuple[bytes]]:
+    args = []
+    symbols_to_advance += 1
+    val = symbols[0]
+    yert(val[0].lower() in ('d', 'x'),
+        'numeric args must be prefaced with d or x')
+
+    match val[0].lower():
+        case 'd':
+            vert(val[1:].isnumeric(),
+                f'{opcode} value prefaced by d must be decimal float')
+            args.append(struct.pack('!f', float(val[1:])))
+        case 'x':
+            vert(len(val[1:]) == 8,
+                f'{opcode} value prefaced by x must be 8 long (4 bytes)')
+            args.append(bytes.fromhex(val[1:]))
+    return (symbols_to_advance, args)
+
+def _get_OP_SWAP_args(opcode: str, symbols: list[str], symbols_to_advance: int) -> tuple[int, tuple[bytes]]:
+    args = []
+    symbols_to_advance += 2
+    vals = symbols[:2]
+
+    for val in vals:
+        yert(val[0].lower() in ('d', 'x'),
+            'numeric args must be prefaced with d or x')
+
+        match val[0].lower():
+            case 'd':
+                vert(val[1:].isnumeric(),
+                    'OP_SWAP value prefaced by d must be decimal int')
+                if '.' in val:
+                    val = int(val[1:].split('.')[0])
+                else:
+                    val = int(val[1:])
+                yert(0 <= val < 256, 'OP_SWAP index overflow')
+                args.append(val.to_bytes(1, 'big'))
+            case 'x':
+                vert(len(val[1:]) == 2,
+                    'OP_SWAP value prefaced by x must be 2 long (1 byte)')
+                args.append(bytes.fromhex(val[1:]))
+    return (symbols_to_advance, args)
+
+def _get_OP_MERKLEVAL_args(opcode: str, symbols: list[str], symbols_to_advance: int) -> tuple[int, tuple[bytes]]:
+    args = []
+    symbols_to_advance += 1
+    val = symbols[0]
+    yert(val[0].lower() == 'x', 'OP_MERKLEVAL arg must be hexadecimal hash')
+    yert(len(val) == 65, 'OP_MERKLEVAL arg must be hexadecimal hash')
+    args.append(bytes.fromhex(val[1:]))
+    return (symbols_to_advance, args)
 
 def get_args(opcode: str, symbols: list[str]) -> tuple[int, tuple[bytes]]:
     """Get the number of symbols to advance and args for an op."""
@@ -253,44 +304,14 @@ def get_args(opcode: str, symbols: list[str]) -> tuple[int, tuple[bytes]]:
         case 'OP_DIV_FLOAT' | 'OP_MOD_FLOAT':
             # ops that have tape argument of form [4-byte float]
             # human-readable syntax of OP_[DIV|MOD]_FLOAT [val]
-            symbols_to_advance += 1
-            val = symbols[0]
-            yert(val[0].lower() in ('d', 'x'),
-                'numeric args must be prefaced with d or x')
-
-            match val[0].lower():
-                case 'd':
-                    vert(val[1:].isnumeric(),
-                        f'{opcode} value prefaced by d must be decimal float')
-                    args.append(struct.pack('!f', float(val[1:])))
-                case 'x':
-                    vert(len(val[1:]) == 8,
-                        f'{opcode} value prefaced by x must be 8 long (4 bytes)')
-                    args.append(bytes.fromhex(val[1:]))
+            return _get_OP_DIV_FLOAT_args(opcode, symbols, symbols_to_advance)
         case 'OP_SWAP':
             # ops that have tape arguments of form [0-255] [0-255]
             # human-readable syntax of OP_SWAP [idx1] [idx2]
-            symbols_to_advance += 2
-            vals = symbols[:2]
-
-            for val in vals:
-                yert(val[0].lower() in ('d', 'x'),
-                    'numeric args must be prefaced with d or x')
-
-                match val[0].lower():
-                    case 'd':
-                        vert(val[1:].isnumeric(),
-                            'OP_SWAP value prefaced by d must be decimal int')
-                        if '.' in val:
-                            val = int(val[1:].split('.')[0])
-                        else:
-                            val = int(val[1:])
-                        yert(0 <= val < 256, 'OP_SWAP index overflow')
-                        args.append(val.to_bytes(1, 'big'))
-                    case 'x':
-                        vert(len(val[1:]) == 2,
-                            'OP_SWAP value prefaced by x must be 2 long (1 byte)')
-                        args.append(bytes.fromhex(val[1:]))
+            return _get_OP_SWAP_args(opcode, symbols, symbols_to_advance)
+        case 'OP_MERKLEVAL':
+            # op has tape argument of form [val]
+            return _get_OP_MERKLEVAL_args(opcode, symbols, symbols_to_advance)
         case _:
             pass
 

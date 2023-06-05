@@ -212,6 +212,14 @@ class TestParsing(unittest.TestCase):
             'correspondent_locking_script.src': 'correspondent_locking_script.hex',
             'correspondent_unlocking_script1.src': 'correspondent_unlocking_script1.hex',
             'correspondent_unlocking_script2.src': 'correspondent_unlocking_script2.hex',
+            'merkleval_committed_script_a.src': 'merkleval_committed_script_a.hex',
+            'merkleval_committed_script_b.src': 'merkleval_committed_script_b.hex',
+            'merkleval_committed_script_ba.src': 'merkleval_committed_script_ba.hex',
+            'merkleval_committed_script_bb.src': 'merkleval_committed_script_bb.hex',
+            'merkleval_locking_script.src': 'merkleval_locking_script.hex',
+            'merkleval_unlocking_script_a.src': 'merkleval_unlocking_script_a.hex',
+            'merkleval_unlocking_script_ba.src': 'merkleval_unlocking_script_ba.hex',
+            'merkleval_unlocking_script_bb.src': 'merkleval_unlocking_script_bb.hex',
         }
         vectors = {}
 
