@@ -55,23 +55,25 @@ unlocking script.
 
 ```s
 "example 2: P2SH"
-# committed conditional P2PK script #
+# committed conditional P2PK script: 86 bytes #
 OP_IF (
+    # branch A: 43 bytes #
     OP_PUSH d1694791613
     OP_CHECK_TIMESTAMP_VERIFY
     OP_PUSH x<hex pubkey0>
     OP_CHECK_SIG x00
 ) ELSE (
+    # branch B: 36 bytes #
     OP_PUSH x<hex pubkey1>
     OP_CHECK_SIG x00
 )
 
-# unlocking script #
+# unlocking script: 155 bytes #
 OP_PUSH x<hex signature from pubkey0>
 OP_TRUE
 OP_PUSH x<hex committed P2PK script src>
 
-# locking script #
+# locking script: 27 bytes #
 OP_DUP
 OP_SHAKE256 d20
 OP_PUSH x<hex script shake256 hash>
@@ -176,4 +178,140 @@ OP_PUSH x<hex signature from pubkey1>
 OP_PUSH x<hex signature from pubkey2>
 OP_FALSE
 OP_PUSH x<hex committed script src>
+```
+
+# Example 5: merklized script
+
+This is an example of a streamlined branching script where unexecuted branches
+remain hidden behind cryptographic commitments. Only those script branches
+included in the root commitment can be executed.
+
+```s
+# locking script: 33 bytes #
+OP_MERKLEVAL x<hex 32 byte root sha256 hash>
+
+# committed script branch A: 36 bytes #
+OP_PUSH x<hex pubkey0>
+OP_CHECK_SIG x00
+
+# unlocking script A: 139 bytes #
+OP_PUSH x<hex signature from pubkey0>
+OP_PUSH x<hex 32 byte branch B sha256 hash>
+OP_PUSH x<hex branch A script>
+OP_TRUE
+
+# committed script branch B: 33 bytes #
+OP_MERKLEVAL x<hex 32 byte branch B root sha256 hash>
+
+# committed script branch BA: 36 bytes #
+OP_PUSH x<hex pubkey1>
+OP_CHECK_SIG x00
+
+# unlocking script BA: 147 bytes #
+OP_PUSH x<hex 32 byte branch BB sha256 hash>
+OP_PUSH x<hex branch BA script>
+OP_FALSE
+OP_PUSH x<hex 32 byte branch A sha256 hash>
+OP_PUSH x<hex branch B script>
+OP_FALSE
+
+# committed script branch BB: 36 bytes #
+OP_PUSH x<hex pubkey2>
+OP_CHECK_SIG x00
+
+# unlocking script BB: 147 bytes #
+OP_PUSH x<hex 32 byte branch BA sha256 hash>
+OP_PUSH x<hex branch BB script>
+OP_TRUE
+OP_PUSH x<hex 32 byte branch A sha256 hash>
+OP_PUSH x<hex branch B script>
+OP_FALSE
+```
+
+This functionality can be replicated with the other ops, but it will have more
+overhead since OP_MERKLEVAL is like a macro that runs a number of other ops.
+Note that 5 bytes can be shaved from the commitment scripts by using OP_SHAKE256
+with digest length 26, reducing the commitment security from 256 to 208 bits;
+this reduces the size of unlocking scripts A by 10 bytes and unlocking scripts
+BA and BB by 20 bytes. If we decreased the commitment security down to 180 bits
+using `OP_SHAKE256 d20`, this shaves an additional 6 bytes from the locking
+script, 12 bytes from unlocking script A, and 24 bytes from unlocking scripts BA
+and BB (final byte counts of 27, 174, and 232 respectively). The OP_MERKLEVAL
+option is both more secure and a more efficient branching script solution.
+
+```s
+# locking script: 38 bytes #
+OP_DUP
+OP_SHA256
+OP_PUSH x<hex 32 byte root sha256 hash>
+OP_EQUAL_VERIFY
+OP_EVAL
+
+# committed script root: 83 bytes #
+OP_IF (
+    # committment to branch A: 38 bytes #
+    OP_DUP
+    OP_SHA256
+    OP_PUSH x<hex 32 byte branch A sha256 hash>
+    OP_EQUAL_VERIFY
+    OP_EVAL
+) ELSE (
+    # committed script branch B: 38 bytes #
+    OP_DUP
+    OP_SHA256
+    OP_PUSH x<hex 32 byte branch B root sha256 hash>
+    OP_EQUAL_VERIFY
+    OP_EVAL
+)
+
+# committed script branch A: 36 bytes #
+OP_PUSH x<hex pubkeyA>
+OP_CHECK_SIG x00
+
+# unlocking script A: 190 bytes #
+OP_PUSH x<hex signature from pubkeyA>
+OP_PUSH x<hex committed script branch A>
+OP_TRUE
+OP_PUSH x<hex committed script root>
+
+# committed script branch B: 83 bytes #
+OP_IF (
+    # commitment to script branch BA: 38 bytes #
+    OP_DUP
+    OP_SHA256
+    OP_PUSH x<hex 32 byte branch A sha256 hash>
+    OP_EQUAL_VERIFY
+    OP_EVAL
+) ELSE (
+    # commitment to script branch BB: 38 bytes #
+    OP_DUP
+    OP_SHA256
+    OP_PUSH x<hex 32 byte branch A sha256 hash>
+    OP_EQUAL_VERIFY
+    OP_EVAL
+)
+
+# committed script branch BA: 36 bytes #
+OP_PUSH x<hex pubkeyBA>
+OP_CHECK_SIG x00
+
+# unlocking script BA: 276 bytes #
+OP_PUSH x<hex signature from pubkeyBA>
+OP_PUSH x<hex committed script branch BA>
+OP_TRUE
+OP_PUSH x<hex committed script branch B>
+OP_FALSE
+OP_PUSH x<hex committed script root>
+
+# committed script branch BB: 36 bytes #
+OP_PUSH x<hex pubkeyBB>
+OP_CHECK_SIG x00
+
+# unlocking script BB: 276 bytes #
+OP_PUSH x<hex signature from pubkeyBB>
+OP_PUSH x<hex committed script branch BB>
+OP_FALSE
+OP_PUSH x<hex committed script branch B>
+OP_FALSE
+OP_PUSH x<hex committed script root>
 ```
