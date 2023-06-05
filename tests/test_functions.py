@@ -205,6 +205,12 @@ class TestFunctions(unittest.TestCase):
         items = [self.queue.get(False), self.queue.get(False)]
         assert items == [b'1', b'2']
 
+    def test_OP_READ_CACHE_raises_ScriptExecutionError_for_missing_cache_key(self):
+        self.tape = classes.Tape(functions.int_to_bytes(4) + b'test')
+        with self.assertRaises(errors.ScriptExecutionError) as e:
+            functions.OP_READ_CACHE(self.tape, self.queue, self.cache)
+        assert str(e.exception) == 'OP_READ_CACHE key not in cache'
+
     def test_OP_READ_CACHE_SIZE_reads_cache_key_from_tape_and_puts_size_of_cache_on_queue(self):
         self.cache[b'test'] = [b'2', b'1']
         self.tape = classes.Tape(functions.int_to_bytes(4) + b'test')
@@ -226,6 +232,12 @@ class TestFunctions(unittest.TestCase):
         items = [self.queue.get(False), self.queue.get(False)]
         assert self.queue.empty()
         assert items == [b'1', b'2']
+
+    def test_OP_READ_CACHE_Q_raises_ScriptExecutionError_for_missing_cache_key(self):
+        self.queue.put(b'test')
+        with self.assertRaises(errors.ScriptExecutionError) as e:
+            functions.OP_READ_CACHE_Q(self.tape, self.queue, self.cache)
+        assert str(e.exception) == 'OP_READ_CACHE_Q key not in cache'
 
     def test_OP_READ_CACHE_Q_SIZE_reads_cache_key_from_queue_and_puts_size_of_cache_on_queue(self):
         self.cache[b'test'] = [b'2', b'1']
@@ -341,6 +353,22 @@ class TestFunctions(unittest.TestCase):
         assert self.queue.empty()
         assert str(item)[:5] == str(expected)[:5]
 
+    def test_OP_ADD_FLOATS_raises_errors_for_invalid_floats(self):
+        self.tape = classes.Tape(functions.int_to_bytes(2))
+        assert self.queue.empty()
+        self.queue.put(functions.float_to_bytes(0.01)+b'000')
+        self.queue.put(functions.float_to_bytes(0.1))
+        with self.assertRaises(TypeError) as e:
+            functions.OP_ADD_FLOATS(self.tape, self.queue, self.cache)
+        assert str(e.exception) == 'OP_ADD_FLOATS malformed float'
+
+        self.tape = classes.Tape(functions.int_to_bytes(2))
+        self.queue.put(functions.float_to_bytes(float('NaN')))
+        self.queue.put(functions.float_to_bytes(0.1))
+        with self.assertRaises(ValueError) as e:
+            functions.OP_ADD_FLOATS(self.tape, self.queue, self.cache)
+        assert str(e.exception) == 'OP_ADD_FLOATS nan encountered'
+
     def test_OP_SUBTRACT_FLOATS_reads_uint_from_tape_pulls_that_many_floats_from_queue_put_difference_on_queue(self):
         assert self.queue.empty()
         self.tape = classes.Tape(functions.int_to_bytes(3))
@@ -360,6 +388,21 @@ class TestFunctions(unittest.TestCase):
         assert self.queue.empty()
         assert str(item)[:5] == str(expected)[:5]
 
+    def test_OP_SUBTRACT_FLOATS_raises_errors_for_invalid_floats(self):
+        self.tape = classes.Tape(functions.int_to_bytes(2))
+        self.queue.put(functions.float_to_bytes(0.01)+b'000')
+        self.queue.put(functions.float_to_bytes(0.1))
+        with self.assertRaises(TypeError) as e:
+            functions.OP_SUBTRACT_FLOATS(self.tape, self.queue, self.cache)
+        assert str(e.exception) == 'OP_SUBTRACT_FLOATS malformed float'
+
+        self.tape = classes.Tape(functions.int_to_bytes(2))
+        self.queue.put(functions.float_to_bytes(float('NaN')))
+        self.queue.put(functions.float_to_bytes(0.1))
+        with self.assertRaises(ValueError) as e:
+            functions.OP_SUBTRACT_FLOATS(self.tape, self.queue, self.cache)
+        assert str(e.exception) == 'OP_SUBTRACT_FLOATS nan encountered'
+
     def test_OP_DIV_FLOAT_reads_float_from_tape_pulls_float_from_queue_put_quotient_on_queue(self):
         assert self.queue.empty()
         self.tape = classes.Tape(functions.float_to_bytes(0.01))
@@ -375,6 +418,19 @@ class TestFunctions(unittest.TestCase):
         item = functions.bytes_to_float(item)
         assert self.queue.empty()
         assert (item-expected)/expected < 0.000001
+
+    def test_OP_DIV_FLOAT_raises_errors_for_invalid_float(self):
+        self.tape = classes.Tape(functions.float_to_bytes(0.01))
+        self.queue.put(functions.float_to_bytes(0.1) + b'xx')
+        with self.assertRaises(TypeError) as e:
+            functions.OP_DIV_FLOAT(self.tape, self.queue, self.cache)
+        assert str(e.exception) == 'OP_DIV_FLOAT malformed float'
+
+        self.tape = classes.Tape(functions.float_to_bytes(float('NaN')))
+        self.queue.put(functions.float_to_bytes(0.1))
+        with self.assertRaises(ValueError) as e:
+            functions.OP_DIV_FLOAT(self.tape, self.queue, self.cache)
+        assert str(e.exception) == 'OP_DIV_FLOAT nan encountered'
 
     def test_OP_DIV_FLOATS_pulls_two_floats_from_queue_put_quotient_on_queue(self):
         assert self.queue.empty()
@@ -392,6 +448,24 @@ class TestFunctions(unittest.TestCase):
         assert self.queue.empty()
         assert (item-expected)/expected < 0.000001
 
+    def test_OP_DIV_FLOATS_raises_errors_for_invalid_floats(self):
+        self.queue.put(functions.float_to_bytes(0.01)+b'1212')
+        with self.assertRaises(TypeError) as e:
+            functions.OP_DIV_FLOATS(self.tape, self.queue, self.cache)
+        assert str(e.exception) == 'OP_DIV_FLOATS malformed float'
+
+        self.queue.put(functions.float_to_bytes(0.1))
+        self.queue.put(functions.float_to_bytes(0.01)+b'1212')
+        with self.assertRaises(TypeError) as e:
+            functions.OP_DIV_FLOATS(self.tape, self.queue, self.cache)
+        assert str(e.exception) == 'OP_DIV_FLOATS malformed float'
+
+        self.queue.put(functions.float_to_bytes(float('NaN')))
+        self.queue.put(functions.float_to_bytes(0.1))
+        with self.assertRaises(ValueError) as e:
+            functions.OP_DIV_FLOATS(self.tape, self.queue, self.cache)
+        assert str(e.exception) == 'OP_DIV_FLOATS nan encountered'
+
     def test_OP_MOD_FLOAT_reads_float_from_tape_pulls_float_from_queue_put_modulus_on_queue(self):
         assert self.queue.empty()
         self.tape = classes.Tape(functions.float_to_bytes(13.0))
@@ -407,6 +481,19 @@ class TestFunctions(unittest.TestCase):
         item = functions.bytes_to_float(item)
         assert self.queue.empty()
         assert (item-expected)/expected < 0.000001
+
+    def test_OP_MOD_FLOAT_raises_errors_for_invalid_floats(self):
+        self.tape = classes.Tape(functions.float_to_bytes(1.1))
+        self.queue.put(functions.float_to_bytes(0.1) + b'12')
+        with self.assertRaises(TypeError) as e:
+            functions.OP_MOD_FLOAT(self.tape, self.queue, self.cache)
+        assert str(e.exception) == 'OP_MOD_FLOAT malformed float'
+
+        self.tape = classes.Tape(functions.float_to_bytes(float('NaN')))
+        self.queue.put(functions.float_to_bytes(0.1))
+        with self.assertRaises(ValueError) as e:
+            functions.OP_MOD_FLOAT(self.tape, self.queue, self.cache)
+        assert str(e.exception) == 'OP_MOD_FLOAT nan encountered'
 
     def test_OP_MOD_FLOATS_pulls_two_floats_from_queue_put_modulus_on_queue(self):
         assert self.queue.empty()
@@ -424,6 +511,24 @@ class TestFunctions(unittest.TestCase):
         assert self.queue.empty()
         assert (item-expected)/expected < 0.000001
 
+    def test_OP_MOD_FLOATS_raises_errors_for_invalid_floats(self):
+        self.queue.put(functions.float_to_bytes(0.1) + b'x')
+        with self.assertRaises(TypeError) as e:
+            functions.OP_MOD_FLOATS(self.tape, self.queue, self.cache)
+        assert str(e.exception) == 'OP_MOD_FLOATS malformed float'
+
+        self.queue.put(functions.float_to_bytes(0.1))
+        self.queue.put(functions.float_to_bytes(0.1) + b'x')
+        with self.assertRaises(TypeError) as e:
+            functions.OP_MOD_FLOATS(self.tape, self.queue, self.cache)
+        assert str(e.exception) == 'OP_MOD_FLOATS malformed float'
+
+        self.queue.put(functions.float_to_bytes(0.1))
+        self.queue.put(functions.float_to_bytes(float('NaN')))
+        with self.assertRaises(ValueError) as e:
+            functions.OP_MOD_FLOATS(self.tape, self.queue, self.cache)
+        assert str(e.exception) == 'OP_MOD_FLOATS nan encountered'
+
     def test_OP_ADD_POINTS_reads_uint_from_tape_pulls_that_many_points_from_queue_puts_sum_on_queue(self):
         assert self.queue.empty()
         self.tape = classes.Tape(functions.int_to_bytes(2))
@@ -437,6 +542,20 @@ class TestFunctions(unittest.TestCase):
         assert not self.queue.empty()
         item = self.queue.get(False)
         assert item == bytes(expected)
+
+    def test_OP_ADD_POINTS_raises_errors_for_invalid_points(self):
+        self.tape = classes.Tape(b'\x02')
+        self.queue.put(12323)
+        with self.assertRaises(TypeError) as e:
+            functions.OP_ADD_POINTS(self.tape, self.queue, self.cache)
+        assert str(e.exception) == 'OP_ADD_POINTS non-point value encountered'
+
+        self.tape = classes.Tape(b'\x02')
+        self.queue.put(b''.join([b'\xff' for _ in range(32)]))
+        self.queue.put(b''.join([b'\xff' for _ in range(32)]))
+        with self.assertRaises(ValueError) as e:
+            functions.OP_ADD_POINTS(self.tape, self.queue, self.cache)
+        assert str(e.exception) == 'OP_ADD_POINTS invalid point encountered'
 
     def test_OP_COPY_reads_uint_from_tape_and_copies_top_queue_value_that_many_times(self):
         assert self.queue.empty()
@@ -557,6 +676,21 @@ class TestFunctions(unittest.TestCase):
         assert not self.queue.empty()
         assert self.queue.get(False) == b'\x01'
         assert self.queue.empty()
+
+    def test_OP_CHECK_SIG_errors_on_invalid_vkey_or_sig(self):
+        self.tape = classes.Tape(b'\x00')
+        self.queue.put(b''.join(b'\xff' for _ in range(64)))
+        self.queue.put(b'not a valid vkey')
+        with self.assertRaises(ValueError) as e:
+            functions.OP_CHECK_SIG(self.tape, self.queue, self.cache)
+        assert str(e.exception) == 'OP_CHECK_SIG invalid vkey encountered'
+
+        self.tape = classes.Tape(b'\x00')
+        self.queue.put(b'not a valid sig')
+        self.queue.put(b''.join(b'\xff' for _ in range(32)))
+        with self.assertRaises(ValueError) as e:
+            functions.OP_CHECK_SIG(self.tape, self.queue, self.cache)
+        assert str(e.exception) == 'OP_CHECK_SIG invalid sig encountered'
 
     def test_OP_CHECK_SIG_errors_on_disallowed_sigflag(self):
         field1 = b'hello'
@@ -860,6 +994,18 @@ class TestFunctions(unittest.TestCase):
             items.append(self.queue.get(False))
         assert items == [b'bottom', b'middle', b'top']
 
+    def test_OP_SWAP_raises_ScriptExecutionError_for_queue_depth_overflow(self):
+        self.queue.put(b'sds')
+        self.tape = classes.Tape(b'\x00\xff')
+        with self.assertRaises(errors.ScriptExecutionError) as e:
+            functions.OP_SWAP(self.tape, self.queue, self.cache)
+        assert str(e.exception) == 'OP_SWAP queue size exceeded by index'
+
+        self.tape = classes.Tape(b'\xff\x00')
+        with self.assertRaises(errors.ScriptExecutionError) as e:
+            functions.OP_SWAP(self.tape, self.queue, self.cache)
+        assert str(e.exception) == 'OP_SWAP queue size exceeded by index'
+
     def test_OP_SWAP2_swaps_top_two_queue_items(self):
         self.queue.put(b'second')
         self.queue.put(b'first')
@@ -880,6 +1026,13 @@ class TestFunctions(unittest.TestCase):
             items.append(self.queue.get(False))
         assert items == [3,2,1,4]
 
+    def test_OP_REVERSE_raises_ScriptExecutionError_for_queue_depth_overflow(self):
+        self.queue.put(b'sds')
+        self.tape = classes.Tape(b'\xff')
+        with self.assertRaises(errors.ScriptExecutionError) as e:
+            functions.OP_REVERSE(self.tape, self.queue, self.cache)
+        assert str(e.exception) == 'OP_REVERSE queue size exceeded'
+
     def test_OP_CONCAT_concatenates_top_two_items_from_queue(self):
         self.queue.put(b'123')
         self.queue.put(b'321')
@@ -893,6 +1046,13 @@ class TestFunctions(unittest.TestCase):
         functions.OP_SPLIT(self.tape, self.queue, self.cache)
         assert self.queue.get(False) == b'345'
         assert self.queue.get(False) == b'12'
+
+    def test_OP_SPLIT_raises_ScriptExecutionError_for_length_index_overflow(self):
+        self.queue.put(b'sds')
+        self.tape = classes.Tape(b'\xff')
+        with self.assertRaises(errors.ScriptExecutionError) as e:
+            functions.OP_SPLIT(self.tape, self.queue, self.cache)
+        assert str(e.exception) == 'OP_SPLIT item len exceeded by index'
 
     def test_OP_CONCAT_STR_concatenates_top_two_utf8_str_items_from_queue(self):
         self.queue.put(bytes('123', 'utf-8'))
@@ -908,6 +1068,13 @@ class TestFunctions(unittest.TestCase):
         functions.OP_SPLIT_STR(self.tape, self.queue, self.cache)
         assert str(self.queue.get(False), 'utf-8') == '345'
         assert str(self.queue.get(False), 'utf-8') == '12'
+
+    def test_OP_SPLIT_STR_raises_ScriptExecutionError_for_str_length_overflow(self):
+        self.queue.put('sds')
+        self.tape = classes.Tape(b'\xff')
+        with self.assertRaises(errors.ScriptExecutionError) as e:
+            functions.OP_SPLIT_STR(self.tape, self.queue, self.cache)
+        assert str(e.exception) == 'OP_SPLIT_STR item len exceeded by index'
 
     def test_NOP_reads_uint_from_tape_and_pulls_that_many_items_from_queue(self):
         assert self.queue.empty()
@@ -1056,6 +1223,13 @@ class TestFunctions(unittest.TestCase):
         assert not self.queue.empty()
         assert self.queue.get(False) == b'\x01'
 
+    def test_OP_CALL_raises_ScriptExecutionError_when_callstack_limit_exceeded(self):
+        self.tape.callstack_limit = -1
+        self.tape.callstack_count = 1
+        with self.assertRaises(errors.ScriptExecutionError) as e:
+            functions.OP_CALL(self.tape, self.queue, self.cache)
+        assert str(e.exception) == 'callstack limit exceeded'
+
     def test_OP_IF_reads_3uint_length_from_tape_pulls_top_queue_bool_and_executes_if_true(self):
         length = b'\x00\x00\x02'
         op_push0 = b'\x02'
@@ -1105,6 +1279,18 @@ class TestFunctions(unittest.TestCase):
         assert not self.queue.empty()
         assert self.queue.get(False) == b'F'
         assert self.queue.empty()
+
+    def test_OP_EVAL_raises_ScriptExecutionError_if_disallow_OP_EVAL_flag_set(self):
+        self.tape.flags['disallow_OP_EVAL'] = True
+        with self.assertRaises(errors.ScriptExecutionError) as e:
+            functions.OP_EVAL(self.tape, self.queue, self.cache)
+        assert str(e.exception) == 'OP_EVAL disallowed'
+
+    def test_OP_EVAL_raises_ValueError_for_empty_script(self):
+        self.queue.put(b'')
+        with self.assertRaises(ValueError) as e:
+            functions.OP_EVAL(self.tape, self.queue, self.cache)
+        assert str(e.exception) == 'OP_EVAL encountered empty script'
 
     # values
     def test_opcodes_is_dict_mapping_ints_to_tuple_str_function(self):

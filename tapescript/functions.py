@@ -139,7 +139,7 @@ def OP_READ_CACHE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """
     size = int.from_bytes(tape.read(1), 'big')
     key = tape.read(size)
-    assert key in cache, 'OP_READ_CACHE key not in cache'
+    sert(key in cache, 'OP_READ_CACHE key not in cache')
     items = cache[key] if type(cache[key]) in (list, tuple) else [cache[key]]
 
     for item in items:
@@ -164,7 +164,7 @@ def OP_READ_CACHE_Q(tape: Tape, queue: LifoQueue, cache: dict) -> None:
         the cache onto the queue.
     """
     key = queue.get(False)
-    assert key in cache, 'OP_READ_CACHE_Q key not in cache'
+    sert(key in cache, 'OP_READ_CACHE_Q key not in cache')
     items = cache[key] if type(cache[key]) in (list, tuple) else [cache[key]]
 
     for item in items:
@@ -278,12 +278,12 @@ def OP_ADD_FLOATS(tape: Tape, queue: LifoQueue, cache: dict) -> None:
 
     for _ in range(size):
         item = queue.get(False)
-        assert type(item) is bytes and len(item) == 4, \
-            'OP_ADD_FLOATS malformed float'
+        tert(type(item) is bytes and len(item) == 4,
+            'OP_ADD_FLOATS malformed float')
         item, = struct.unpack('!f', item)
         total += item
 
-    assert not isnan(total), 'OP_ADD_FLOATS nan encountered'
+    vert(not isnan(total), 'OP_ADD_FLOATS nan encountered')
 
     queue.put(struct.pack('!f', total))
 
@@ -295,18 +295,18 @@ def OP_SUBTRACT_FLOATS(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """
     size = int.from_bytes(tape.read(1), 'big')
     item = queue.get(False)
-    assert type(item) is bytes and len(item) == 4, \
-        'OP_SUBTRACT_FLOATS malformed float'
+    tert(type(item) is bytes and len(item) == 4,
+        'OP_SUBTRACT_FLOATS malformed float')
     total, = struct.unpack('!f', item)
 
     for _ in range(size-1):
         item = queue.get(False)
-        assert type(item) is bytes and len(item) == 4, \
-            'OP_SUBTRACT_FLOATS malformed float'
+        tert(type(item) is bytes and len(item) == 4,
+            'OP_SUBTRACT_FLOATS malformed float')
         number, = struct.unpack('!f', item)
         total -= number
 
-    assert not isnan(total), 'OP_ADD_FLOATS nan encountered'
+    vert(not isnan(total), 'OP_SUBTRACT_FLOATS nan encountered')
 
     queue.put(struct.pack('!f', total))
 
@@ -317,12 +317,12 @@ def OP_DIV_FLOAT(tape: Tape, queue: LifoQueue, cache: dict) -> None:
         onto the queue; advance the pointer.
     """
     item = queue.get(False)
-    assert type(item) is bytes and len(item) == 4, \
-        'OP_DIV_FLOAT malformed float'
+    tert(type(item) is bytes and len(item) == 4,
+        'OP_DIV_FLOAT malformed float')
     dividend, = struct.unpack('!f', item)
     divisor, = struct.unpack('!f', tape.read(4))
     result = divisor / dividend
-    assert not isnan(result), 'OP_DIV_FLOAT nan encountered'
+    vert(not isnan(result), 'OP_DIV_FLOAT nan encountered')
     queue.put(struct.pack('!f', result))
 
 def OP_DIV_FLOATS(tape: Tape, queue: LifoQueue, cache: dict) -> None:
@@ -330,17 +330,15 @@ def OP_DIV_FLOATS(tape: Tape, queue: LifoQueue, cache: dict) -> None:
         the second by the first; put the result onto the queue.
     """
     item = queue.get(False)
-    assert type(item) is bytes and len(item) == 4, \
-        'OP_DIV_FLOATS malformed float'
+    tert(type(item) is bytes and len(item) == 4, 'OP_DIV_FLOATS malformed float')
     divisor, = struct.unpack('!f', item)
 
     item = queue.get(False)
-    assert type(item) is bytes and len(item) == 4, \
-        'OP_DIV_FLOATS malformed float'
+    tert(type(item) is bytes and len(item) == 4, 'OP_DIV_FLOATS malformed float')
     dividend, = struct.unpack('!f', item)
 
     result = divisor / dividend
-    assert not isnan(result), 'OP_DIV_FLOATS nan encountered'
+    vert(not isnan(result), 'OP_DIV_FLOATS nan encountered')
     queue.put(struct.pack('!f', result))
 
 def OP_MOD_FLOAT(tape: Tape, queue: LifoQueue, cache: dict) -> None:
@@ -350,12 +348,11 @@ def OP_MOD_FLOAT(tape: Tape, queue: LifoQueue, cache: dict) -> None:
         result onto the queue; advance the pointer.
     """
     item = queue.get(False)
-    assert type(item) is bytes and len(item) == 4, \
-        'OP_MOD_FLOAT malformed float'
+    tert(type(item) is bytes and len(item) == 4, 'OP_MOD_FLOAT malformed float')
     dividend, = struct.unpack('!f', item)
     divisor, = struct.unpack('!f', tape.read(4))
     result = dividend % divisor
-    assert not isnan(result), 'OP_MOD_FLOAT nan encountered'
+    vert(not isnan(result), 'OP_MOD_FLOAT nan encountered')
     queue.put(struct.pack('!f', result))
 
 def OP_MOD_FLOATS(tape: Tape, queue: LifoQueue, cache: dict) -> None:
@@ -363,17 +360,15 @@ def OP_MOD_FLOATS(tape: Tape, queue: LifoQueue, cache: dict) -> None:
         float modulus: second % first; put the result onto the queue.
     """
     item = queue.get(False)
-    assert type(item) is bytes and len(item) == 4, \
-        'OP_MOD_FLOATS malformed float'
+    tert(type(item) is bytes and len(item) == 4, 'OP_MOD_FLOATS malformed float')
     divisor, = struct.unpack('!f', item)
 
     item = queue.get(False)
-    assert type(item) is bytes and len(item) == 4, \
-        'OP_MOD_FLOATS malformed float'
+    tert(type(item) is bytes and len(item) == 4, 'OP_MOD_FLOATS malformed float')
     dividend, = struct.unpack('!f', item)
 
     result = dividend % divisor
-    assert not isnan(result), 'OP_MOD_FLOATS nan encountered'
+    vert(not isnan(result), 'OP_MOD_FLOATS nan encountered')
     queue.put(struct.pack('!f', result))
 
 def OP_ADD_POINTS(tape: Tape, queue: LifoQueue, cache: dict) -> None:
@@ -387,16 +382,16 @@ def OP_ADD_POINTS(tape: Tape, queue: LifoQueue, cache: dict) -> None:
 
     for _ in range(count):
         points.append(queue.get(False))
-        assert type(points[-1]) in (bytes, VerifyKey), \
-            'OP_ADD_POINTS non-point value encountered'
+        tert(type(points[-1]) in (bytes, VerifyKey),
+            'OP_ADD_POINTS non-point value encountered')
 
     # normalize points to bytes
     points = [pt if type(pt) is bytes else bytes(pt) for pt in points]
 
     # raise an error for invalid points
     for pt in points:
-        assert nacl.bindings.crypto_core_ed25519_is_valid_point(pt), \
-            'OP_ADD_POINTS invalid point encountered'
+        vert(nacl.bindings.crypto_core_ed25519_is_valid_point(pt),
+            'OP_ADD_POINTS invalid point encountered')
 
     # compute the sum
     sum = points[0]
@@ -443,8 +438,8 @@ def OP_SHAKE256(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     queue.put(shake_256(item).digest(size))
 
 def OP_VERIFY(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Pull a value from the queue; evaluate it as a bool; and raise an
-        AssertionError if it is False.
+    """Pull a value from the queue; evaluate it as a bool; and raise a
+        ScriptExecutionError if it is False.
     """
     sert(bytes_to_bool(queue.get(False)), 'OP_VERIFY check failed')
 
@@ -473,13 +468,13 @@ def OP_CHECK_SIG(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     vkey = queue.get(False)
     sig = queue.get(False)
 
-    assert (type(vkey) is bytes and len(vkey) == nacl.bindings.crypto_sign_PUBLICKEYBYTES) \
-        or type(vkey) is VerifyKey, \
-        'OP_CHECK_SIG invalid vkey encountered'
-    assert type(sig) is bytes and len(sig) in (
+    vert((type(vkey) is bytes and len(vkey) == nacl.bindings.crypto_sign_PUBLICKEYBYTES)
+        or type(vkey) is VerifyKey,
+        'OP_CHECK_SIG invalid vkey encountered')
+    vert(type(sig) is bytes and len(sig) in (
         nacl.bindings.crypto_sign_BYTES, nacl.bindings.crypto_sign_BYTES + 1
-        ), \
-        'OP_CHECK_SIG invalid sig encountered'
+        ),
+        'OP_CHECK_SIG invalid sig encountered')
 
     vkey = vkey if type(vkey) is VerifyKey else VerifyKey(vkey)
     sig_flag = 0 if len(sig) == nacl.bindings.crypto_sign_BYTES else sig[-1]
@@ -692,9 +687,9 @@ def OP_EVAL(tape: Tape, queue: LifoQueue, cache: dict) -> None:
         tape.callstack_limit, tape.flags, tape.definitions, cache, and
         queue.
     """
-    assert 'disallow_OP_EVAL' not in tape.flags, 'OP_EVAL disallowed'
+    sert('disallow_OP_EVAL' not in tape.flags, 'OP_EVAL disallowed')
     script = queue.get(False)
-    assert len(script) > 0, 'OP_EVAL encountered empty script'
+    vert(len(script) > 0, 'OP_EVAL encountered empty script')
 
     # setup
     subtape = Tape(
@@ -763,7 +758,7 @@ def OP_SWAP(tape: Tape, queue: LifoQueue, cache: dict) -> None:
         return
 
     max_idx = first_idx if first_idx > second_idx else second_idx
-    assert len(queue.queue) >= max_idx, 'OP_SWAP queue size exceeded by index'
+    sert(len(queue.queue) >= max_idx, 'OP_SWAP queue size exceeded by index')
 
     first = queue.queue[first_idx]
     second = queue.queue[second_idx]
@@ -782,7 +777,7 @@ def OP_REVERSE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
         reverse that number of items from the top of the queue.
     """
     count = int.from_bytes(tape.read(1), 'big')
-    assert len(queue.queue) >= count, 'OP_REVERSE queue size exceeded'
+    sert(len(queue.queue) >= count, 'OP_REVERSE queue size exceeded')
     items = queue.queue[-count:]
     items.reverse()
     queue.queue[-count:] = items
@@ -802,7 +797,7 @@ def OP_SPLIT(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """
     index = int.from_bytes(tape.read(1), 'big')
     item = queue.get(False)
-    assert index < len(item), 'OP_SPLIT item len exceeded by index'
+    sert(index < len(item), 'OP_SPLIT item len exceeded by index')
     part0 = item[:index]
     part1 = item[index:]
     queue.put(part0)
@@ -824,7 +819,7 @@ def OP_SPLIT_STR(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """
     index = int.from_bytes(tape.read(1), 'big')
     item = str(queue.get(False), 'utf-8')
-    assert index < len(item), 'OP_SPLIT_STR item len exceeded by index'
+    sert(index < len(item), 'OP_SPLIT_STR item len exceeded by index')
     part0 = item[:index]
     part1 = item[index:]
     queue.put(bytes(part0, 'utf-8'))
