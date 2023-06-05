@@ -616,19 +616,21 @@ def OP_DEF(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     def_size = int.from_bytes(tape.read(3), 'big')
 
     def_data = tape.read(def_size)
-    tape.definitions[def_handle] = Tape(
+    subtape = Tape(
         def_data,
         callstack_limit=tape.callstack_limit,
         contracts=tape.contracts,
         flags=tape.flags
     )
+    tape.definitions[def_handle] = subtape
+    subtape.definitions = tape.definitions
 
 def OP_CALL(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Read the next byte from the tape as the definition number; call
         run_tape passing that definition tape, the queue, and the cache.
     """
-    assert tape.callstack_count < tape.callstack_limit, \
-        'callstack limit exceeded'
+    sert(tape.callstack_count < tape.callstack_limit,
+        'callstack limit exceeded')
 
     def_handle = tape.read(1)
     tape.callstack_count += 1
@@ -636,6 +638,7 @@ def OP_CALL(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     subtape.callstack_count = tape.callstack_count
 
     run_tape(subtape, queue, cache)
+    subtape.pointer = 0
 
 def OP_IF(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Read the next 3 bytes from the tape, interpreting as an unsigned

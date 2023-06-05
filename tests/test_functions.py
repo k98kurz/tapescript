@@ -1179,6 +1179,11 @@ class TestFunctions(unittest.TestCase):
         assert functions.run_auth_script(b'\x01') == True
         assert functions.run_auth_script(b'\x01\x01') == False
 
+    def test_infinite_recursion_results_in_callstack_limit_exceeded_error(self):
+        with self.assertRaises(errors.ScriptExecutionError) as e:
+            functions.run_script(b'\x29\x00\x00\x00\x02\x2a\x00\x2a\x00')
+        assert str(e.exception) == 'callstack limit exceeded'
+
     # e2e vectors
     def test_p2pk_e2e(self):
         message = b'spending bitcoinz or something'
