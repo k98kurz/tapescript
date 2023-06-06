@@ -826,8 +826,8 @@ def OP_SPLIT_STR(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     sert(index < len(item), 'OP_SPLIT_STR item len exceeded by index')
     part0 = item[:index]
     part1 = item[index:]
-    queue.put(bytes(part0, 'utf-8'))
     queue.put(bytes(part1, 'utf-8'))
+    queue.put(bytes(part0, 'utf-8'))
 
 def OP_CHECK_TRANSFER(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned

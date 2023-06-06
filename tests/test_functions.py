@@ -1077,8 +1077,8 @@ class TestFunctions(unittest.TestCase):
         self.tape = classes.Tape(b'\x02')
         self.queue.put(bytes('12345', 'utf-8'))
         functions.OP_SPLIT_STR(self.tape, self.queue, self.cache)
-        assert str(self.queue.get(False), 'utf-8') == '345'
         assert str(self.queue.get(False), 'utf-8') == '12'
+        assert str(self.queue.get(False), 'utf-8') == '345'
 
     def test_OP_SPLIT_STR_raises_ScriptExecutionError_for_str_length_overflow(self):
         self.queue.put(b'sds')
