@@ -1450,6 +1450,22 @@ class TestFunctions(unittest.TestCase):
             functions.run_script(b'\x29\x00\x00\x00\x02\x2a\x00\x2a\x00')
         assert str(e.exception) == 'callstack limit exceeded'
 
+    def test_OP_RETURN_exits_local_context_and_returns_to_outer_context(self):
+        # return from def before adding int false to queue
+        code = b'\x29\x00\x00\x00\x02\x30\x00\x2a\x00\x01'
+        tape, queue, _ = functions.run_script(code)
+        assert tape.has_terminated()
+        assert queue.get(False) == b'\x01'
+        assert queue.empty()
+
+        # return from def after adding int false to queue
+        code = b'\x29\x00\x00\x00\x02\x00\x30\x2a\x00\x01'
+        tape, queue, _ = functions.run_script(code)
+        assert tape.has_terminated()
+        assert queue.get(False) == b'\x01'
+        assert queue.get(False) == b'\x00'
+        assert queue.empty()
+
     # e2e vectors
     def test_p2pk_e2e(self):
         message = b'spending bitcoinz or something'
