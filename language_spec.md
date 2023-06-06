@@ -88,9 +88,9 @@ the unexecuted branch, and anything needed to execute the branch (in reverse
 order). This generalizes to any number of levels of branches, but there can be
 only two branches per level. These form a Merkle-tree like script structure.
 
-See "Example 5: merklized script" in the script_examples.md file for a thorough
-example of how this works and how it compares to using `OP_IF_ELSE` for
-conditional execution and cryptographic script commitments.
+See "Example 5: merklized script" in the [script_examples.md](https://github.com/k98kurz/tapescript/blob/master/script_examples.md#example-5-merklized-script)
+file for a thorough example of how this works and how it compares to using
+`OP_IF_ELSE` for conditional execution and cryptographic script commitments.
 
 ### Defining and calling functions
 
