@@ -239,7 +239,10 @@ BA and BB by 20 bytes. If we decreased the commitment security down to 180 bits
 using `OP_SHAKE256 d20`, this shaves an additional 6 bytes from the locking
 script, 12 bytes from unlocking script A, and 24 bytes from unlocking scripts BA
 and BB (final byte counts of 27, 174, and 232 respectively). The OP_MERKLEVAL
-option is both more secure and a more efficient branching script solution.
+option is both more secure and a more efficient branching script solution. The
+below example of this was not added as a test vector because it is strictly
+inferior to the OP_MERKLEVAL method above, and it would have been a lot of time
+and effort that I would rather put elsewhere.
 
 ```s
 # locking script: 38 bytes #
