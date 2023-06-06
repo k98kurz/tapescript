@@ -342,6 +342,32 @@ class TestParsing(unittest.TestCase):
 
         print(f'{len(vectors.items())} vectors tested for decompile_script')
 
+    def test_add_opcode_parsing_handlers_e2e(self):
+        original_opcodes = {**functions.opcodes}
+        original_opcodes_inverse = {**functions.opcodes_inverse}
+
+        OP_GRAB_INT = lambda tape, queue, cache: tape.read(1)[0]
+        functions.opcodes[255] = ('OP_GRAB_INT', OP_GRAB_INT)
+        functions.opcodes_inverse['OP_GRAB_INT'] = (255, OP_GRAB_INT)
+
+        def compiler(opname: str, symbols: list[str], symbols_to_advance: int):
+            symbols_to_advance += 1
+            val = int(symbols[0][1:]).to_bytes(1)
+            return (symbols_to_advance, (val,))
+
+        def decompiler(opname: str, tape: classes.Tape):
+            val = tape.read(1)[0]
+            return [f'{opname} d{val}']
+
+        parsing.add_opcode_parsing_handlers('OP_GRAB_INT', compiler, decompiler)
+        compiled = parsing.compile_script('OP_GRAB_INT d2')
+        assert compiled == b'\xff\x02'
+        decompiled = parsing.decompile_script(compiled)
+        assert decompiled == ['OP_GRAB_INT d2']
+
+        functions.opcodes = original_opcodes
+        functions.opcodes_inverse = original_opcodes_inverse
+
     def bytes_xor(self, first: bytes, second: bytes) -> bytes:
         while len(first) > len(second):
             second = second + b'\x00'

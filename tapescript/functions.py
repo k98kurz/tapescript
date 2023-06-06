@@ -8,6 +8,7 @@ from nacl.signing import VerifyKey
 from queue import LifoQueue
 from secrets import token_bytes
 from time import time
+from typing import Callable
 import nacl.bindings
 import struct
 
@@ -1014,6 +1015,22 @@ flags = {
     'epoch_threshold': 60*60*12,
 }
 
+def add_opcode(code: int, name: str, function: Callable):
+    tert(type(code) is int, 'code must be int')
+    tert(type(name) is str, 'name must be str')
+    tert(callable(function), 'function must be callable')
+    if code in opcodes:
+        vert(code not in opcodes, f'{code} already assigned to {opcodes[code][0]}')
+    vert(code < 256, 'code must be <256')
+    vert(name[:3].upper() == 'OP_', 'name must start with OP_')
+    name = name.upper()
+    opcodes[code] = (name, function)
+    opcodes_inverse[name] = (code, function)
+
+    if code in nopcodes:
+        nopname = nopcodes[code][0]
+        del nopcodes[code]
+        del nopcodes_inverse[nopname]
 
 def set_tape_flags(tape: Tape) -> Tape:
     for key in flags:

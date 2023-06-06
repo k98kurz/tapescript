@@ -2,7 +2,7 @@ from .errors import yert, vert, SyntaxError
 from .classes import Tape
 from .functions import int_to_bytes, opcodes, opcodes_inverse, nopcodes
 from math import ceil, log2
-from typing import Any
+from typing import Any, Callable
 import struct
 
 
@@ -34,7 +34,16 @@ def get_symbols(script: str) -> list[str]:
     return symbols
 
 
-def _get_OP_PUSH_args(opcode: str, symbols: list[str], symbols_to_advance: int) -> tuple[int, tuple[bytes]]:
+additional_opcodes = {}
+
+def add_opcode_parsing_handlers(opname: str, compiler_handler: Callable, decompiler_handler: Callable) -> None:
+    additional_opcodes[opname] = (compiler_handler, decompiler_handler)
+
+def _get_additional_opcode_args(opname: str, symbols: list[str], symbols_to_advance: int) -> tuple[int, tuple[bytes]]:
+    vert(opname in additional_opcodes, f'unrecognized opname {opname}')
+    return additional_opcodes[opname][0](opname, symbols, symbols_to_advance)
+
+def _get_OP_PUSH_args(opname: str, symbols: list[str], symbols_to_advance: int) -> tuple[int, tuple[bytes]]:
     args = []
     symbols_to_advance += 1
     val = symbols[0]
@@ -78,7 +87,7 @@ def _get_OP_PUSH_args(opcode: str, symbols: list[str], symbols_to_advance: int) 
     args.append(val)
     return (symbols_to_advance, args)
 
-def _get_OP_PUSH0_type_args(opcode: str, symbols: list[str], symbols_to_advance: int) -> tuple[int, tuple[bytes]]:
+def _get_OP_PUSH0_type_args(opname: str, symbols: list[str], symbols_to_advance: int) -> tuple[int, tuple[bytes]]:
     args = []
     symbols_to_advance += 1
     val = symbols[0]
@@ -100,9 +109,9 @@ def _get_OP_PUSH0_type_args(opcode: str, symbols: list[str], symbols_to_advance:
             args.append(val if len(val) == 1 else b'\x00')
     return (symbols_to_advance, args)
 
-def _get_OP_PUSH1_type_args(opcode: str, symbols: list[str], symbols_to_advance: int) -> tuple[int, tuple[bytes]]:
+def _get_OP_PUSH1_type_args(opname: str, symbols: list[str], symbols_to_advance: int) -> tuple[int, tuple[bytes]]:
     args = []
-    if opcode == 'OP_WRITE_CACHE':
+    if opname == 'OP_WRITE_CACHE':
         # human-readable syntax of OP_WRITE_CACHE [key] [number]
         symbols_to_advance += 2
         vals = symbols[:2]
@@ -113,7 +122,7 @@ def _get_OP_PUSH1_type_args(opcode: str, symbols: list[str], symbols_to_advance:
 
     for val in vals:
         yert(val[0].lower() in ('d', 'x', 's'),
-            f'values for {opcode} must be prefaced with d, x, or s')
+            f'values for {opname} must be prefaced with d, x, or s')
         match val[0].lower():
             case 'd':
                 vert(val[1:].isnumeric(),
@@ -142,7 +151,7 @@ def _get_OP_PUSH1_type_args(opcode: str, symbols: list[str], symbols_to_advance:
                 args.append(val)
     return (symbols_to_advance, args)
 
-def _get_OP_PUSH2_args(opcode: str, symbols: list[str], symbols_to_advance: int) -> tuple[int, tuple[bytes]]:
+def _get_OP_PUSH2_args(opname: str, symbols: list[str], symbols_to_advance: int) -> tuple[int, tuple[bytes]]:
     args = []
     symbols_to_advance += 1
     val = symbols[0]
@@ -175,7 +184,7 @@ def _get_OP_PUSH2_args(opcode: str, symbols: list[str], symbols_to_advance: int)
     args.append(val)
     return (symbols_to_advance, args)
 
-def _get_OP_PUSH4_args(opcode: str, symbols: list[str], symbols_to_advance: int) -> tuple[int, tuple[bytes]]:
+def _get_OP_PUSH4_args(opname: str, symbols: list[str], symbols_to_advance: int) -> tuple[int, tuple[bytes]]:
     args = []
     symbols_to_advance += 1
     val = symbols[0]
@@ -209,7 +218,7 @@ def _get_OP_PUSH4_args(opcode: str, symbols: list[str], symbols_to_advance: int)
     args.append(val)
     return (symbols_to_advance, args)
 
-def _get_OP_DIV_FLOAT_args(opcode: str, symbols: list[str], symbols_to_advance: int) -> tuple[int, tuple[bytes]]:
+def _get_OP_DIV_FLOAT_args(opname: str, symbols: list[str], symbols_to_advance: int) -> tuple[int, tuple[bytes]]:
     args = []
     symbols_to_advance += 1
     val = symbols[0]
@@ -219,15 +228,15 @@ def _get_OP_DIV_FLOAT_args(opcode: str, symbols: list[str], symbols_to_advance: 
     match val[0].lower():
         case 'd':
             vert(val[1:].isnumeric(),
-                f'{opcode} value prefaced by d must be decimal float')
+                f'{opname} value prefaced by d must be decimal float')
             args.append(struct.pack('!f', float(val[1:])))
         case 'x':
             vert(len(val[1:]) == 8,
-                f'{opcode} value prefaced by x must be 8 long (4 bytes)')
+                f'{opname} value prefaced by x must be 8 long (4 bytes)')
             args.append(bytes.fromhex(val[1:]))
     return (symbols_to_advance, args)
 
-def _get_OP_SWAP_args(opcode: str, symbols: list[str], symbols_to_advance: int) -> tuple[int, tuple[bytes]]:
+def _get_OP_SWAP_args(opname: str, symbols: list[str], symbols_to_advance: int) -> tuple[int, tuple[bytes]]:
     args = []
     symbols_to_advance += 2
     vals = symbols[:2]
@@ -252,7 +261,7 @@ def _get_OP_SWAP_args(opcode: str, symbols: list[str], symbols_to_advance: int) 
                 args.append(bytes.fromhex(val[1:]))
     return (symbols_to_advance, args)
 
-def _get_OP_MERKLEVAL_args(opcode: str, symbols: list[str], symbols_to_advance: int) -> tuple[int, tuple[bytes]]:
+def _get_OP_MERKLEVAL_args(opname: str, symbols: list[str], symbols_to_advance: int) -> tuple[int, tuple[bytes]]:
     args = []
     symbols_to_advance += 1
     val = symbols[0]
@@ -261,12 +270,12 @@ def _get_OP_MERKLEVAL_args(opcode: str, symbols: list[str], symbols_to_advance: 
     args.append(bytes.fromhex(val[1:]))
     return (symbols_to_advance, args)
 
-def get_args(opcode: str, symbols: list[str]) -> tuple[int, tuple[bytes]]:
+def get_args(opname: str, symbols: list[str]) -> tuple[int, tuple[bytes]]:
     """Get the number of symbols to advance and args for an op."""
     symbols_to_advance = 1
     args = []
 
-    match opcode:
+    match opname:
         case 'OP_FALSE' | 'OP_TRUE' | 'OP_POP0' | 'OP_SIZE' | \
             'OP_READ_CACHE_Q' | 'OP_READ_CACHE_Q_SIZE' | 'OP_DIV_INTS' | \
             'OP_MOD_INTS' | 'OP_DIV_FLOATS' | 'OP_MOD_FLOATS' | 'OP_DUP' | \
@@ -280,12 +289,12 @@ def get_args(opcode: str, symbols: list[str]) -> tuple[int, tuple[bytes]]:
             pass
         case 'OP_PUSH':
             # special case: OP_PUSH is a short hand for OP_PUSH[0,1,2,4]
-            return _get_OP_PUSH_args(opcode, symbols, symbols_to_advance)
+            return _get_OP_PUSH_args(opname, symbols, symbols_to_advance)
         case 'OP_PUSH1' | 'OP_WRITE_CACHE' | 'OP_READ_CACHE' | \
             'OP_READ_CACHE_SIZE' | 'OP_DIV_INT' | \
             'OP_MOD_INT' | 'OP_SET_FLAG' | 'OP_UNSET_FLAG':
             # ops that have tape arguments of form [size 0-255] [val]
-            return _get_OP_PUSH1_type_args(opcode, symbols, symbols_to_advance)
+            return _get_OP_PUSH1_type_args(opname, symbols, symbols_to_advance)
         case 'OP_PUSH0' | 'OP_POP1' | 'OP_ADD_INTS' | 'OP_SUBTRACT_INTS' | \
             'OP_MULT_INTS' | 'OP_ADD_FLOATS' | 'OP_CHECK_TRANSFER' | \
             'OP_SUBTRACT_FLOATS' | 'OP_ADD_POINTS' | 'OP_CALL' | \
@@ -293,28 +302,28 @@ def get_args(opcode: str, symbols: list[str]) -> tuple[int, tuple[bytes]]:
             'OP_SPLIT' | 'OP_SPLIT_STR' | 'OP_CHECK_SIG' | 'OP_CHECK_SIG_VERIFY':
             # ops that have tape argument of form [0-255]
             # human-readable syntax of OP_[whatever] [int]
-            return _get_OP_PUSH0_type_args(opcode, symbols, symbols_to_advance)
+            return _get_OP_PUSH0_type_args(opname, symbols, symbols_to_advance)
         case 'OP_PUSH2':
             # ops that have tape argument of form [0-65535] [val]
             # human-readable syntax of simply OP_PUSH2 [val]
-            return _get_OP_PUSH2_args(opcode, symbols, symbols_to_advance)
+            return _get_OP_PUSH2_args(opname, symbols, symbols_to_advance)
         case 'OP_PUSH4':
             # ops that have tape argument of form [0-4_294_967_295] [val]
             # human-readable syntax of simply OP_PUSH4 [val]
-            return _get_OP_PUSH4_args(opcode, symbols, symbols_to_advance)
+            return _get_OP_PUSH4_args(opname, symbols, symbols_to_advance)
         case 'OP_DIV_FLOAT' | 'OP_MOD_FLOAT':
             # ops that have tape argument of form [4-byte float]
             # human-readable syntax of OP_[DIV|MOD]_FLOAT [val]
-            return _get_OP_DIV_FLOAT_args(opcode, symbols, symbols_to_advance)
+            return _get_OP_DIV_FLOAT_args(opname, symbols, symbols_to_advance)
         case 'OP_SWAP':
             # ops that have tape arguments of form [0-255] [0-255]
             # human-readable syntax of OP_SWAP [idx1] [idx2]
-            return _get_OP_SWAP_args(opcode, symbols, symbols_to_advance)
+            return _get_OP_SWAP_args(opname, symbols, symbols_to_advance)
         case 'OP_MERKLEVAL':
             # op has tape argument of form [val]
-            return _get_OP_MERKLEVAL_args(opcode, symbols, symbols_to_advance)
+            return _get_OP_MERKLEVAL_args(opname, symbols, symbols_to_advance)
         case _:
-            pass
+            return _get_additional_opcode_args(opname, symbols, symbols_to_advance)
 
     return (symbols_to_advance, tuple(args))
 
@@ -571,8 +580,12 @@ def decompile_script(script: bytes, indent: int = 0) -> list[str]:
     tape = Tape(script)
     code_lines = []
 
-    def add_line(line):
+    def add_line(line: str):
         code_lines.append(''.join(['    ' for _ in range(indent)]) + line)
+
+    def add_lines(lines: list[str]):
+        for line in lines:
+            add_line(line)
 
     while not tape.has_terminated():
         op_code = tape.read(1)[0]
@@ -666,5 +679,8 @@ def decompile_script(script: bytes, indent: int = 0) -> list[str]:
                 # op has tape argument of form [32-byte val]
                 digest = tape.read(32)
                 add_line(f'OP_MERKLEVAL x{digest.hex()}')
+            case _:
+                lines = additional_opcodes[op_name][1](op_name, tape)
+                add_lines(lines)
 
     return code_lines

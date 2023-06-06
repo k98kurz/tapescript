@@ -13,12 +13,26 @@ class TestFunctions(unittest.TestCase):
     tape: classes.Tape
     queue: LifoQueue
     cache: dict
+    original_opcodes: dict
+    original_nopcodes: dict
+    original_opcodes_inverse: dict
+    original_nopcodes_inverse: dict
 
     def setUp(self) -> None:
         self.tape = classes.Tape(b'')
         self.queue = LifoQueue()
         self.cache = {}
+        self.original_opcodes = {**functions.opcodes}
+        self.original_opcodes_inverse = {**functions.opcodes_inverse}
+        self.original_nopcodes = {**functions.nopcodes}
+        self.original_nopcodes_inverse = {**functions.nopcodes_inverse}
         return super().setUp()
+
+    def tearDown(self) -> None:
+        functions.opcodes = self.original_opcodes
+        functions.opcodes_inverse = self.original_opcodes_inverse
+        functions.nopcodes = self.original_nopcodes
+        functions.nopcodes_inverse = self.original_nopcodes_inverse
 
     # helper functions
     def test_bytes_to_int_raises_errors_for_invalid_input(self):
@@ -1465,6 +1479,41 @@ class TestFunctions(unittest.TestCase):
         assert queue.get(False) == b'\x01'
         assert queue.get(False) == b'\x00'
         assert queue.empty()
+
+    def test_add_opcode_raises_errors_for_invalid_input(self):
+        function = lambda tape, queue, cache: queue.put('nonsense')
+        with self.assertRaises(TypeError) as e:
+            functions.add_opcode('not an int', '', function)
+        assert str(e.exception) == 'code must be int'
+        with self.assertRaises(TypeError) as e:
+            functions.add_opcode(255, b'not str', function)
+        assert str(e.exception) == 'name must be str'
+        with self.assertRaises(TypeError) as e:
+            functions.add_opcode(255, 'name', 'not callable')
+        assert str(e.exception) == 'function must be callable'
+        with self.assertRaises(ValueError) as e:
+            functions.add_opcode(0, 'name', function)
+        assert str(e.exception) == '0 already assigned to OP_FALSE'
+        with self.assertRaises(ValueError) as e:
+            functions.add_opcode(256, 'name', function)
+        assert str(e.exception) == 'code must be <256'
+        with self.assertRaises(ValueError) as e:
+            functions.add_opcode(255, 'name', function)
+        assert str(e.exception) == 'name must start with OP_'
+
+    def test_add_opcode_adds_function_e2e(self):
+        self.queue.put('123')
+        functions.run_tape(classes.Tape(b'\xff\x01'), self.queue, {})
+        assert self.queue.empty()
+
+        functions.add_opcode(255, 'OP_NONSENSE', lambda tape, queue, cache: queue.put('nonsense'))
+        assert self.original_opcodes != functions.opcodes
+        assert self.original_opcodes_inverse != functions.opcodes_inverse
+
+        tape, queue, cache = functions.run_script(b'\xff\x01')
+        assert not queue.empty()
+        assert queue.get(False) == b'\x01'
+        assert queue.get(False) == 'nonsense'
 
     # e2e vectors
     def test_p2pk_e2e(self):
