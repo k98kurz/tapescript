@@ -29,7 +29,8 @@ pip install tapescript
 
 ### Write, compile, decompile
 
-See the langauge_spec.md file for syntax and language specifics.
+See the [langauge_spec.md](https://github.com/k98kurz/tapescript/blob/master/language_spec.md)
+file for syntax and language specifics.
 
 One you have a script written, use the `compile_script(code: str) -> bytes`
 function to turn it into the byte code that the interpreter runs.
@@ -47,8 +48,9 @@ resulted in a single `True` value on the queue; otherwise it returns `False`.
 In the case where a signature is expected to be validated, the message parts for
 the signature must be passed in via the `cache_vals` dict at keys `sigfield[1-8]`.
 In the case where `OP_CHECK_TRANSFER` might be called, the contracts must be
-passed in via the `contracts` dict. See the section in the language_spec.md file
-for more informaiton about `OP_CHECK_TRANSFER`.
+passed in via the `contracts` dict. See the
+[section in the language_spec.md](https://github.com/k98kurz/tapescript/blob/master/language_spec.md#op_check_transfer-count)
+file for more informaiton about `OP_CHECK_TRANSFER`.
 
 #### Changing flags
 
