@@ -14,7 +14,7 @@ controls in a distributed system.
 - [x] E2e tests
 - [x] Merkleval test vectors
 - [ ] Omega e2e test with all ops and nops
-- [ ] Way to register new ops with compiler and decompiler
+- [x] Plugin architecture: new ops with compiler, decompiler, interpreter
 - [x] Half-decent docs
 - [ ] Decent docs
 - [ ] Package published
@@ -60,21 +60,33 @@ The ops can be updated via monkeypatching.
 
 ```py
 from queue import LifoQueue
-from tapescript import Tape
-from tapescript import functions as tsf
+from tapescript import Tape, add_opcode, add_opcode_parsing_handlers
 
 
 def OP_SOME_NONSENSE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    # do something presumably
-    ...
+    count = tape.read(1)[0]
+    for _ in range(count):
+        queue.put(b'some nonsense')
 
-tsf.OP_SOME_NONSENSE = OP_SOME_NONSENSE
-tsf.opcodes[200] = ('OP_SOME_NONSENSE', OP_SOME_NONSENSE)
-# now the op can be used in byte code scripts
+def OP_SOME_NONSENSE_compiler(opname: str, symbols: list[str], symbols_to_advance: int):
+    symbols_to_advance += 1
+    val = int(symbols[0][1:]).to_bytes(1)
+    return (symbols_to_advance, (val,))
+
+def OP_SOME_NONSENSE_decompiler(opname: str, tape: Tape):
+    val = tape.read(1)[0]
+    return [f'{opname} d{val}']
+
+# add opcode to bytecode interpreter
+add_opcode(255, 'OP_SOME_NONSENSE', OP_SOME_NONSENSE)
+
+# add opcode to compiler and decompiler
+add_opcode_parsing_handlers(
+    'OP_SOME_NONSENSE',
+    OP_SOME_NONSENSE_compiler,
+    OP_SOME_NONSENSE_decompiler
+)
 ```
-
-Currently, there is not an elegant way to add semantics of new ops to the
-compiler or decompiler.
 
 ### Signature checking
 
