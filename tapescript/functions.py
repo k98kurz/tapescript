@@ -804,8 +804,8 @@ def OP_SPLIT(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     sert(index < len(item), 'OP_SPLIT item len exceeded by index')
     part0 = item[:index]
     part1 = item[index:]
-    queue.put(part0)
     queue.put(part1)
+    queue.put(part0)
 
 def OP_CONCAT_STR(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Pull two items from the queue, interpreting as UTF-8 strings;

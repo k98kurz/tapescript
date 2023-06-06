@@ -1055,8 +1055,8 @@ class TestFunctions(unittest.TestCase):
         self.tape = classes.Tape(b'\x02')
         self.queue.put(b'12345')
         functions.OP_SPLIT(self.tape, self.queue, self.cache)
-        assert self.queue.get(False) == b'345'
         assert self.queue.get(False) == b'12'
+        assert self.queue.get(False) == b'345'
 
     def test_OP_SPLIT_raises_ScriptExecutionError_for_length_index_overflow(self):
         self.queue.put(b'sds')
