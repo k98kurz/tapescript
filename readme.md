@@ -11,8 +11,11 @@ controls in a distributed system.
 - [x] Byte-code compiler
 - [x] Decompiler
 - [x] Unit tests
-- [ ] E2e tests
+- [x] E2e tests
 - [x] Merkleval test vectors
+- [ ] Omega e2e test with all ops and nops
+- [ ] Way to register new ops with compiler and decompiler
+- [x] Half-decent docs
 - [ ] Decent docs
 - [ ] Package published
 
@@ -26,11 +29,52 @@ pip install tapescript
 
 ### Write, compile, decompile
 
-@todo
+See the langauge_spec.md file for syntax and language specifics.
+
+One you have a script written, use the `compile_script(code: str) -> bytes`
+function to turn it into the byte code that the interpreter runs.
 
 ### Run a script
 
-@todo
+Run a script by compiling it to byte code (if it wasn't already) and run with
+either `run_script(script: bytes, cache_vals: dict = {}, contracts: dict = {})`
+or `run_auth_script(script: bytes, cache_vals: dict = {}, contracts: dict = {})`.
+The `run_script` function returns `tuple` of length 3 containing a `Tape`, a
+`LifoQueue`, and the final state of the `cache` dict. The `run_auth_script`
+instead returns a bool that is `True` if the script ran without error and
+resulted in a single `True` value on the queue; otherwise it returns `False`.
+
+In the case where a signature is expected to be validated, the message parts for
+the signature must be passed in via the `cache_vals` dict at keys `sigfield[1-8]`.
+In the case where `OP_CHECK_TRANSFER` might be called, the contracts must be
+passed in via the `contracts` dict. See the section in the language_spec.md file
+for more informaiton about `OP_CHECK_TRANSFER`.
+
+#### Changing flags
+
+The interpreter flags can be changed by changing the `functions.flags` dict.
+
+#### Adding ops
+
+The ops can be updated via monkeypatching.
+
+```py
+from queue import LifoQueue
+from tapescript import Tape
+from tapescript import functions as tsf
+
+
+def OP_SOME_NONSENSE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+    # do something presumably
+    ...
+
+tsf.OP_SOME_NONSENSE = OP_SOME_NONSENSE
+tsf.opcodes[200] = ('OP_SOME_NONSENSE', OP_SOME_NONSENSE)
+# now the op can be used in byte code scripts
+```
+
+Currently, there is not an elegant way to add semantics of new ops to the
+compiler or decompiler.
 
 ### Signature checking
 
@@ -44,11 +88,6 @@ cache item from the message body during signature checks.
 3. These function calls take a 1 byte param from the tap that encodes the
 allowable flags. If a signature is passed to a signature checker that uses a
 disallowed sigflag, a `ScriptExecutionError` will be raised.
-
-### Timestamp and epoch checking
-
-@todo ensure implementation semantics are correct, then write some documentation
-explaining it
 
 ### Testing
 
@@ -67,7 +106,12 @@ Then run the test suite with the following:
 
 ```bash
 python test/test_classes.py
+python test/test_functions.py
+python test/test_parsing.py
 ```
+
+There are currently 138 tests and 28 test vectors used for validating the
+compiler, decompiler, and script running functions.
 
 ## ISC License
 
