@@ -35,6 +35,34 @@ file for syntax and language specifics.
 One you have a script written, use the `compile_script(code: str) -> bytes`
 function to turn it into the byte code that the interpreter runs.
 
+#### Merklized scripts
+
+There is an included tool for making merklized branching scripts. To use it,
+write the desired branches, then pass them to the `create_merklized_script`
+function. For example:
+
+```py
+from tapescript import create_merklized_script
+
+branches = [
+    'OP_PUSH xb26d10053b4b25497081561f529e42da9ccfac860a7b3d1ec932901c2a70afce\nOP_CHECK_SIG x00',
+    'OP_PUSH x9e477d55a62fc1ecc6b7c89d69c4f9cba94d5173f0d59f971951ff46acb9017b\nOP_CHECK_SIG x00',
+    'OP_PUSH xdd86edfbcfd5ac3e8c1acb527cc4178a14af0755aea1e447dc2b278f52fcedbf\nOP_CHECK_SIG x00',
+]
+locking_script, unlocking_scripts = create_merklized_script(branches)
+```
+
+This function returns a tuple containing the locking script that uses
+`OP_MERKLEVAL` to enforce the cryptographic commitment to the branches and a
+list of unlocking scripts that fulfill the cryptographic commitment and execute
+the individual script branches. The unlocking scripts are ordered identically to
+the input branches. In the above example, the each branch expects a signature
+from the given public key. To use as an auth script, the locking script would be
+used as the locking condition, a signature would be prepended to the unlocking
+script with an `OP_PUSH x<hex signature> `, and this would then be compiled; the
+locking script will be compiled and appended to this, and then the whole thing
+would be run through the `run_auth_script` function.
+
 ### Run a script
 
 Run a script by compiling it to byte code (if it wasn't already) and run with
@@ -122,9 +150,10 @@ Then run the test suite with the following:
 python test/test_classes.py
 python test/test_functions.py
 python test/test_parsing.py
+python test/test_tools.py
 ```
 
-There are currently 141 tests and 28 test vectors used for validating the
+There are currently 147 tests and 29 test vectors used for validating the
 compiler, decompiler, and script running functions.
 
 ## ISC License
