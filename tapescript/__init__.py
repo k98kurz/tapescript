@@ -11,3 +11,6 @@ from .parsing import (
     decompile_script,
     add_opcode_parsing_handlers
 )
+from .tools import (
+    create_merklized_script
+)
