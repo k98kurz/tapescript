@@ -1386,6 +1386,21 @@ class TestFunctions(unittest.TestCase):
         assert self.queue.get(False) == b'BB'
         assert self.queue.empty()
 
+    def test_OP_MERKLEVAL_raises_error_on_mismatching_hash(self):
+        committed_branch_a = b'\x02A'
+        committed_branch_b = b'\x02B'
+        commitment_a = sha256(committed_branch_a).digest()
+        commitment_b = sha256(committed_branch_b).digest()
+        commitment_root = sha256(commitment_a + commitment_b).digest()
+        self.queue.put(commitment_b)
+        self.queue.put(committed_branch_a + b'uncommitted code')
+        self.queue.put(b'\x01')
+        self.tape = classes.Tape(commitment_root)
+
+        with self.assertRaises(errors.ScriptExecutionError) as e:
+            functions.OP_MERKLEVAL(self.tape, self.queue, self.cache)
+        assert str(e.exception) == 'OP_VERIFY check failed'
+
     # values
     def test_opcodes_is_dict_mapping_ints_to_tuple_str_function(self):
         assert isinstance(functions.opcodes, dict)
