@@ -58,7 +58,7 @@ def _get_OP_PUSH_args(opname: str, symbols: list[str], symbols_to_advance: int) 
                 val = int(val[1:].split('.')[0])
             else:
                 val = int(val[1:])
-            size = ceil(log2(val)/8)
+            size = ceil(log2(val+1)/8) or 1
             val = val.to_bytes(size, 'big')
         case 'x':
             val = bytes.fromhex(val[1:])
