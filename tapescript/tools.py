@@ -3,7 +3,7 @@ from .parsing import compile_script
 from hashlib import sha256
 
 
-def _combine_two(branch_a: str, branch_b: str):
+def _combine_two(branch_a: str, branch_b: str) -> list[str]:
     """Takes two script branches, hashes them, and returns a root script
         using OP_MERKLEVAL and two unlocking scripts that execute the
         supplied branches after the locking script executes.
@@ -38,8 +38,8 @@ def _format_scripts(levels: list) -> tuple[str, list[str]]:
 
 def create_merklized_script(branches: list[str], levels: list = None) -> tuple[str, list[str]]:
     """Produces a Merklized, branching script structure with a branch on
-        the left at every level. Returns a list of root script followed
-        by branch execution scripts.
+        the left at every level. Returns a tuple of root script and list
+        of branch execution scripts.
     """
     tert(type(branches) in (list, tuple), 'branches must be list or tuple or str')
     for branch in branches:
