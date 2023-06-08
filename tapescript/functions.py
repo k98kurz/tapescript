@@ -1015,7 +1015,7 @@ flags = {
     'epoch_threshold': 60*60*12,
 }
 
-def add_opcode(code: int, name: str, function: Callable):
+def add_opcode(code: int, name: str, function: Callable) -> None:
     """Adds an OP implementation with the code, name, and function."""
     tert(type(code) is int, 'code must be int')
     tert(type(name) is str, 'name must be str')

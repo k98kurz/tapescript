@@ -1,6 +1,9 @@
 from .errors import tert, vert
-from .parsing import compile_script
-from hashlib import sha256
+from .parsing import (
+    compile_script,
+    decompile_script,
+    add_opcode_parsing_handlers
+)
 from .functions import (
     opcodes_inverse,
     nopcodes_inverse,
@@ -9,6 +12,8 @@ from .functions import (
     run_auth_script,
     add_opcode
 )
+from hashlib import sha256
+from typing import Callable
 
 
 def _combine_two(branch_a: str, branch_b: str) -> list[str]:
@@ -90,7 +95,36 @@ def _format_docstring(docstring: str) -> str:
 
     return '\n'.join(lines)
 
+def _format_function_doc(function: Callable) -> str:
+    docstring = _format_docstring(function.__doc__)
+    name = function.__name__ or 'None'
+
+    annotations = [
+        f'{key}: {value.__name__ if hasattr(value, "__name__") else value}'
+        for key,value in function.__annotations__.items()
+        if key != 'return'
+    ]
+    defaults = [*function.__defaults__] if function.__defaults__ else []
+    offset = len(annotations) - len(defaults)
+    for i in range(len(defaults)):
+        annotations[i+offset] += f' = {defaults[i]}'
+    annotations = ', '.join(annotations) or ''
+
+    return_annotation = function.__annotations__['return'] or 'unseen_return_value'
+    if hasattr(return_annotation, '__name__'):
+        return_annotation = return_annotation.__name__
+
+    val = '\n\n## '
+    val += name
+    val += '('
+    val += annotations
+    val += '): -> '
+    val += return_annotation
+    val += f'\n\n{docstring}'
+    return val
+
 def generate_docs() -> list[str]:
+    """Generates the docs file using annotations and docstrings."""
     data = {}
 
     for opname in opcodes_inverse:
@@ -103,21 +137,30 @@ def generate_docs() -> list[str]:
         doc = nopcodes_inverse[nopname][1].__doc__
         data[number] = (nopname, doc)
 
-    paragraphs = ['# OPs\n']
+    paragraphs = [
+        '# OPs\n\n'
+        'All OP_ functions have the following signature:\n\n'
+        '```python\n'
+        'def OP_WHATEVER(tape: Tape, queue: LifoQueue, cache: dict) -> None:\n'
+        '    ...\n```\n'
+    ]
 
     for number in data:
         line = f'\n## {data[number][0]} - {number} - x{number.to_bytes(1).hex().upper()}\n\n'
         docstring = _format_docstring(data[number][1])
         paragraphs.append(line + docstring + '\n')
 
-    paragraphs.append('\n\n# Other functions')
-    docstring = _format_docstring(run_script.__doc__)
-    paragraphs.append('\n\n## run_script\n\n' + docstring)
-    docstring = _format_docstring(run_tape.__doc__)
-    paragraphs.append('\n\n## run_tape\n\n' + docstring)
-    docstring = _format_docstring(run_auth_script.__doc__)
-    paragraphs.append('\n\n## run_auth_script\n\n' + docstring)
-    docstring = _format_docstring(add_opcode.__doc__)
-    paragraphs.append('\n\n## add_opcode\n\n' + docstring)
+    paragraphs.append('\n\n# Other interpreter functions')
+    paragraphs.append(_format_function_doc(run_script))
+    paragraphs.append(_format_function_doc(run_tape))
+    paragraphs.append(_format_function_doc(run_auth_script))
+    paragraphs.append(_format_function_doc(add_opcode))
+    paragraphs.append('\n\n# Parsing functions')
+    paragraphs.append(_format_function_doc(compile_script))
+    paragraphs.append(_format_function_doc(decompile_script))
+    paragraphs.append(_format_function_doc(add_opcode_parsing_handlers))
+    paragraphs.append('\n\n# Tools')
+    paragraphs.append(_format_function_doc(create_merklized_script))
+    paragraphs.append(_format_function_doc(generate_docs) + '\n')
 
     return paragraphs
