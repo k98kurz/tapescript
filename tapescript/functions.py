@@ -1016,6 +1016,7 @@ flags = {
 }
 
 def add_opcode(code: int, name: str, function: Callable):
+    """Adds an OP implementation with the code, name, and function."""
     tert(type(code) is int, 'code must be int')
     tert(type(name) is str, 'name must be str')
     tert(callable(function), 'function must be callable')
@@ -1061,7 +1062,7 @@ def run_tape(tape: Tape, queue: LifoQueue, cache: dict) -> None:
 
 def run_auth_script(script: bytes, cache_vals: dict = {}, contracts: dict = {}) -> bool:
     """Run the given auth script byte code. Returns True iff the queue
-        has a single \x01 value after script execution and no errors were
+        has a single \\x01 value after script execution and no errors were
         raised; otherwise, returns False.
     """
     try:

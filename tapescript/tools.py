@@ -1,6 +1,14 @@
 from .errors import tert, vert
 from .parsing import compile_script
 from hashlib import sha256
+from .functions import (
+    opcodes_inverse,
+    nopcodes_inverse,
+    run_script,
+    run_tape,
+    run_auth_script,
+    add_opcode
+)
 
 
 def _combine_two(branch_a: str, branch_b: str) -> list[str]:
@@ -61,3 +69,55 @@ def create_merklized_script(branches: list[str], levels: list = None) -> tuple[s
         return _format_scripts(levels)
 
     return create_merklized_script(remaining_branches, levels)
+
+def _format_docstring(docstring: str) -> str:
+    """Takes a docstring, tokenizes it, and returns a str formatted to
+        72 chars or fewer per line without splitting tokens.
+    """
+    def make_line(tokens: list[str]) -> tuple[str, list[str]]:
+        line = ''
+        while len(tokens) and len(line) + len(tokens[0]) <= 72:
+            line += tokens[0] + ' '
+            tokens = tokens[1:]
+        return (line[:-1], tokens)
+
+    tokens = docstring.split()
+    lines = []
+
+    while len(tokens):
+        line, tokens = make_line(tokens)
+        lines.append(line)
+
+    return '\n'.join(lines)
+
+def generate_docs() -> list[str]:
+    data = {}
+
+    for opname in opcodes_inverse:
+        number = opcodes_inverse[opname][0]
+        doc = opcodes_inverse[opname][1].__doc__
+        data[number] = (opname, doc)
+
+    for nopname in nopcodes_inverse:
+        number = nopcodes_inverse[nopname][0]
+        doc = nopcodes_inverse[nopname][1].__doc__
+        data[number] = (nopname, doc)
+
+    paragraphs = ['# OPs\n']
+
+    for number in data:
+        line = f'\n## {data[number][0]} - {number} - x{number.to_bytes(1).hex().upper()}\n\n'
+        docstring = _format_docstring(data[number][1])
+        paragraphs.append(line + docstring + '\n')
+
+    paragraphs.append('\n\n# Other functions')
+    docstring = _format_docstring(run_script.__doc__)
+    paragraphs.append('\n\n## run_script\n\n' + docstring)
+    docstring = _format_docstring(run_tape.__doc__)
+    paragraphs.append('\n\n## run_tape\n\n' + docstring)
+    docstring = _format_docstring(run_auth_script.__doc__)
+    paragraphs.append('\n\n## run_auth_script\n\n' + docstring)
+    docstring = _format_docstring(add_opcode.__doc__)
+    paragraphs.append('\n\n## add_opcode\n\n' + docstring)
+
+    return paragraphs
