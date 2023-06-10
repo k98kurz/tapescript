@@ -174,44 +174,50 @@ def _get_OP_PUSH0_type_args(opname: str, symbols: list[str], symbols_to_advance:
 
 def _get_OP_PUSH1_type_args(opname: str, symbols: list[str], symbols_to_advance: int) -> tuple[int, tuple[bytes]]:
     args = []
-    if opname == 'OP_WRITE_CACHE':
-        # human-readable syntax of OP_WRITE_CACHE [key] [number]
-        symbols_to_advance += 2
-        vals = symbols[:2]
+    val = None
+
+    if opname == 'OP_PUSH1':
+        # human-readable syntax of OP_PUSH1 [size] [val] or OP_PUSH1 [val]
+        if len(symbols[1]) < 3 and symbols[1] not in ('(',')','{','}') and \
+            symbols[1][:3] != 'OP_' and symbols[1] not in ('END_IF', 'END_DEF', 'ELSE'):
+            symbols_to_advance += 1
+            val = symbols[1]
+        else:
+            symbols_to_advance += 1
+            val = symbols[0]
     else:
         # human-readable syntax of OP_[whatever] [key]
         symbols_to_advance += 1
-        vals = (symbols[0],)
+        val = symbols[0]
 
-    for val in vals:
-        yert(val[0].lower() in ('d', 'x', 's'),
-            f'values for {opname} must be prefaced with d, x, or s')
-        match val[0].lower():
-            case 'd':
-                vert(val[1:].lstrip('+-').isnumeric(),
-                    'value prefaced by d must be decimal int or float')
-                if '.' in val:
-                    args.append((4).to_bytes(1, 'big'))
-                    args.append(struct.pack('!f', float(val[1:])))
-                else:
-                    val = int_to_bytes(int(val[1:]))
-                    args.append(len(val).to_bytes(1, 'big'))
-                    args.append(val)
-            case 'x':
-                val = bytes.fromhex(val[1:])
+    yert(val[0].lower() in ('d', 'x', 's'),
+        f'values for {opname} must be prefaced with d, x, or s; {val} is invalid')
+    match val[0].lower():
+        case 'd':
+            vert(val[1:].lstrip('+-').isnumeric(),
+                'value prefaced by d must be decimal int or float')
+            if '.' in val:
+                args.append((4).to_bytes(1, 'big'))
+                args.append(struct.pack('!f', float(val[1:])))
+            else:
+                val = int_to_bytes(int(val[1:]))
                 args.append(len(val).to_bytes(1, 'big'))
                 args.append(val)
-            case 's':
-                if val[1] == '"' and '"' in val[2:]:
-                    last_idx = val[2:].index('"')
-                    val = bytes(val[2:last_idx+2], 'utf-8')
-                elif val[1] == "'" and "'" in val[2:]:
-                    last_idx = val[2:].index("'")
-                    val = bytes(val[2:last_idx+2], 'utf-8')
-                else:
-                    val = bytes(val[1:], 'utf-8')
-                args.append(len(val).to_bytes(1, 'big'))
-                args.append(val)
+        case 'x':
+            val = bytes.fromhex(val[1:])
+            args.append(len(val).to_bytes(1, 'big'))
+            args.append(val)
+        case 's':
+            if val[1] == '"' and '"' in val[2:]:
+                last_idx = val[2:].index('"')
+                val = bytes(val[2:last_idx+2], 'utf-8')
+            elif val[1] == "'" and "'" in val[2:]:
+                last_idx = val[2:].index("'")
+                val = bytes(val[2:last_idx+2], 'utf-8')
+            else:
+                val = bytes(val[1:], 'utf-8')
+            args.append(len(val).to_bytes(1, 'big'))
+            args.append(val)
     return (symbols_to_advance, args)
 
 def _get_OP_PUSH2_args(opname: str, symbols: list[str], symbols_to_advance: int) -> tuple[int, tuple[bytes]]:

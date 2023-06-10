@@ -108,7 +108,7 @@ class TestParsing(unittest.TestCase):
 
         with self.assertRaises(errors.SyntaxError) as e:
             parsing.compile_script('OP_DEF 0 { OP_PUSH1 asd }')
-        assert str(e.exception) == 'values for OP_PUSH1 must be prefaced with d, x, or s'
+        assert str(e.exception) == 'values for OP_PUSH1 must be prefaced with d, x, or s; ASD is invalid'
 
         with self.assertRaises(ValueError) as e:
             parsing.compile_script('OP_DEF 0 { OP_PUSH1 dnotnumeric }')
@@ -315,7 +315,7 @@ class TestParsing(unittest.TestCase):
                     src_lines = src.split('\n')
                     # keep only non-empty lines
                     vectors[hex] = [line for line in src_lines if line != '']
-                    names[hex] = hex_fname
+                    names[hex] = src_fname
 
         for hex, src in vectors.items():
             expected = src
