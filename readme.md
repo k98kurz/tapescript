@@ -13,10 +13,10 @@ controls in a distributed system.
 - [x] Unit tests
 - [x] E2e tests
 - [x] Merkleval test vectors
-- [ ] Omega e2e test with all ops and nops
+- [x] Omega e2e test with all ops and nops
 - [x] Plugin architecture: new ops with compiler, decompiler, interpreter
 - [x] Half-decent docs
-- [ ] Decent docs
+- [x] Decent docs
 - [ ] Package published
 
 ## Usage
@@ -29,8 +29,8 @@ pip install tapescript
 
 ### Write, compile, decompile
 
-See the [langauge_spec.md](https://github.com/k98kurz/tapescript/blob/master/language_spec.md)
-file for syntax and language specifics.
+See the [langauge_spec.md](language_spec.md) and [docs.md](docs.md) files for
+syntax and operation specifics.
 
 One you have a script written, use the `compile_script(code: str) -> bytes`
 function to turn it into the byte code that the interpreter runs.

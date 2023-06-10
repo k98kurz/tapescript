@@ -53,9 +53,8 @@ syntax of `OP_IF ( if_body ) ELSE ( else_body )`.
 
 #### `OP_IF`/`OP_IF_ELSE`
 
-Unlike in c- type languages,
-the condition is pulled from the queue by `OP_IF`/`OP_IF_ELSE`, so the condition
-is not provided as an argument to the operators.
+Unlike in c- type languages, the condition is pulled from the queue by `OP_IF`/
+`OP_IF_ELSE`, so the condition is not provided as an argument to the operators.
 
 ```s
 OP_IF (
@@ -101,6 +100,11 @@ called using `OP_CALL`. Each definition is referenced by an integer 0-255.
 Note that the definition number passed as an argument for `OP_CALL` must be a
 value like any other, while the integer used with `OP_DEF` is just a plain int.
 
+Also note that the compiler currently does not support defining functions within
+other functions. The interpreter can probably handle it, but that would be
+undocumented behavior. If I get feedback that indicates this would be a useful
+feature to support, I will revisit the topic.
+
 ```s
 OP_DEF 0 {
     OP_DUP
@@ -124,7 +128,7 @@ the two functions in sequence. The result will be a queue with x0123 and
 ## Ops
 
 Below is a list of ops, the arguments for each, and a brief explanation of what
-each does.
+each does. See [docs.md](docs.md) for more in-depth details about each op.
 
 ### List of ops
 
