@@ -1,6 +1,6 @@
 from .errors import yert, vert, SyntaxError
 from .classes import Tape
-from .functions import int_to_bytes, opcodes, opcodes_inverse, nopcodes
+from .functions import int_to_bytes, opcodes, opcodes_inverse, nopcodes, nopcodes_inverse
 from math import ceil, log2
 from typing import Any, Callable
 import struct
@@ -95,6 +95,54 @@ def _get_OP_PUSH_args(opname: str, symbols: list[str], symbols_to_advance: int) 
     args.append(val)
     return (symbols_to_advance, args)
 
+def _get_OP_WRITE_CACHE_args(opname: str, symbols: list[str], symbols_to_advance: int) -> tuple[int, tuple[bytes]]:
+    symbols_to_advance += 2
+    cache_key = symbols[0]
+    count = symbols[1]
+    yert(cache_key[0].lower() in ('d', 'x', 's'),
+        'cache_key for OP_WRITE_CACHE must be prefaced with d, x, or s')
+    yert(count[0].lower() in ('d', 'x'),
+        'count for OP_WRITE_CACHE must be prefaced with d or x')
+
+    match cache_key[0].lower():
+        case 'd':
+            vert(cache_key[1:].isnumeric(),
+                'value prefaced by d must be decimal int')
+            if '.' in cache_key:
+                cache_key = int(cache_key[1:].split('.')[0])
+            else:
+                cache_key = int(cache_key[1:])
+            size = ceil(log2(cache_key+1)/8) or 1
+            cache_key = cache_key.to_bytes(size, 'big')
+        case 'x':
+            cache_key = bytes.fromhex(cache_key[1:])
+        case 's':
+            if cache_key[1] == '"' and '"' in cache_key[2:]:
+                last_idx = cache_key[2:].index('"')
+                cache_key = bytes(cache_key[2:last_idx+2], 'utf-8')
+            elif cache_key[1] == "'" and "'" in cache_key[2:]:
+                last_idx = cache_key[2:].index("'")
+                cache_key = bytes(cache_key[2:last_idx+2], 'utf-8')
+            else:
+                cache_key = bytes(cache_key[1:], 'utf-8')
+
+    match count[0].lower():
+        case 'd':
+            vert(count[1:].isnumeric(),
+                'value prefaced by d must be decimal int')
+            if '.' in count:
+                count = int(count[1:].split('.')[0])
+            else:
+                count = int(count[1:])
+        case 'x':
+            count = bytes.fromhex(count[1:])
+
+    size = len(cache_key)
+    yert(size < 256, 'cache_key max length of 255 exceeded for OP_WRITE_CACHE')
+    yert(count < 256, 'count max size of 255 exceeded for OP_WRITE_CACHE')
+
+    return (symbols_to_advance, [size.to_bytes(1, 'big'), cache_key, count.to_bytes(1, 'big')])
+
 def _get_OP_PUSH0_type_args(opname: str, symbols: list[str], symbols_to_advance: int) -> tuple[int, tuple[bytes]]:
     args = []
     symbols_to_advance += 1
@@ -126,14 +174,14 @@ def _get_OP_PUSH1_type_args(opname: str, symbols: list[str], symbols_to_advance:
     else:
         # human-readable syntax of OP_[whatever] [key]
         symbols_to_advance += 1
-        vals = (symbols[0])
+        vals = (symbols[0],)
 
     for val in vals:
         yert(val[0].lower() in ('d', 'x', 's'),
             f'values for {opname} must be prefaced with d, x, or s')
         match val[0].lower():
             case 'd':
-                vert(val[1:].isnumeric(),
+                vert(val[1:].lstrip('+-').isnumeric(),
                     'value prefaced by d must be decimal int or float')
                 if '.' in val:
                     args.append((4).to_bytes(1, 'big'))
@@ -149,10 +197,10 @@ def _get_OP_PUSH1_type_args(opname: str, symbols: list[str], symbols_to_advance:
             case 's':
                 if val[1] == '"' and '"' in val[2:]:
                     last_idx = val[2:].index('"')
-                    val = bytes(val[1:last_idx+2], 'utf-8')
+                    val = bytes(val[2:last_idx+2], 'utf-8')
                 elif val[1] == "'" and "'" in val[2:]:
                     last_idx = val[2:].index("'")
-                    val = bytes(val[1:last_idx+2], 'utf-8')
+                    val = bytes(val[2:last_idx+2], 'utf-8')
                 else:
                     val = bytes(val[1:], 'utf-8')
                 args.append(len(val).to_bytes(1, 'big'))
@@ -170,14 +218,14 @@ def _get_OP_PUSH2_args(opname: str, symbols: list[str], symbols_to_advance: int)
         case 's':
             if val[1] == '"' and '"' in val[2:]:
                 last_idx = val[2:].index('"')
-                val = bytes(val[1:last_idx+2], 'utf-8')
+                val = bytes(val[2:last_idx+2], 'utf-8')
             elif val[1] == "'" and "'" in val[2:]:
                 last_idx = val[2:].index("'")
-                val = bytes(val[1:last_idx+2], 'utf-8')
+                val = bytes(val[2:last_idx+2], 'utf-8')
             else:
                 val = bytes(val[1:], 'utf-8')
         case 'd':
-            vert(val[1:].isnumeric(),
+            vert(val[1:].lstrip('+-').isnumeric(),
                 'value prefaced by d must be decimal int')
             if '.' in val:
                 val = int_to_bytes(int(val[1:].split('.')[0]))
@@ -203,16 +251,16 @@ def _get_OP_PUSH4_args(opname: str, symbols: list[str], symbols_to_advance: int)
         case 's':
             if val[1] == '"' and '"' in val[2:]:
                 last_idx = val[2:].index('"')
-                val = bytes(val[1:last_idx+2], 'utf-8')
+                val = bytes(val[2:last_idx+2], 'utf-8')
             elif val[1] == "'" and "'" in val[2:]:
                 last_idx = val[2:].index("'")
-                val = bytes(val[1:last_idx+2], 'utf-8')
+                val = bytes(val[2:last_idx+2], 'utf-8')
             else:
                 val = bytes(val[1:], 'utf-8')
             vert(len(val) < 2**32,
                 's-value for OP_PUSH2 must be at most 4_294_967_295 bytes long')
         case 'd':
-            vert(val[1:].isnumeric(),
+            vert(val[1:].lstrip('+-').isnumeric(),
                 'value prefaced by d must be decimal int')
             if '.' in val:
                 val = int_to_bytes(int(val[1:].split('.')[0]))
@@ -235,7 +283,7 @@ def _get_OP_DIV_FLOAT_args(opname: str, symbols: list[str], symbols_to_advance: 
 
     match val[0].lower():
         case 'd':
-            vert(val[1:].isnumeric(),
+            vert(val[1:].lstrip('+-').isnumeric(),
                 f'{opname} value prefaced by d must be decimal float')
             args.append(struct.pack('!f', float(val[1:])))
         case 'x':
@@ -278,6 +326,9 @@ def _get_OP_MERKLEVAL_args(opname: str, symbols: list[str], symbols_to_advance: 
     args.append(bytes.fromhex(val[1:]))
     return (symbols_to_advance, args)
 
+def _get_nopcode_args(opname: str, symbols: list[str], symbols_to_advance: int) -> tuple[int, tuple[bytes]]:
+    return _get_OP_PUSH0_type_args(opname, symbols, symbols_to_advance)
+
 def get_args(opname: str, symbols: list[str]) -> tuple[int, tuple[bytes]]:
     """Get the number of symbols to advance and args for an op."""
     symbols_to_advance = 1
@@ -298,7 +349,10 @@ def get_args(opname: str, symbols: list[str]) -> tuple[int, tuple[bytes]]:
         case 'OP_PUSH':
             # special case: OP_PUSH is a short hand for OP_PUSH[0,1,2,4]
             return _get_OP_PUSH_args(opname, symbols, symbols_to_advance)
-        case 'OP_PUSH1' | 'OP_WRITE_CACHE' | 'OP_READ_CACHE' | \
+        case 'OP_WRITE_CACHE':
+            # op with tape arguments of form [size 0-255] [val] [count 0-255]
+            return _get_OP_WRITE_CACHE_args(opname, symbols, symbols_to_advance)
+        case 'OP_PUSH1' | 'OP_READ_CACHE' | \
             'OP_READ_CACHE_SIZE' | 'OP_DIV_INT' | \
             'OP_MOD_INT' | 'OP_SET_FLAG' | 'OP_UNSET_FLAG':
             # ops that have tape arguments of form [size 0-255] [val]
@@ -331,6 +385,8 @@ def get_args(opname: str, symbols: list[str]) -> tuple[int, tuple[bytes]]:
             # op has tape argument of form [val]
             return _get_OP_MERKLEVAL_args(opname, symbols, symbols_to_advance)
         case _:
+            if opname[:3] == 'NOP':
+                return _get_nopcode_args(opname, symbols, symbols_to_advance)
             return _get_additional_opcode_args(opname, symbols, symbols_to_advance)
 
     return (symbols_to_advance, tuple(args))
@@ -356,27 +412,28 @@ def parse_if(symbols: list[str]) -> tuple[int, tuple[bytes]]:
         # case 2: OP_IF statements END_IF
         yert('END_IF' in symbols[1:], 'missing END_IF')
 
-    has_else = 'ELSE' in symbols
-    while index < len(symbols):
+    while index <= len(symbols):
         current_symbol = symbols[index]
 
-        if current_symbol in (')', 'END_IF') and not has_else:
-            index += 2
-            break
-        elif current_symbol in (')', 'END_IF'):
+        if current_symbol == ')':
+            if not 'ELSE' in symbols[index:]:
+                index += 2
+                break
+            index += 1
+            continue
+        elif current_symbol == 'END_IF':
             index += 1
             continue
         elif current_symbol == 'ELSE':
             opcode = 'OP_IF_ELSE'
             advance, parts = parse_else(symbols[index+1:])
-            has_else = False
-            index += advance
+            index += advance + 1
             code.extend(parts)
             else_len = len(b''.join(parts))
+            break
         elif current_symbol == 'OP_IF':
             advance, parts = parse_if(symbols[index+1:])
             index += advance
-            has_else = 'ELSE' in symbols[index:]
             code.extend(parts)
         else:
             yert(current_symbol in opcodes_inverse or current_symbol == 'OP_PUSH',
@@ -486,7 +543,7 @@ def compile_script(script: str) -> bytes:
                 raise SyntaxError(f'unterminated comment starting with {symbol}') from None
             continue
 
-        vert(symbol in opcodes_inverse or symbol == 'OP_PUSH',
+        vert(symbol in opcodes_inverse or symbol in nopcodes_inverse or symbol == 'OP_PUSH',
              f'unrecognized opcode: {symbol}')
 
         # handle definition
@@ -519,17 +576,20 @@ def compile_script(script: str) -> bytes:
             code.append(opcodes_inverse['OP_DEF'][0].to_bytes(1, 'big'))
 
             i = index + 1
-            while i < search_idx:
+            while i <= search_idx:
                 current_symbol = symbols[i]
-                yert(current_symbol[:3] == 'OP_' or (current_symbol == '}'),
-                     'statements must begin with valid op code')
+                yert(current_symbol[:3] == 'OP_' or (current_symbol in ('}', 'END_DEF')),
+                     f'statements must begin with valid op code, not {current_symbol}')
                 yert(current_symbol != 'OP_DEF',
                     'cannot use OP_DEF within OP_DEF body')
 
                 if current_symbol == 'OP_IF':
-                    advance, parts = parse_if(symbols[i+1:])
+                    advance, parts = parse_if(symbols[i+1:search_idx])
                     i += advance
                     def_code += b''.join(parts)
+                elif current_symbol in ('}', 'END_DEF'):
+                    i += 1
+                    continue
                 else:
                     advance, args = get_args(current_symbol, symbols[i+1:])
                     i += advance
@@ -575,6 +635,8 @@ def compile_script(script: str) -> bytes:
                     code.append(opcodes_inverse['OP_PUSH2'][0].to_bytes(1, 'big'))
                 elif len(args[0]) == 4:
                     code.append(opcodes_inverse['OP_PUSH4'][0].to_bytes(1, 'big'))
+            elif symbol[:3] == 'NOP':
+                code.append(nopcodes_inverse[symbol][0].to_bytes(1, 'big'))
             else:
                 code.append(opcodes_inverse[symbol][0].to_bytes(1, 'big'))
             code.append(b''.join(args))
@@ -688,7 +750,11 @@ def decompile_script(script: bytes, indent: int = 0) -> list[str]:
                 digest = tape.read(32)
                 add_line(f'OP_MERKLEVAL x{digest.hex()}')
             case _:
-                lines = additional_opcodes[op_name][1](op_name, tape)
-                add_lines(lines)
+                if op_name[:3] == 'NOP':
+                    val = tape.read(1)[0]
+                    add_line(f'{op_name} d{val}')
+                else:
+                    lines = additional_opcodes[op_name][1](op_name, tape)
+                    add_lines(lines)
 
     return code_lines

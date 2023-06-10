@@ -96,7 +96,7 @@ class TestParsing(unittest.TestCase):
 
         with self.assertRaises(errors.SyntaxError) as e:
             parsing.compile_script('OP_DEF 0 { d123 }')
-        assert str(e.exception) == 'statements must begin with valid op code'
+        assert str(e.exception) == 'statements must begin with valid op code, not d123'
 
         with self.assertRaises(errors.SyntaxError) as e:
             parsing.compile_script('OP_DEF 0 { OP_PUSH 123 }')
@@ -221,6 +221,7 @@ class TestParsing(unittest.TestCase):
             'merkleval_unlocking_script_a.src': 'merkleval_unlocking_script_a.hex',
             'merkleval_unlocking_script_ba.src': 'merkleval_unlocking_script_ba.hex',
             'merkleval_unlocking_script_bb.src': 'merkleval_unlocking_script_bb.hex',
+            'omega_e2e.src': 'omega_e2e.hex',
         }
         vectors = {}
 
