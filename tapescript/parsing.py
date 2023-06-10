@@ -178,9 +178,9 @@ def _get_OP_PUSH1_type_args(opname: str, symbols: list[str], symbols_to_advance:
 
     if opname == 'OP_PUSH1':
         # human-readable syntax of OP_PUSH1 [size] [val] or OP_PUSH1 [val]
-        if len(symbols[1]) < 3 and symbols[1] not in ('(',')','{','}') and \
-            symbols[1][:3] != 'OP_' and symbols[1] not in ('END_IF', 'END_DEF', 'ELSE'):
-            symbols_to_advance += 1
+        if symbols[1] not in ('(',')','{','}') and symbols[1][:3] != 'OP_' and \
+            symbols[1] not in ('END_IF', 'END_DEF', 'ELSE'):
+            symbols_to_advance += 2
             val = symbols[1]
         else:
             symbols_to_advance += 1
@@ -222,8 +222,22 @@ def _get_OP_PUSH1_type_args(opname: str, symbols: list[str], symbols_to_advance:
 
 def _get_OP_PUSH2_args(opname: str, symbols: list[str], symbols_to_advance: int) -> tuple[int, tuple[bytes]]:
     args = []
-    symbols_to_advance += 1
-    val = symbols[0]
+    val = None
+
+    if opname == 'OP_PUSH2':
+        # human-readable syntax of OP_PUSH2 [size] [val] or OP_PUSH2 [val]
+        if symbols[1] not in ('(',')','{','}') and symbols[1][:3] != 'OP_' and \
+            symbols[1] not in ('END_IF', 'END_DEF', 'ELSE'):
+            symbols_to_advance += 2
+            val = symbols[1]
+        else:
+            symbols_to_advance += 1
+            val = symbols[0]
+    else:
+        # human-readable syntax of OP_[whatever] [key]
+        symbols_to_advance += 1
+        val = symbols[0]
+
     yert(val[0].lower() in ('d', 'x', 's'),
         'values for OP_PUSH2 must be prefaced with d, x, or s')
 
@@ -255,8 +269,22 @@ def _get_OP_PUSH2_args(opname: str, symbols: list[str], symbols_to_advance: int)
 
 def _get_OP_PUSH4_args(opname: str, symbols: list[str], symbols_to_advance: int) -> tuple[int, tuple[bytes]]:
     args = []
-    symbols_to_advance += 1
-    val = symbols[0]
+    val = None
+
+    if opname == 'OP_PUSH4':
+        # human-readable syntax of OP_PUSH4 [size] [val] or OP_PUSH4 [val]
+        if symbols[1] not in ('(',')','{','}') and symbols[1][:3] != 'OP_' and \
+            symbols[1] not in ('END_IF', 'END_DEF', 'ELSE'):
+            symbols_to_advance += 2
+            val = symbols[1]
+        else:
+            symbols_to_advance += 1
+            val = symbols[0]
+    else:
+        # human-readable syntax of OP_[whatever] [key]
+        symbols_to_advance += 1
+        val = symbols[0]
+
     yert(val[0].lower() in ('d', 'x', 's'), \
         'values for OP_PUSH4 must be prefaced with d, x, or s')
 

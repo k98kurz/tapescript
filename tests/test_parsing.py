@@ -343,6 +343,87 @@ class TestParsing(unittest.TestCase):
 
         print(f'{len(vectors.items())} vectors tested for decompile_script')
 
+    def test_compile_decompiled_script_e2e_vectors(self):
+        vector_files = {
+            '2_decompiled.src': '2.hex',
+            '3_decompiled.src': '3.hex',
+            '4_decompiled.src': '4.hex',
+            '5_decompiled.src': '5.hex',
+            '6_decompiled.src': '6.hex',
+            'cds_committed_script_decompiled.src': 'cds_committed_script.hex',
+            'cds_locking_script_decompiled.src': 'cds_locking_script.hex',
+            'cds_unlocking_script1_decompiled.src': 'cds_unlocking_script1.hex',
+            'cds_unlocking_script2_decompiled.src': 'cds_unlocking_script2.hex',
+            'cds_unlocking_script3_decompiled.src': 'cds_unlocking_script3.hex',
+            'correspondent_committed_script_decompiled.src': 'correspondent_committed_script.hex',
+            'correspondent_locking_script_decompiled.src': 'correspondent_locking_script.hex',
+            'correspondent_unlocking_script1_decompiled.src': 'correspondent_unlocking_script1.hex',
+            'correspondent_unlocking_script2_decompiled.src': 'correspondent_unlocking_script2.hex',
+            'merkleval_committed_script_a_decompiled.src': 'merkleval_committed_script_a.hex',
+            'merkleval_committed_script_b.src': 'merkleval_committed_script_b.hex',
+            'merkleval_committed_script_ba_decompiled.src': 'merkleval_committed_script_ba.hex',
+            'merkleval_committed_script_bb_decompiled.src': 'merkleval_committed_script_bb.hex',
+            'merkleval_locking_script.src': 'merkleval_locking_script.hex',
+            'merkleval_unlocking_script_a_decompiled.src': 'merkleval_unlocking_script_a.hex',
+            'merkleval_unlocking_script_ba_decompiled.src': 'merkleval_unlocking_script_ba.hex',
+            'merkleval_unlocking_script_bb_decompiled.src': 'merkleval_unlocking_script_bb.hex',
+            'p2pk_locking_script_decompiled.src': 'p2pk_locking_script.hex',
+            'p2pk_unlocking_script1_decompiled.src': 'p2pk_unlocking_script1.hex',
+            'p2pk_unlocking_script2_decompiled.src': 'p2pk_unlocking_script2.hex',
+            'p2sh_committed_script_decompiled.src': 'p2sh_committed_script.hex',
+            'p2sh_locking_script_decompiled.src': 'p2sh_locking_script.hex',
+            'p2sh_unlocking_script_decompiled.src': 'p2sh_unlocking_script.hex',
+            'omega_e2e_decompiled.src': 'omega_e2e.hex',
+        }
+        vectors = {}
+        names = {}
+
+        for src_fname, hex_fname in vector_files.items():
+            with open(f'tests/vectors/{src_fname}', 'r') as fsrc:
+                with open(f'tests/vectors/{hex_fname}', 'r') as fhex:
+                    src = fsrc.read()
+                    hex = ''.join(fhex.read().split())
+                    vectors[src] = hex
+                    names[hex] = src_fname
+
+        for src, hex in vectors.items():
+            try:
+                expected = hex
+                observed = parsing.compile_script(src).hex()
+                if expected != observed:
+                    # just to make it easier to step through the broken test vectors
+                    observed = parsing.compile_script(src).hex()
+                    print(expected)
+                    print(observed)
+                    diff = ''
+                    if len(observed) > len(expected):
+                        for i in range(len(observed)):
+                            if i >= len(expected):
+                                diff += '+'
+                            else:
+                                diff += ' ' if expected[i] == observed[i] else '^'
+                    if len(expected) >= len(observed):
+                        for i in range(len(expected)):
+                            if i >= len(observed):
+                                diff += '-'
+                            else:
+                                diff += ' ' if expected[i] == observed[i] else '^'
+                    if len(expected) < 200 and len(observed) < 200:
+                        print(diff)
+                    else:
+                        print(
+                            self.bytes_xor(
+                                bytes.fromhex(expected),
+                                bytes.fromhex(observed)
+                            ).hex()
+                        )
+                assert expected == observed
+            except BaseException as e:
+                print(f'{names[hex]} failed')
+                raise e
+
+        print(f'{len(vectors.items())} vectors tested for compiling decompiled scripts')
+
     def test_add_opcode_parsing_handlers_e2e(self):
         original_opcodes = {**functions.opcodes}
         original_opcodes_inverse = {**functions.opcodes_inverse}
