@@ -1,6 +1,13 @@
 from .errors import yert, vert, SyntaxError
 from .classes import Tape
-from .functions import int_to_bytes, opcodes, opcodes_inverse, nopcodes, nopcodes_inverse
+from .functions import (
+    bytes_to_int,
+    int_to_bytes,
+    opcodes,
+    opcodes_inverse,
+    nopcodes,
+    nopcodes_inverse
+)
 from math import ceil, log2
 from typing import Any, Callable
 import struct
@@ -701,13 +708,28 @@ def decompile_script(script: bytes, indent: int = 0) -> list[str]:
                 # ops that have no arguments on the tape
                 # human-readable syntax of OP_[whatever]
                 add_line(op_name)
-            case 'OP_PUSH1' | 'OP_WRITE_CACHE' | 'OP_READ_CACHE' | \
-                'OP_READ_CACHE_SIZE' | 'OP_DIV_INT' | \
-                'OP_MOD_INT' | 'OP_SET_FLAG' | 'OP_UNSET_FLAG':
+            case 'OP_PUSH1':
                 # ops that have tape arguments of form [size 0-255] [val]
                 size = tape.read(1)[0]
                 val = tape.read(size)
                 add_line(f'{op_name} d{size} x{val.hex()}')
+            case 'OP_READ_CACHE' | 'OP_READ_CACHE_SIZE' | \
+                'OP_SET_FLAG' | 'OP_UNSET_FLAG':
+                # ops that have tape arguments of form [size 0-255] [val]
+                size = tape.read(1)[0]
+                val = tape.read(size)
+                add_line(f'{op_name} x{val.hex()}')
+            case 'OP_DIV_INT' | 'OP_MOD_INT':
+                # ops that have tape arguments of form [size 0-255] [val]
+                size = tape.read(1)[0]
+                val = tape.read(size)
+                add_line(f'{op_name} d{bytes_to_int(val)}')
+            case 'OP_WRITE_CACHE':
+                # op has tape arguments of form [size 0-255] [val] [count 0-255]
+                size = tape.read(1)[0]
+                val = tape.read(size)
+                count = tape.read(1)[0]
+                add_line(f'{op_name} x{val.hex()} d{count}')
             case 'OP_PUSH0' | 'OP_POP1' | 'OP_ADD_INTS' | 'OP_SUBTRACT_INTS' | \
                 'OP_MULT_INTS' | 'OP_ADD_FLOATS' | 'OP_CHECK_TRANSFER' | \
                 'OP_SUBTRACT_FLOATS' | 'OP_ADD_POINTS' | 'OP_CALL' | \

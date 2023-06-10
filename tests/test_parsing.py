@@ -302,8 +302,10 @@ class TestParsing(unittest.TestCase):
             'p2sh_committed_script.hex': 'p2sh_committed_script_decompiled.src',
             'p2sh_locking_script.hex': 'p2sh_locking_script_decompiled.src',
             'p2sh_unlocking_script.hex': 'p2sh_unlocking_script_decompiled.src',
+            'omega_e2e.hex': 'omega_e2e_decompiled.src',
         }
         vectors = {}
+        names = {}
 
         for hex_fname, src_fname in vector_files.items():
             with open(f'tests/vectors/{src_fname}', 'r') as fsrc:
@@ -313,6 +315,7 @@ class TestParsing(unittest.TestCase):
                     src_lines = src.split('\n')
                     # keep only non-empty lines
                     vectors[hex] = [line for line in src_lines if line != '']
+                    names[hex] = hex_fname
 
         for hex, src in vectors.items():
             expected = src
@@ -320,12 +323,7 @@ class TestParsing(unittest.TestCase):
             if expected != observed:
                 # just to make it easier to step through the broken test vectors
                 observed = parsing.decompile_script(bytes.fromhex(hex))
-                print('\nexpected: ')
-                for line in expected:
-                    print(line)
-                print('\nobserved: ')
-                for line in observed:
-                    print(line)
+                print(f'\n{names[hex]} failed')
                 print('\ndifferences:')
                 if len(expected) > len(observed):
                     for i in range(len(expected)):
@@ -368,8 +366,10 @@ class TestParsing(unittest.TestCase):
         decompiled = parsing.decompile_script(compiled)
         assert decompiled == ['OP_GRAB_INT d2']
 
-        functions.opcodes = original_opcodes
-        functions.opcodes_inverse = original_opcodes_inverse
+        assert functions.opcodes != original_opcodes
+        assert functions.opcodes_inverse != original_opcodes_inverse
+        del functions.opcodes[255]
+        del functions.opcodes_inverse['OP_GRAB_INT']
 
     def bytes_xor(self, first: bytes, second: bytes) -> bytes:
         while len(first) > len(second):
