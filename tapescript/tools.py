@@ -58,9 +58,9 @@ def create_merklized_script(branches: list[str], levels: list = None) -> tuple[s
         the left at every level. Returns a tuple of root script and list
         of branch execution scripts.
     """
-    tert(type(branches) in (list, tuple), 'branches must be list or tuple or str')
+    tert(type(branches) in (list, tuple), 'branches must be list or tuple of str')
     for branch in branches:
-        tert(type(branch) is str, 'branches must be list or tuple or str')
+        tert(type(branch) is str, 'branches must be list or tuple of str')
         vert(len(branch) > 0, 'branches must not be empty')
     vert(len(branches) >= 1, 'must be at least 1 branch')
 
