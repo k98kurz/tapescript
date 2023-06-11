@@ -6,7 +6,9 @@ from .functions import (
     run_auth_script,
     add_opcode,
     add_contract,
-    remove_contract
+    remove_contract,
+    add_contract_interface,
+    remove_contract_interface
 )
 from .interfaces import CanCheckTransfer
 from .parsing import (

@@ -1,10 +1,11 @@
-from context import classes, errors, functions
+from context import classes, errors, functions, interfaces
 from hashlib import sha256, shake_256
 from nacl.signing import SigningKey
 from queue import LifoQueue
 from random import randint
 from secrets import token_bytes
 from time import time
+from typing import Protocol, runtime_checkable
 import nacl.bindings
 import unittest
 
@@ -36,6 +37,7 @@ class TestFunctions(unittest.TestCase):
     original_nopcodes: dict
     original_opcodes_inverse: dict
     original_nopcodes_inverse: dict
+    original_contract_interfaces: dict
 
     def setUp(self) -> None:
         self.tape = classes.Tape(b'')
@@ -45,6 +47,7 @@ class TestFunctions(unittest.TestCase):
         self.original_opcodes_inverse = {**functions.opcodes_inverse}
         self.original_nopcodes = {**functions.nopcodes}
         self.original_nopcodes_inverse = {**functions.nopcodes_inverse}
+        self.original_contract_interfaces = {**functions._contract_interfaces}
         return super().setUp()
 
     def tearDown(self) -> None:
@@ -53,6 +56,7 @@ class TestFunctions(unittest.TestCase):
         functions.nopcodes = self.original_nopcodes
         functions.nopcodes_inverse = self.original_nopcodes_inverse
         functions._contracts = {}
+        functions._contract_interfaces = self.original_contract_interfaces
 
     # helper functions
     def test_bytes_to_int_raises_errors_for_invalid_input(self):
@@ -1499,6 +1503,42 @@ class TestFunctions(unittest.TestCase):
         tape, queue, cache = functions.run_script(b'\x00')
         assert b'123' in tape.contracts
         assert tape.contracts[b'123'] is contract
+
+    def test_add_contract_interface_raises_TypeError_for_invalid_interface(self):
+        with self.assertRaises(TypeError) as e:
+            functions.add_contract_interface({})
+        assert str(e.exception) == 'interface must be a Protocol'
+        with self.assertRaises(TypeError) as e:
+            functions.add_contract_interface(ValidContract)
+        assert str(e.exception) == 'interface must be a Protocol'
+
+    def test_add_contract_interface_adds_interface_for_type_checking(self):
+        functions.add_contract(b'123', ValidContract(10))
+        assert b'123' in functions._contracts
+
+        @runtime_checkable
+        class CanDoThing(Protocol):
+            def does_thing(self):
+                ...
+
+        functions.add_contract_interface(CanDoThing)
+        with self.assertRaises(errors.ScriptExecutionError):
+            functions.add_contract(b'321', ValidContract(10))
+
+    def test_remove_contract_inferface_raises_TypeError_for_invalid_interface(self):
+        with self.assertRaises(TypeError) as e:
+            functions.remove_contract_interface({})
+        assert str(e.exception) == 'interface must be a Protocol'
+
+    def test_remove_contract_interface_removes_interface_for_type_checking(self):
+        assert b'123' not in functions._contracts
+        with self.assertRaises(errors.ScriptExecutionError):
+            functions.add_contract(b'123', {})
+        assert b'123' not in functions._contracts
+
+        functions.remove_contract_interface(interfaces.CanCheckTransfer)
+        functions.add_contract(b'123', {})
+        assert b'123' in functions._contracts
 
     # e2e vectors
     def test_p2pk_e2e(self):

@@ -1,6 +1,6 @@
 from __future__ import annotations
 from .classes import Tape
-from .errors import tert, vert, sert, yert
+from .errors import tert, vert, sert
 from .interfaces import CanCheckTransfer
 from hashlib import sha256, shake_256
 from math import ceil, floor, isnan, log2
@@ -9,7 +9,7 @@ from nacl.signing import VerifyKey
 from queue import LifoQueue
 from secrets import token_bytes
 from time import time
-from typing import Callable
+from typing import Callable, Protocol, _ProtocolMeta
 import nacl.bindings
 import struct
 
@@ -1004,16 +1004,20 @@ flags = {
 
 # contracts are intended for use with OP_CHECK_TRANSFER
 _contracts = {}
+_contract_interfaces = {
+    CanCheckTransfer.__name__: CanCheckTransfer
+}
 
 
-def _check_contract(contract: dict) -> None:
-    """Check a contract interface. Raise ScriptExecutionError if a
-        required method is missing.
+def _check_contract(contract: object) -> None:
+    """Check a contract against required interfaces. Raise
+        ScriptExecutionError if any checks fail.
     """
-    sert(isinstance(contract, CanCheckTransfer),
-        'contract does not fulfill the CanCheckTransfer interface')
+    for name, interface in _contract_interfaces.items():
+        sert(isinstance(contract, interface),
+            f'contract does not fulfill the {name} interface')
 
-def add_contract(contract_id: bytes, contract: dict) -> None:
+def add_contract(contract_id: bytes, contract: object) -> None:
     """Add a contract to be loaded on each script execution."""
     tert(type(contract_id) is bytes,
         'contract_id must be bytes and should be sha256 hash of its source code')
@@ -1028,6 +1032,20 @@ def remove_contract(contract_id: bytes) -> None:
         'contract_id must be bytes and should be sha256 hash of its source code')
     if contract_id in _contracts:
         del _contracts[contract_id]
+
+def add_contract_interface(interface: Protocol) -> None:
+    """Adds an interface for type checking contracts. Interface must be
+        a runtime_checkable Protocol.
+    """
+    tert(type(interface) is _ProtocolMeta, 'interface must be a Protocol')
+    if interface.__name__ not in _contract_interfaces:
+        _contract_interfaces[interface.__name__] = interface
+
+def remove_contract_interface(interface: Protocol) -> None:
+    """Removes an interface for type checking contracts."""
+    tert(type(interface) is _ProtocolMeta, 'interface must be a Protocol')
+    if interface.__name__ in _contract_interfaces:
+        del _contract_interfaces[interface.__name__]
 
 def add_opcode(code: int, name: str, function: Callable) -> None:
     """Adds an OP implementation with the code, name, and function."""
