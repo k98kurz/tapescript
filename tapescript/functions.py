@@ -651,7 +651,9 @@ def OP_IF(tape: Tape, queue: LifoQueue, cache: dict) -> None:
         subtape = Tape(
             def_data,
             callstack_limit=tape.callstack_limit,
-            callstack_count=tape.callstack_count
+            callstack_count=tape.callstack_count,
+            definitions={**tape.definitions},
+            contracts=tape.contracts
         )
         run_tape(subtape, queue, cache)
 
@@ -698,7 +700,7 @@ def OP_EVAL(tape: Tape, queue: LifoQueue, cache: dict) -> None:
         callstack_count=tape.callstack_count+1,
         callstack_limit=tape.callstack_limit,
         definitions={**tape.definitions},
-        contracts={**tape.contracts},
+        contracts=tape.contracts,
         flags={**tape.flags}
     )
 
@@ -864,22 +866,7 @@ def OP_CHECK_TRANSFER(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     # check contract is loaded and has required functions
     sert(contract_id in tape.contracts,
         'OP_CHECK_TRANSFER missing contract')
-    sert('verify_txn_proof' in tape.contracts[contract_id],
-        'OP_CHECK_TRANSFER contract missing verify_txn_proof')
-    sert(callable(tape.contracts[contract_id]['verify_txn_proof']),
-        'OP_CHECK_TRANSFER malformed contract')
-    sert('verify_transfer' in tape.contracts[contract_id],
-        'OP_CHECK_TRANSFER contract missing verify_transfer')
-    sert(callable(tape.contracts[contract_id]['verify_transfer']),
-        'OP_CHECK_TRANSFER malformed contract')
-    sert('verify_txn_constraint' in tape.contracts[contract_id],
-        'OP_CHECK_TRANSFER contract missing verify_txn_constraint')
-    sert(callable(tape.contracts[contract_id]['verify_txn_constraint']),
-        'OP_CHECK_TRANSFER malformed contract')
-    sert('calc_txn_aggregates' in tape.contracts[contract_id],
-        'OP_CHECK_TRANSFER contract missing calc_txn_aggregates')
-    sert(callable(tape.contracts[contract_id]['calc_txn_aggregates']),
-        'OP_CHECK_TRANSFER malformed contract')
+    _check_contract(tape.contracts[contract_id])
 
     verify_txn_proof = tape.contracts[contract_id]['verify_txn_proof']
     verify_transfer = tape.contracts[contract_id]['verify_transfer']
@@ -1008,12 +995,53 @@ nopcodes_inverse = {
     nopcodes[key][0]: (key, nopcodes[key][1]) for key in nopcodes
 }
 
-
 # flags are intended to change how specific opcodes function
 flags = {
     'ts_threshold': 60*60*12,
     'epoch_threshold': 60*60*12,
 }
+
+# contracts are intended for use with OP_CHECK_TRANSFER
+_contracts = {}
+
+
+def _check_contract(contract: dict) -> None:
+    """Check a contract interface. Raise ScriptExecutionError if a
+        required method is missing.
+    """
+    sert('verify_txn_proof' in contract,
+        'OP_CHECK_TRANSFER contract missing verify_txn_proof')
+    sert(callable(contract['verify_txn_proof']),
+        'OP_CHECK_TRANSFER malformed contract')
+    sert('verify_transfer' in contract,
+        'OP_CHECK_TRANSFER contract missing verify_transfer')
+    sert(callable(contract['verify_transfer']),
+        'OP_CHECK_TRANSFER malformed contract')
+    sert('verify_txn_constraint' in contract,
+        'OP_CHECK_TRANSFER contract missing verify_txn_constraint')
+    sert(callable(contract['verify_txn_constraint']),
+        'OP_CHECK_TRANSFER malformed contract')
+    sert('calc_txn_aggregates' in contract,
+        'OP_CHECK_TRANSFER contract missing calc_txn_aggregates')
+    sert(callable(contract['calc_txn_aggregates']),
+        'OP_CHECK_TRANSFER malformed contract')
+
+def add_contract(contract_id: bytes, contract: dict) -> None:
+    """Add a contract to be loaded on each script execution."""
+    tert(type(contract_id) is bytes,
+        'contract_id must be bytes and should be sha256 hash of its source code')
+    tert(type(contract) is dict, 'contract must be dict of required methods')
+    _check_contract(contract)
+    _contracts[contract_id] = contract
+
+def remove_contract(contract_id: bytes) -> None:
+    """Remove a loaded contract to prevent it from being included on
+        script execution.
+    """
+    tert(type(contract_id) is bytes,
+        'contract_id must be bytes and should be sha256 hash of its source code')
+    if contract_id in _contracts:
+        del _contracts[contract_id]
 
 def add_opcode(code: int, name: str, function: Callable) -> None:
     """Adds an OP implementation with the code, name, and function."""
@@ -1045,7 +1073,7 @@ def run_script(script: bytes, cache_vals: dict = {},
     tape = Tape(script)
     queue = LifoQueue()
     cache = {**cache_vals}
-    tape.contracts = {**contracts}
+    tape.contracts = {**_contracts, **contracts}
     run_tape(tape, queue, cache)
     return (tape, queue, cache)
 
