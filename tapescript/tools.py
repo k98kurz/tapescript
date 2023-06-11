@@ -10,7 +10,11 @@ from .functions import (
     run_script,
     run_tape,
     run_auth_script,
-    add_opcode
+    add_opcode,
+    add_contract,
+    remove_contract,
+    add_contract_interface,
+    remove_contract_interface
 )
 from hashlib import sha256
 from typing import Callable
@@ -158,6 +162,10 @@ def generate_docs() -> list[str]:
     paragraphs.append(_format_function_doc(run_tape))
     paragraphs.append(_format_function_doc(run_auth_script))
     paragraphs.append(_format_function_doc(add_opcode))
+    paragraphs.append(_format_function_doc(add_contract))
+    paragraphs.append(_format_function_doc(remove_contract))
+    paragraphs.append(_format_function_doc(add_contract_interface))
+    paragraphs.append(_format_function_doc(remove_contract_interface))
     paragraphs.append('\n\n# Parsing functions')
     paragraphs.append(_format_function_doc(compile_script))
     paragraphs.append(_format_function_doc(decompile_script))

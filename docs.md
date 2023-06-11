@@ -1545,6 +1545,23 @@ False.
 
 Adds an OP implementation with the code, name, and function.
 
+## add_contract(contract_id: bytes, contract: object): -> None
+
+Add a contract to be loaded on each script execution.
+
+## remove_contract(contract_id: bytes): -> None
+
+Remove a loaded contract to prevent it from being included on script execution.
+
+## add_contract_interface(interface: Protocol): -> None
+
+Adds an interface for type checking contracts. Interface must be a
+runtime_checkable Protocol.
+
+## remove_contract_interface(interface: Protocol): -> None
+
+Removes an interface for type checking contracts.
+
 # Parsing functions
 
 ## compile_script(script: str): -> bytes

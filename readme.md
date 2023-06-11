@@ -118,6 +118,29 @@ add_opcode_parsing_handlers(
 )
 ```
 
+### Contracts
+
+The interpreter includes a system for including contracts for greater
+extensibility. For example, the bundled `CanCheckTransfer` interface is used
+to check that contracts can be used with the `OP_CHECK_TRANSFER` operation. To
+add an interface for checking loaded contracts, call `add_contract_interface`
+and pass a `runtime_checkable` subclass of `typing.Protocol` as the argument. To
+remove an interface, call `remove_contract_interface` and pass the interface as
+the argument.
+
+To add a contract, use `add_contract(contract_id: bytes, contract: object)`. To
+remove a contract, use `remove_contract(contract_id: bytes)`.
+
+Each contract will be checked against each interface when added and again at
+runtime when an op that uses a contract is executed. All contracts added via the
+`add_contract` function will be included in the runtime environment of scripts
+run thereafter. Additionally, contracts can be passed into the `run_script` and
+`run_auth_script` functions, and these will override any contracts in the global
+runtime environment in case of a contract_id conflict.
+
+To use a contract in a custom op, find it in the `tape.contracts` dict by its
+contract_id.
+
 ### Signature checking
 
 Notes for the `OP_CHECK_SIG` and `OP_CHECK_SIG_VERIFY` functions:
@@ -153,7 +176,7 @@ python test/test_parsing.py
 python test/test_tools.py
 ```
 
-There are currently 147 tests and 29 test vectors used for validating the
+There are currently 156 tests and 31 test vectors used for validating the
 compiler, decompiler, and script running functions.
 
 ## ISC License
