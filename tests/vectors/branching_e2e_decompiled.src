@@ -1,0 +1,15 @@
+OP_IF (
+    OP_IF (
+        OP_CALL d0
+    ) ELSE (
+        OP_CALL d1
+    )
+) ELSE (
+    OP_IF (
+        OP_IF (
+            OP_CALL d0
+        )
+    ) ELSE (
+        OP_CALL d1
+    )
+)

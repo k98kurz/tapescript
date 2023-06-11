@@ -222,6 +222,7 @@ class TestParsing(unittest.TestCase):
             'merkleval_unlocking_script_ba.src': 'merkleval_unlocking_script_ba.hex',
             'merkleval_unlocking_script_bb.src': 'merkleval_unlocking_script_bb.hex',
             'omega_e2e.src': 'omega_e2e.hex',
+            'branching_e2e.src': 'branching_e2e.hex',
         }
         vectors = {}
 
@@ -303,6 +304,7 @@ class TestParsing(unittest.TestCase):
             'p2sh_locking_script.hex': 'p2sh_locking_script_decompiled.src',
             'p2sh_unlocking_script.hex': 'p2sh_unlocking_script_decompiled.src',
             'omega_e2e.hex': 'omega_e2e_decompiled.src',
+            'branching_e2e.hex': 'branching_e2e_decompiled.src',
         }
         vectors = {}
         names = {}
@@ -374,6 +376,7 @@ class TestParsing(unittest.TestCase):
             'p2sh_locking_script_decompiled.src': 'p2sh_locking_script.hex',
             'p2sh_unlocking_script_decompiled.src': 'p2sh_unlocking_script.hex',
             'omega_e2e_decompiled.src': 'omega_e2e.hex',
+            'branching_e2e_decompiled.src': 'branching_e2e.hex',
         }
         vectors = {}
         names = {}

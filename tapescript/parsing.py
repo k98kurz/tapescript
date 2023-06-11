@@ -453,18 +453,18 @@ def parse_if(symbols: list[str]) -> tuple[int, tuple[bytes]]:
         # case 2: OP_IF statements END_IF
         yert('END_IF' in symbols[1:], 'missing END_IF')
 
-    while index <= len(symbols):
+    while index < len(symbols):
         current_symbol = symbols[index]
 
         if current_symbol == ')':
-            if not 'ELSE' in symbols[index:]:
+            if len(symbols) < index+2 or symbols[index+1] != 'ELSE':
                 index += 2
                 break
             index += 1
             continue
         elif current_symbol == 'END_IF':
-            index += 1
-            continue
+            index += 2
+            break
         elif current_symbol == 'ELSE':
             opcode = 'OP_IF_ELSE'
             advance, parts = parse_else(symbols[index+1:])
