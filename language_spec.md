@@ -6,16 +6,18 @@ This scripting language was inspired by Bitcoin script. The main use envisioned
 is as a method for embedding ACL into decentralized data structures, e.g. hash
 DAGs. The core mechanisms under the hood are the following:
 
-1. Tape: the Tape takes the script bytes and advances a pointer as the bytes are
+1. Tape: the `Tape` takes the script bytes and advances a pointer as the bytes are
 read. It also keeps a dict of flags which control how certain ops execute and
 a dict of contracts mapping contract_id to dict contracts used for checking
 transfers between compatible protocols.
-2. Queue: the LifoQueue provides a memory structure similar to the stack used in
+2. Queue: the `LifoQueue` provides a memory structure similar to the stack used in
 Forth and Bitcoin script. Most ops interact with the queue, and most values are
 stored in the queue.
-3. Cache: the dict cache is where special values are held, e.g. a timestamp or
+3. Cache: the `dict` cache is where special values are held, e.g. a timestamp or
 the parts of a message to be used for checking signatures. Additionally, it is
-possible to move items from queue to cache or vice versa.
+possible to move items from queue to cache or vice versa with the limitation
+that only `bytes` cache keys can be used for these operations while interpreter
+values are stored with `str` cache keys and thus inaccessible to scripts.
 
 ## Syntax
 
@@ -26,7 +28,9 @@ op code followed by its arguments. The syntax for human-readable code is
 outlined below.
 
 All symbols must be separated by whitespace, but which whitespace is used does
-not matter. Any op name, value, or bracket/parenthesis is a symbol.
+not matter. (Making source code easy on the eyes is still recommended, as it is
+in any language; see [Style](## Style) section for detailed recommentations.)
+Any op name, value, or bracket/parenthesis is a symbol.
 
 ### Values
 
@@ -124,6 +128,29 @@ OP_CALL d1
 This will define two functions, put the 2 bytes x0123 onto the queue, then call
 the two functions in sequence. The result will be a queue with x0123 and
 `shake_256(sha256(b'\x01\x23').digest()).digest(20)`.
+
+## Style
+
+While style of human-readable source scripts is not enforced, the following are
+encouraged:
+
+- Each statement invoking an op should be on its own line.
+- The bodies of functions and conditional clauses should be indented. I
+recommend 4 spaces per indentation level.
+- The opening bracket of a function should be at the end of the line starting
+`OP_DEF`, and the closing bracket of the function should be on its own line
+following the final statement of the function body. If `END_DEF` is used instead
+of brackets, then it should be on its own line.
+- The opening parenthesis should be at the end of the line starting `OP_IF` or
+`ELSE`, and the closing parenthesis should be on a new line following the final
+statement of the conditional clause body.
+- `ELSE` should be on the same line as the closing parenthesis of the previous
+conditional clause, i.e. `) ELSE (` should be its own line.
+- If `END_IF` is used instead of a closing parenthesis, it should be on its own
+line following the final statement of the conditional clause.
+- The type prefix of a value should be lowercase. If not, at least be consistent.
+- Brackets and parenthesis are recommended instead `END_DEF`/`END_IF`. Choose a
+single convention and be consistent.
 
 ## Ops
 
