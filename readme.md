@@ -17,7 +17,7 @@ controls in a distributed system.
 - [x] Plugin architecture: new ops with compiler, decompiler, interpreter
 - [x] Half-decent docs
 - [x] Decent docs
-- [ ] Package published
+- [x] Package published
 
 ## Usage
 
