@@ -77,11 +77,11 @@ def create_merklized_script(branches: list[str], levels: list = None) -> tuple[s
 
 def _format_docstring(docstring: str) -> str:
     """Takes a docstring, tokenizes it, and returns a str formatted to
-        72 chars or fewer per line without splitting tokens.
+        80 chars or fewer per line without splitting tokens.
     """
     def make_line(tokens: list[str]) -> tuple[str, list[str]]:
         line = ''
-        while len(tokens) and len(line) + len(tokens[0]) <= 72:
+        while len(tokens) and len(line) + len(tokens[0]) <= 80:
             line += tokens[0] + ' '
             tokens = tokens[1:]
         return (line[:-1], tokens)
@@ -96,6 +96,9 @@ def _format_docstring(docstring: str) -> str:
     return '\n'.join(lines)
 
 def _format_function_doc(function: Callable) -> str:
+    """Documents a function with header hashtags, annotations, and
+        docstring.
+    """
     docstring = _format_docstring(function.__doc__)
     name = function.__name__ or 'None'
 
@@ -139,7 +142,7 @@ def generate_docs() -> list[str]:
 
     paragraphs = [
         '# OPs\n\n'
-        'All OP_ functions have the following signature:\n\n'
+        'All `OP_` functions have the following signature:\n\n'
         '```python\n'
         'def OP_WHATEVER(tape: Tape, queue: LifoQueue, cache: dict) -> None:\n'
         '    ...\n```\n'
