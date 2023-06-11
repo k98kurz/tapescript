@@ -29,8 +29,10 @@ pip install tapescript
 
 ### Write, compile, decompile
 
-See the [langauge_spec.md](language_spec.md) and [docs.md](docs.md) files for
-syntax and operation specifics.
+See the
+[langauge_spec.md](https://github.com/k98kurz/tapescript/blob/master/language_spec.md)
+and [docs.md](https://github.com/k98kurz/tapescript/blob/master/docs.md) files
+for syntax and operation specifics.
 
 One you have a script written, use the `compile_script(code: str) -> bytes`
 function to turn it into the byte code that the interpreter runs.

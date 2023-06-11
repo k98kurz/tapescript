@@ -293,8 +293,8 @@ For this to work, the contract must be loaded into the tape's `contracts` dict
 at the bytes `contract_id` dict key. This can be done by passing a contracts dict
 into `run_script` or `run_auth_script`. If the contract should be loaded for all
 script executions, instead it can be added with `add_contract(contract_id, contract)`.
-The contract must be a class implementing the `CanCheckTransfer` interface with
-following functions:
+The contract must be an instance of a class implementing the `CanCheckTransfer`
+interface with following functions:
 - `verify_txn_proof(txn_proof: bytes) -> bool`
 - `verify_transfer(txn_proof: bytes, source: bytes, destination: bytes) -> bool`
 - `verify_txn_constraint(txn_proof: bytes, constraint: bytes) -> bool`
