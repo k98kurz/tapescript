@@ -4,8 +4,11 @@ from .functions import (
     run_script,
     run_tape,
     run_auth_script,
-    add_opcode
+    add_opcode,
+    add_contract,
+    remove_contract
 )
+from .interfaces import CanCheckTransfer
 from .parsing import (
     compile_script,
     decompile_script,

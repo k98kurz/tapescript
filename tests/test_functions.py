@@ -9,6 +9,25 @@ import nacl.bindings
 import unittest
 
 
+class ValidContract:
+    amount: int
+    def __init__(self, amount: int) -> None:
+        self.amount = amount
+    def verify_txn_proof(self, proof: bytes) -> bool:
+        return True
+    def verify_transfer(self, proof: bytes, source: bytes, destination: bytes) -> bool:
+        return True
+    def verify_txn_constraint(self, proof: bytes, constraint: bytes) -> bool:
+        return True
+    def calc_txn_aggregates(self, proofs: list[bytes], scope: bytes = None) -> dict:
+        return {scope: self.amount}
+
+class InvalidContract:
+    amount: int
+    def __init__(self, amount: int) -> None:
+        self.amount = amount
+
+
 class TestFunctions(unittest.TestCase):
     tape: classes.Tape
     queue: LifoQueue
@@ -33,6 +52,7 @@ class TestFunctions(unittest.TestCase):
         functions.opcodes_inverse = self.original_opcodes_inverse
         functions.nopcodes = self.original_nopcodes
         functions.nopcodes_inverse = self.original_nopcodes_inverse
+        functions._contracts = {}
 
     # helper functions
     def test_bytes_to_int_raises_errors_for_invalid_input(self):
@@ -1121,86 +1141,16 @@ class TestFunctions(unittest.TestCase):
             self.queue.put(b'amount')
             self.queue.put(b'contractid')
 
-        valid_contract = {
-            'verify_txn_proof': lambda txn_proof: True,
-            'verify_transfer': lambda txn_proof, source, destination: True,
-            'verify_txn_constraint': lambda txn_proof, constraint: True,
-            'calc_txn_aggregates': lambda proofs, scope: {b'destination': 10}
-        }
-
         setup_transfer()
         with self.assertRaises(errors.ScriptExecutionError) as e:
             functions.OP_CHECK_TRANSFER(self.tape, self.queue, self.cache)
         assert str(e.exception) == 'OP_CHECK_TRANSFER missing contract'
 
         setup_transfer()
-        self.tape.contracts[b'contractid'] = {}
+        self.tape.contracts[b'contractid'] = InvalidContract(10)
         with self.assertRaises(errors.ScriptExecutionError) as e:
             functions.OP_CHECK_TRANSFER(self.tape, self.queue, self.cache)
-        assert str(e.exception) == 'OP_CHECK_TRANSFER contract missing verify_txn_proof'
-
-        setup_transfer()
-        self.tape.contracts[b'contractid'] = {'verify_txn_proof': 1}
-        with self.assertRaises(errors.ScriptExecutionError) as e:
-            functions.OP_CHECK_TRANSFER(self.tape, self.queue, self.cache)
-        assert str(e.exception) == 'OP_CHECK_TRANSFER malformed contract'
-
-        setup_transfer()
-        self.tape.contracts[b'contractid'] = {
-            'verify_txn_proof': valid_contract['verify_txn_proof']
-        }
-        with self.assertRaises(errors.ScriptExecutionError) as e:
-            functions.OP_CHECK_TRANSFER(self.tape, self.queue, self.cache)
-        assert str(e.exception) == 'OP_CHECK_TRANSFER contract missing verify_transfer'
-
-        setup_transfer()
-        self.tape.contracts[b'contractid'] = {
-            'verify_txn_proof': valid_contract['verify_txn_proof'],
-            'verify_transfer': 1
-        }
-        with self.assertRaises(errors.ScriptExecutionError) as e:
-            functions.OP_CHECK_TRANSFER(self.tape, self.queue, self.cache)
-        assert str(e.exception) == 'OP_CHECK_TRANSFER malformed contract'
-
-        setup_transfer()
-        self.tape.contracts[b'contractid'] = {
-            'verify_txn_proof': valid_contract['verify_txn_proof'],
-            'verify_transfer': valid_contract['verify_transfer']
-        }
-        with self.assertRaises(errors.ScriptExecutionError) as e:
-            functions.OP_CHECK_TRANSFER(self.tape, self.queue, self.cache)
-        assert str(e.exception) == 'OP_CHECK_TRANSFER contract missing verify_txn_constraint'
-
-        setup_transfer()
-        self.tape.contracts[b'contractid'] = {
-            'verify_txn_proof': valid_contract['verify_txn_proof'],
-            'verify_transfer': valid_contract['verify_transfer'],
-            'verify_txn_constraint': 1
-        }
-        with self.assertRaises(errors.ScriptExecutionError) as e:
-            functions.OP_CHECK_TRANSFER(self.tape, self.queue, self.cache)
-        assert str(e.exception) == 'OP_CHECK_TRANSFER malformed contract'
-
-        setup_transfer()
-        self.tape.contracts[b'contractid'] = {
-            'verify_txn_proof': valid_contract['verify_txn_proof'],
-            'verify_transfer': valid_contract['verify_transfer'],
-            'verify_txn_constraint': valid_contract['verify_txn_constraint']
-        }
-        with self.assertRaises(errors.ScriptExecutionError) as e:
-            functions.OP_CHECK_TRANSFER(self.tape, self.queue, self.cache)
-        assert str(e.exception) == 'OP_CHECK_TRANSFER contract missing calc_txn_aggregates'
-
-        setup_transfer()
-        self.tape.contracts[b'contractid'] = {
-            'verify_txn_proof': valid_contract['verify_txn_proof'],
-            'verify_transfer': valid_contract['verify_transfer'],
-            'verify_txn_constraint': valid_contract['verify_txn_constraint'],
-            'calc_txn_aggregates': 1
-        }
-        with self.assertRaises(errors.ScriptExecutionError) as e:
-            functions.OP_CHECK_TRANSFER(self.tape, self.queue, self.cache)
-        assert str(e.exception) == 'OP_CHECK_TRANSFER malformed contract'
+        assert str(e.exception) == 'contract does not fulfill the CanCheckTransfer interface'
 
     def test_OP_CHECK_TRANSFER_works(self):
         def setup_transfer():
@@ -1213,29 +1163,22 @@ class TestFunctions(unittest.TestCase):
             self.queue.put(b'contractid')
 
         amount = 10
-        valid_contract = {
-            'verify_txn_proof': lambda txn_proof: True,
-            'verify_transfer': lambda txn_proof, source, destination: True,
-            'verify_txn_constraint': lambda txn_proof, constraint: True,
-            'calc_txn_aggregates': lambda proofs, scope: {scope: amount}
-        }
-
         setup_transfer()
-        self.tape.contracts[b'contractid'] = valid_contract
+        self.tape.contracts[b'contractid'] = ValidContract(amount)
         functions.OP_CHECK_TRANSFER(self.tape, self.queue, self.cache)
         assert self.queue.get(False) == b'\x01'
         assert self.queue.empty()
 
         amount = 9
         setup_transfer()
-        self.tape.contracts[b'contractid'] = valid_contract
+        self.tape.contracts[b'contractid'] = ValidContract(amount)
         functions.OP_CHECK_TRANSFER(self.tape, self.queue, self.cache)
         assert self.queue.get(False) == b'\x00'
         assert self.queue.empty()
 
         amount = 11
         setup_transfer()
-        self.tape.contracts[b'contractid'] = valid_contract
+        self.tape.contracts[b'contractid'] = ValidContract(amount)
         functions.OP_CHECK_TRANSFER(self.tape, self.queue, self.cache)
         assert self.queue.get(False) == b'\x01'
         assert self.queue.empty()
@@ -1530,6 +1473,33 @@ class TestFunctions(unittest.TestCase):
         assert queue.get(False) == b'\x01'
         assert queue.get(False) == 'nonsense'
 
+    def test_add_contract_raises_error_on_invalid_contract(self):
+        assert b'123' not in functions._contracts
+        with self.assertRaises(errors.ScriptExecutionError) as e:
+            functions.add_contract(b'123', InvalidContract(1))
+        assert str(e.exception) == 'contract does not fulfill the CanCheckTransfer interface'
+        assert b'123' not in functions._contracts
+
+    def test_add_contract_adds_valid_contract(self):
+        assert b'123' not in functions._contracts
+        contract = ValidContract(10)
+        functions.add_contract(b'123', contract)
+        assert b'123' in functions._contracts
+        assert functions._contracts[b'123'] is contract
+
+    def test_remove_contract_removes_contract_by_id(self):
+        functions._contracts[b'123'] = ValidContract(10)
+        assert b'123' in functions._contracts
+        functions.remove_contract(b'123')
+        assert b'123' not in functions._contracts
+
+    def test_added_contracts_added_to_executing_scripts(self):
+        contract = ValidContract(10)
+        functions.add_contract(b'123', contract)
+        tape, queue, cache = functions.run_script(b'\x00')
+        assert b'123' in tape.contracts
+        assert tape.contracts[b'123'] is contract
+
     # e2e vectors
     def test_p2pk_e2e(self):
         message = b'spending bitcoinz or something'
@@ -1610,12 +1580,21 @@ class TestFunctions(unittest.TestCase):
         }
         amount = 1000
         destination = bytes.fromhex('49001a64110769ed9154ecb60799d1b4adabf5f07c93e1d8964ab58bb2449f7f')
-        contract = {
-            'verify_txn_proof': lambda txn_proof: True,
-            'verify_transfer': lambda txn_proof, source, destination: True,
-            'verify_txn_constraint': lambda txn_proof, constraint: True,
-            'calc_txn_aggregates': lambda proofs, scope: {destination: amount}
-        }
+
+        class Contract:
+            amount: int
+            def __init__(self, amount: int) -> None:
+                self.amount = amount
+            def verify_txn_proof(self, proof: bytes) -> bool:
+                return True
+            def verify_transfer(self, proof: bytes, source: bytes, destination: bytes) -> bool:
+                return True
+            def verify_txn_constraint(self, proof: bytes, constraint: bytes) -> bool:
+                return True
+            def calc_txn_aggregates(self, proofs: list[bytes], scope: bytes = None) -> dict:
+                return {scope: self.amount}
+
+        contract = Contract(amount)
         contract_id = bytes.fromhex('49001a64110769ed9154ecb60799d1b4adabf5f07c93e1d8964ab58bb2449f7f')
         with open('tests/vectors/cds_unlocking_script1.hex', 'r') as f:
             hexdata = ''.join(f.read().split())

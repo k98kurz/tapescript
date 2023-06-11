@@ -1,6 +1,7 @@
 from __future__ import annotations
 from .classes import Tape
 from .errors import tert, vert, sert, yert
+from .interfaces import CanCheckTransfer
 from hashlib import sha256, shake_256
 from math import ceil, floor, isnan, log2
 from nacl.exceptions import BadSignatureError
@@ -868,10 +869,10 @@ def OP_CHECK_TRANSFER(tape: Tape, queue: LifoQueue, cache: dict) -> None:
         'OP_CHECK_TRANSFER missing contract')
     _check_contract(tape.contracts[contract_id])
 
-    verify_txn_proof = tape.contracts[contract_id]['verify_txn_proof']
-    verify_transfer = tape.contracts[contract_id]['verify_transfer']
-    verify_txn_constraint = tape.contracts[contract_id]['verify_txn_constraint']
-    calc_txn_aggregates = tape.contracts[contract_id]['calc_txn_aggregates']
+    verify_txn_proof = tape.contracts[contract_id].verify_txn_proof
+    verify_transfer = tape.contracts[contract_id].verify_transfer
+    verify_txn_constraint = tape.contracts[contract_id].verify_txn_constraint
+    calc_txn_aggregates = tape.contracts[contract_id].calc_txn_aggregates
 
     # check each proof
     for i in range(count):
@@ -1009,28 +1010,13 @@ def _check_contract(contract: dict) -> None:
     """Check a contract interface. Raise ScriptExecutionError if a
         required method is missing.
     """
-    sert('verify_txn_proof' in contract,
-        'OP_CHECK_TRANSFER contract missing verify_txn_proof')
-    sert(callable(contract['verify_txn_proof']),
-        'OP_CHECK_TRANSFER malformed contract')
-    sert('verify_transfer' in contract,
-        'OP_CHECK_TRANSFER contract missing verify_transfer')
-    sert(callable(contract['verify_transfer']),
-        'OP_CHECK_TRANSFER malformed contract')
-    sert('verify_txn_constraint' in contract,
-        'OP_CHECK_TRANSFER contract missing verify_txn_constraint')
-    sert(callable(contract['verify_txn_constraint']),
-        'OP_CHECK_TRANSFER malformed contract')
-    sert('calc_txn_aggregates' in contract,
-        'OP_CHECK_TRANSFER contract missing calc_txn_aggregates')
-    sert(callable(contract['calc_txn_aggregates']),
-        'OP_CHECK_TRANSFER malformed contract')
+    sert(isinstance(contract, CanCheckTransfer),
+        'contract does not fulfill the CanCheckTransfer interface')
 
 def add_contract(contract_id: bytes, contract: dict) -> None:
     """Add a contract to be loaded on each script execution."""
     tert(type(contract_id) is bytes,
         'contract_id must be bytes and should be sha256 hash of its source code')
-    tert(type(contract) is dict, 'contract must be dict of required methods')
     _check_contract(contract)
     _contracts[contract_id] = contract
 
