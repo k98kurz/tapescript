@@ -156,6 +156,73 @@ cache item from the message body during signature checks.
 allowable flags. If a signature is passed to a signature checker that uses a
 disallowed sigflag, a `ScriptExecutionError` will be raised.
 
+### Soft Forks
+
+A soft fork is a protocol upgrade such that all scripts written under the new
+protocol also validate under the old version -- older versions do not break when
+encountering use of the new feature. Tapescript was designed with soft-fork
+support in mind, and the helper function `add_soft_fork` is included to
+streamline the process and reduce the use of boilerplate.
+
+To enable a soft-fork, a NOP code must be replaced with an op that reads the
+next byte as an unsigned int, pulls that many values from the queue, runs any
+checks on the data, and raises an error in case any checks fails. This maintains
+the behavior of the original NOP such that any nodes that did not activate the
+soft fork will not have any errors parsing scripts using the new OP.
+
+Example soft fork:
+
+```python
+from tapescript import (
+    Tape,
+    ScriptExecutionError,
+    add_soft_fork
+)
+from queue import LifoQueue
+
+
+def OP_CHECK_ALL_EQUAL_VERIFY(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+    """Replacement for NOP255: read the next bytes as uint count, take
+        that many items from queue, run checks, and raise an error if
+        any checks fail.
+    """
+    count = tape.read(1)[0]
+    items = []
+    for i in range(count):
+        items.append(queue.get(False))
+
+    compare = items.pop()
+    while len(items):
+        if items.pop() != compare:
+            raise ScriptExecutionError('not all the same')
+
+
+add_soft_fork(255, 'OP_CHECK_ALL_EQUAL_VERIFY', OP_CHECK_ALL_EQUAL_VERIFY)
+```
+
+Scripts written with the new op will always execute successfully on nodes
+running the old version of the interpreter. Example script:
+
+```s
+# locking script #
+OP_CHECK_ALL_EQUAL_VERIFY d3
+OP_TRUE
+
+# locking script as decompiled by old nodes #
+NOP255 d3
+OP_TRUE
+
+# unlocking script that validates on both versions #
+OP_PUSH x0123
+OP_PUSH x0123
+OP_PUSH x0123
+
+# unlocking script that validates on only the new version #
+OP_PUSH x0123
+OP_PUSH x0123
+OP_PUSH x3210
+```
+
 ### Testing
 
 First, clone the repo, set up the virtualenv, and install requirements.
@@ -178,7 +245,7 @@ python test/test_parsing.py
 python test/test_tools.py
 ```
 
-There are currently 156 tests and 31 test vectors used for validating the
+There are currently 157 tests and 31 test vectors used for validating the
 compiler, decompiler, and script running functions.
 
 ## ISC License

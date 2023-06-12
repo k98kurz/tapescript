@@ -1,4 +1,5 @@
-from .errors import tert, vert
+from .classes import Tape
+from .errors import tert, vert, sert, yert
 from .parsing import (
     compile_script,
     decompile_script,
@@ -175,3 +176,32 @@ def generate_docs() -> list[str]:
     paragraphs.append(_format_function_doc(generate_docs) + '\n')
 
     return paragraphs
+
+def add_soft_fork(code: int, name: str, op: Callable) -> None:
+    """Adds a soft fork."""
+    tert(callable(op), 'op must be callable')
+
+    def compiler_handler(opname: str, symbols: list[str],
+                         symbols_to_advance: int) -> tuple[int, tuple[bytes]]:
+        symbols_to_advance += 1
+        val = symbols[0]
+        yert(val[0] in ('d', 'x'),
+            f'{opname} argument must be prefaced with d or x')
+        match val[0]:
+            case 'd':
+                val = int(val[1:])
+                yert(0 <= val < 256,
+                    f'{opname} argument must be between 0-255')
+                val = val.to_bytes(1)
+            case 'x':
+                val = bytes.fromhex(val[1:])
+                yert(len(val) == 1,
+                    f'{opname} argument must be 1 byte')
+        return (symbols_to_advance, (val,))
+
+    def decompiler_handler(opname: str, tape: Tape) -> list[str]:
+        val = tape.read(1)[0]
+        return [f'{opname} d{val}']
+
+    add_opcode(code, name, op)
+    add_opcode_parsing_handlers(name, compiler_handler, decompiler_handler)

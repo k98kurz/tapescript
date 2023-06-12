@@ -1,6 +1,9 @@
+from context import classes
+from context import errors
 from context import functions
 from context import parsing
 from context import tools
+from queue import LifoQueue
 import unittest
 
 
@@ -92,6 +95,44 @@ class TestTools(unittest.TestCase):
             assert not queue.empty()
             assert int.from_bytes(queue.get(False)) == i
             assert queue.empty()
+
+    def test_add_soft_fork_e2e(self):
+        locking_script_old_src = 'NOP255 d3 OP_TRUE'
+        locking_script_new_src = 'OP_CHECK_ALL_EQUAL_VERIFY d3 OP_TRUE'
+        good_unlocking_script_src = 'OP_PUSH x0123 OP_PUSH x0123 OP_PUSH x0123'
+        bad_unlocking_script_src = 'OP_PUSH x0123 OP_PUSH x0123 OP_PUSH x3210'
+
+        def OP_CHECK_ALL_EQUAL_VERIFY(tape: classes.Tape, queue: LifoQueue, cache: dict) -> None:
+            """Replacement for NOP255: read the next bytes as uint count, take
+                that many items from queue, run checks, and raise an error if
+                any checks fail.
+            """
+            count = tape.read(1)[0]
+            items = []
+            for i in range(count):
+                items.append(queue.get(False))
+
+            compare = items.pop()
+            while len(items):
+                if items.pop() != compare:
+                    raise errors.ScriptExecutionError('not all the same')
+
+        locking_script_old = parsing.compile_script(locking_script_old_src)
+        good_unlocking_script = parsing.compile_script(good_unlocking_script_src)
+        bad_unlocking_script = parsing.compile_script(bad_unlocking_script_src)
+
+        # before soft fork activation
+        assert functions.run_auth_script(good_unlocking_script + locking_script_old)
+        assert functions.run_auth_script(bad_unlocking_script + locking_script_old)
+
+        # soft fork activation
+        tools.add_soft_fork(255, 'OP_CHECK_ALL_EQUAL_VERIFY', OP_CHECK_ALL_EQUAL_VERIFY)
+
+        # after soft fork activation
+        locking_script_new = parsing.compile_script(locking_script_new_src)
+        assert locking_script_new == locking_script_old
+        assert functions.run_auth_script(good_unlocking_script + locking_script_new)
+        assert not functions.run_auth_script(bad_unlocking_script + locking_script_new)
 
 
 if __name__ == '__main__':

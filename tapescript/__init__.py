@@ -18,5 +18,6 @@ from .parsing import (
 )
 from .tools import (
     create_merklized_script,
-    generate_docs
+    generate_docs,
+    add_soft_fork
 )
