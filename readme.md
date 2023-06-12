@@ -217,7 +217,7 @@ OP_PUSH x0123
 OP_PUSH x0123
 OP_PUSH x0123
 
-# unlocking script that validates on only the new version #
+# unlocking script that fails validation on the new version #
 OP_PUSH x0123
 OP_PUSH x0123
 OP_PUSH x3210
