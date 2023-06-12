@@ -8,6 +8,42 @@ import unittest
 
 
 class TestTools(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.original_opcodes = {**functions.opcodes}
+        cls.original_opcodes_inverse = {**functions.opcodes_inverse}
+        cls.original_nopcodes = {**functions.nopcodes}
+        cls.original_nopcodes_inverse = {**functions.nopcodes_inverse}
+        return super().setUpClass()
+
+    def tearDown(self) -> None:
+        # some extreme monkeypatching
+        ops = [op for op in functions.opcodes]
+        for op in ops:
+            if op not in self.original_opcodes:
+                del functions.opcodes[op]
+
+        ops = [op for op in functions.opcodes_inverse]
+        for op in ops:
+            if op not in self.original_opcodes_inverse:
+                del functions.opcodes_inverse[op]
+
+        nops = [nop for nop in self.original_nopcodes]
+        for nop in nops:
+            if nop not in functions.nopcodes:
+                functions.nopcodes[nop] = self.original_nopcodes[nop]
+
+        nops = [nop for nop in self.original_nopcodes_inverse]
+        for nop in nops:
+            if nop not in functions.nopcodes_inverse:
+                functions.nopcodes_inverse[nop] = self.original_nopcodes_inverse[nop]
+
+        opnames = [name for name in parsing.additional_opcodes]
+        for opname in opnames:
+            del parsing.additional_opcodes[opname]
+
+        return super().tearDown()
+
     def test_create_merklized_script_returns_tuple_of_str_and_list(self):
         result = tools.create_merklized_script(['OP_PUSH d123'])
         assert type(result) is tuple
@@ -133,6 +169,71 @@ class TestTools(unittest.TestCase):
         assert locking_script_new == locking_script_old
         assert functions.run_auth_script(good_unlocking_script + locking_script_new)
         assert not functions.run_auth_script(bad_unlocking_script + locking_script_new)
+
+    def test_add_soft_fork_merklized_script_e2e(self):
+        locking_script_old_src = 'NOP255 d3 OP_TRUE'
+        locking_script_new_src = 'OP_CHECK_ALL_EQUAL_VERIFY d3 OP_TRUE'
+        good_unlocking_script_src = 'OP_PUSH x0123 OP_PUSH x0123 OP_PUSH x0123'
+        bad_unlocking_script_src = 'OP_PUSH x0123 OP_PUSH x0123 OP_PUSH x3210'
+
+        def OP_CHECK_ALL_EQUAL_VERIFY(tape: classes.Tape, queue: LifoQueue, cache: dict) -> None:
+            """Replacement for NOP255: read the next bytes as uint count, take
+                that many items from queue, run checks, and raise an error if
+                any checks fail.
+            """
+            count = tape.read(1)[0]
+            items = []
+            for i in range(count):
+                items.append(queue.get(False))
+
+            compare = items.pop()
+            while len(items):
+                if items.pop() != compare:
+                    raise errors.ScriptExecutionError('not all the same')
+
+        locking_script_old = parsing.compile_script(locking_script_old_src)
+
+        # before soft fork activation
+        good_scripts = [good_unlocking_script_src for i in range(20)]
+        bad_scripts = [bad_unlocking_script_src for i in range(20)]
+
+        result = tools.create_merklized_script(good_scripts)
+        good_locking_script = parsing.compile_script(result[0])
+        good_unlocking_scripts = [parsing.compile_script(s) for s in result[1]]
+
+        result = tools.create_merklized_script(bad_scripts)
+        bad_locking_script = parsing.compile_script(result[0])
+        bad_unlocking_scripts = [parsing.compile_script(s) for s in result[1]]
+
+        for i in range(20):
+            branch = good_unlocking_scripts[i] + good_locking_script + locking_script_old
+            assert functions.run_auth_script(branch)
+            branch = bad_unlocking_scripts[i] + bad_locking_script + locking_script_old
+            assert functions.run_auth_script(branch)
+
+        # soft fork activation
+        tools.add_soft_fork(255, 'OP_CHECK_ALL_EQUAL_VERIFY', OP_CHECK_ALL_EQUAL_VERIFY)
+
+        # after soft fork activation
+        locking_script_new = parsing.compile_script(locking_script_new_src)
+        assert locking_script_new == locking_script_old
+
+        good_scripts = [good_unlocking_script_src for i in range(20)]
+        bad_scripts = [bad_unlocking_script_src for i in range(20)]
+
+        result = tools.create_merklized_script(good_scripts)
+        good_locking_script = parsing.compile_script(result[0])
+        good_unlocking_scripts = [parsing.compile_script(s) for s in result[1]]
+
+        result = tools.create_merklized_script(bad_scripts)
+        bad_locking_script = parsing.compile_script(result[0])
+        bad_unlocking_scripts = [parsing.compile_script(s) for s in result[1]]
+
+        for i in range(20):
+            branch = good_unlocking_scripts[i] + good_locking_script + locking_script_old
+            assert functions.run_auth_script(branch)
+            branch = bad_unlocking_scripts[i] + bad_locking_script + locking_script_old
+            assert not functions.run_auth_script(branch)
 
 
 if __name__ == '__main__':
