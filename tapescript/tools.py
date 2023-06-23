@@ -154,7 +154,7 @@ def generate_docs() -> list[str]:
     ]
 
     for number in data:
-        line = f'\n## {data[number][0]} - {number} - x{number.to_bytes(1).hex().upper()}\n\n'
+        line = f'\n## {data[number][0]} - {number} - x{number.to_bytes(1, "big").hex().upper()}\n\n'
         docstring = _format_docstring(data[number][1])
         paragraphs.append(line + docstring + '\n')
 
@@ -192,7 +192,7 @@ def add_soft_fork(code: int, name: str, op: Callable) -> None:
                 val = int(val[1:])
                 yert(0 <= val < 256,
                     f'{opname} argument must be between 0-255')
-                val = val.to_bytes(1)
+                val = val.to_bytes(1, 'big')
             case 'x':
                 val = bytes.fromhex(val[1:])
                 yert(len(val) == 1,

@@ -102,7 +102,7 @@ def OP_SOME_NONSENSE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
 
 def OP_SOME_NONSENSE_compiler(opname: str, symbols: list[str], symbols_to_advance: int):
     symbols_to_advance += 1
-    val = int(symbols[0][1:]).to_bytes(1)
+    val = int(symbols[0][1:]).to_bytes(1, 'big)
     return (symbols_to_advance, (val,))
 
 def OP_SOME_NONSENSE_decompiler(opname: str, tape: Tape):
