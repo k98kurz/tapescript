@@ -35,7 +35,7 @@ See the
 and [docs.md](https://github.com/k98kurz/tapescript/blob/master/docs.md) files
 for syntax and operation specifics.
 
-One you have a script written, use the `compile_script(code: str) -> bytes`
+Once you have a script written, use the `compile_script(code: str) -> bytes`
 function to turn it into the byte code that the interpreter runs.
 
 #### Merklized scripts
@@ -59,12 +59,14 @@ This function returns a tuple containing the locking script that uses
 `OP_MERKLEVAL` to enforce the cryptographic commitment to the branches and a
 list of unlocking scripts that fulfill the cryptographic commitment and execute
 the individual script branches. The unlocking scripts are ordered identically to
-the input branches. In the above example, the each branch expects a signature
-from the given public key. To use as an auth script, the locking script would be
-used as the locking condition, a signature would be prepended to the unlocking
-script with an `OP_PUSH x<hex signature> `, and this would then be compiled; the
-locking script will be compiled and appended to this, and then the whole thing
-would be run through the `run_auth_script` function.
+the input branches. In the above example, each branch expects a signature from
+the given public key. To use as an auth script, the locking script would be
+compiled and used as the locking condition. A signature would be prepended to
+the unlocking script with an `OP_PUSH x<hex signature> `, and this would then be
+compiled to become the unlocking bytes. Then concatenate the locking script to
+the unlocking script (i.e. script = unlock + lock) and run through the
+`run_auth_script` function, which will return a `True` if it executed
+successfully and `False` otherwise.
 
 ### Run a script
 
@@ -153,9 +155,9 @@ the `sigfield[1-8]` cache items.
 2. Each signature can have an additional (33rd) byte attached which encodes up
 to 8 bit flags. Each bit flag encoded will exclude the associated `sigfield{n}`
 cache item from the message body during signature checks.
-3. These function calls take a 1 byte param from the tap that encodes the
-allowable flags. If a signature is passed to a signature checker that uses a
-disallowed sigflag, a `ScriptExecutionError` will be raised.
+3. These ops take a 1 byte param from the tape that encodes the allowable flags.
+If a signature is passed to a signature checker that uses a disallowed sigflag,
+a `ScriptExecutionError` will be raised.
 
 ### Soft Forks
 
@@ -165,9 +167,9 @@ encountering use of the new feature. Tapescript was designed with soft-fork
 support in mind, and the helper function `add_soft_fork` is included to
 streamline the process and reduce the use of boilerplate.
 
-To enable a soft-fork, a NOP code must be replaced with an op that reads the
+To enable a soft fork, a NOP code must be replaced with an op that reads the
 next byte as an unsigned int, pulls that many values from the queue, runs any
-checks on the data, and raises an error in case any checks fails. This maintains
+checks on the data, and raises an error in case any check fails. This maintains
 the behavior of the original NOP such that any nodes that did not activate the
 soft fork will not have any errors parsing scripts using the new OP.
 
@@ -183,9 +185,9 @@ from queue import LifoQueue
 
 
 def OP_CHECK_ALL_EQUAL_VERIFY(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Replacement for NOP255: read the next bytes as uint count, take
+    """Replacement for NOP255: read the next byte as uint count, take
         that many items from queue, run checks, and raise an error if
-        any checks fail.
+        any check fails.
     """
     count = tape.read(1)[0]
     items = []
@@ -230,6 +232,12 @@ have not activated the soft fork, but it will be executed by nodes that have
 activated the soft fork and encountered an exception during execution of the new
 op.
 
+Note that any new language features added to the interpreter will be hard forks
+replacing lower value NOPs. (For example, `OP_TRY_EXCEPT` was a hard fork that
+replaced `NOP61`.) To opt-in to hard fork compatibility in this package while
+implementing soft-forks for an application using tapescript as a dependency,
+start by soft forking `NOP255` and count down with each additional soft fork.
+
 ### Testing
 
 First, clone the repo, set up the virtualenv, and install requirements.
@@ -252,7 +260,7 @@ python test/test_parsing.py
 python test/test_tools.py
 ```
 
-There are currently 159 tests and 31 test vectors used for validating the
+There are currently 159 tests and 32 test vectors used for validating the
 compiler, decompiler, and script running functions.
 
 ## ISC License
