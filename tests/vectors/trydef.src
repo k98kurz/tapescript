@@ -1,0 +1,8 @@
+OP_DEF 0 {
+    OP_TRY {
+        OP_CALL d0
+    } EXCEPT {
+        OP_CALL d0
+    }
+}
+OP_CALL d0

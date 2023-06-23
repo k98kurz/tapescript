@@ -698,6 +698,22 @@ def parse_except(symbols: list[str]) -> tuple[int, tuple[bytes]]:
     )
 
 
+def _find_matching_brace(symbols: list[str], open_brace: str, close_brace: str) -> int:
+    """Finds the index of the matching closing brace, adjusting for any
+        additional open braces encountered before the closing brace.
+    """
+    index = symbols.index(close_brace)
+
+    while index < len(symbols):
+        n_opens = symbols[:index].count(open_brace)
+        n_closes = symbols[:index+1].count(close_brace)
+        if n_closes >= n_opens and symbols[index] == close_brace:
+            break
+        index += symbols[index+1:].index(close_brace) or 1
+
+    return index
+
+
 def compile_script(script: str) -> bytes:
     """Compile the given human-readable script into byte code."""
     vert(type(script) is str, 'input script must be str')
@@ -742,7 +758,7 @@ def compile_script(script: str) -> bytes:
             if symbols[index + 2] == '{':
                 # case 1: OP_DEF number { match }
                 yert('}' in symbols[index:], 'missing matching }')
-                search_idx = symbols.index('}', index)
+                search_idx = index + _find_matching_brace(symbols[index+2:], '{', '}') + 2
                 index += 2
             else:
                 # case 2: find END_DEF
