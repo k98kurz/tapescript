@@ -174,7 +174,7 @@ class TestParsing(unittest.TestCase):
     def test_compile_script_ignores_comments(self):
         code1 = parsing.compile_script('OP_POP0')
         code2 = parsing.compile_script('# ignored # OP_POP0')
-        assert code1 == code2 == functions.opcodes_inverse['OP_POP0'][0].to_bytes(1)
+        assert code1 == code2 == functions.opcodes_inverse['OP_POP0'][0].to_bytes(1, 'big')
 
     def test_compile_script_errors_on_incomplete_OP_IF(self):
         with self.assertRaises(errors.SyntaxError) as e:
@@ -225,6 +225,7 @@ class TestParsing(unittest.TestCase):
             'branching_e2e.src': 'branching_e2e.hex',
         }
         vectors = {}
+        names = {}
 
         for src_fname, hex_fname in vector_files.items():
             with open(f'tests/vectors/{src_fname}', 'r') as fsrc:
@@ -232,12 +233,15 @@ class TestParsing(unittest.TestCase):
                     src = fsrc.read()
                     hex = ''.join(fhex.read().split())
                     vectors[src] = hex
+                    names[hex] = src_fname
 
         for src, hex in vectors.items():
             expected = hex
+            current = names[hex]
             observed = parsing.compile_script(src).hex()
             if expected != observed:
                 # just to make it easier to step through the broken test vectors
+                print(f"{names[hex]} compilation failed")
                 observed = parsing.compile_script(src).hex()
                 print(expected)
                 print(observed)
@@ -437,7 +441,7 @@ class TestParsing(unittest.TestCase):
 
         def compiler(opname: str, symbols: list[str], symbols_to_advance: int):
             symbols_to_advance += 1
-            val = int(symbols[0][1:]).to_bytes(1)
+            val = int(symbols[0][1:]).to_bytes(1, 'big')
             return (symbols_to_advance, (val,))
 
         def decompiler(opname: str, tape: classes.Tape):

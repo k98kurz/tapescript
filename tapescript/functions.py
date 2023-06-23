@@ -907,6 +907,43 @@ def OP_MERKLEVAL(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     OP_EQUAL_VERIFY(tape, queue, cache)
     OP_EVAL(tape, queue, cache)
 
+def OP_TRY_EXCEPT(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+    """Read the next 3 bytes from the tape, interpreting as an unsigned
+        int; read that many bytes from the tape as the TRY subroutine
+        definition; read 3 bytes from the tape, interpreting as an
+        unsigned int; read that many bytes as the EXCEPT subroutine
+        definition; execute the TRY subroutine in a try block; if an
+        error occurs, serialize it and put it in the cache then run the
+        EXCEPT subroutine.
+    """
+    try_def_size = int.from_bytes(tape.read(3), 'big')
+    try_def_data = tape.read(try_def_size)
+
+    except_def_size = int.from_bytes(tape.read(3), 'big')
+    except_def_data = tape.read(except_def_size)
+
+    subtape = Tape(
+        try_def_data,
+        callstack_limit=tape.callstack_limit,
+        callstack_count=tape.callstack_count,
+        definitions={**tape.definitions},
+        contracts=tape.contracts,
+    )
+
+    try:
+        run_tape(subtape, queue, cache)
+    except BaseException as e:
+        serialized = e.__class__.__name__ + '|' + str(e)
+        cache[b'E'] = [serialized.encode('utf-8')]
+        subtape = Tape(
+            except_def_data,
+            callstack_limit=tape.callstack_limit,
+            callstack_count=tape.callstack_count,
+            definitions={**tape.definitions},
+            contracts=tape.contracts,
+        )
+        run_tape(subtape, queue, cache)
+
 def NOP(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int
         and pull that many values from the queue. Does nothing with the
@@ -980,6 +1017,7 @@ opcodes = [
     ('OP_SPLIT_STR', OP_SPLIT_STR),
     ('OP_CHECK_TRANSFER', OP_CHECK_TRANSFER),
     ('OP_MERKLEVAL', OP_MERKLEVAL),
+    ('OP_TRY_EXCEPT', OP_TRY_EXCEPT),
 ]
 opcodes = {x: opcodes[x] for x in range(len(opcodes))}
 

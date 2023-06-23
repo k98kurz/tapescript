@@ -508,7 +508,8 @@ def parse_if(symbols: list[str]) -> tuple[int, tuple[bytes]]:
 
 def parse_else(symbols: list[str]) -> tuple[int, tuple[bytes]]:
     """Parses an ELSE clause. Returns tuple (int advance, tuple[bytes]
-        parts). Called recursively to handle nested conditional clauses.
+        parts). Recursively calls parse_if to handle nested conditional
+        clauses.
     """
     yert(len(symbols) > 0, 'missing ELSE clause contents')
     code = []
@@ -531,6 +532,139 @@ def parse_else(symbols: list[str]) -> tuple[int, tuple[bytes]]:
             raise SyntaxError('cannot have multiple ELSE clauses')
         elif current_symbol == 'OP_IF':
             advance, parts = parse_if(symbols[index+1:])
+            index += advance
+            code.extend(parts)
+        else:
+            yert(current_symbol in opcodes_inverse or current_symbol == 'OP_PUSH',
+                f'unrecognized opcode: {current_symbol}')
+            advance, args = get_args(current_symbol, symbols[index+1:])
+            index += advance
+            if current_symbol == 'OP_PUSH':
+                if len(args) < 2:
+                    code.append(opcodes_inverse['OP_PUSH0'][0].to_bytes(1, 'big'))
+                elif len(args[0]) == 1:
+                    code.append(opcodes_inverse['OP_PUSH1'][0].to_bytes(1, 'big'))
+                elif len(args[0]) == 2:
+                    code.append(opcodes_inverse['OP_PUSH2'][0].to_bytes(1, 'big'))
+                elif len(args[0]) == 4:
+                    code.append(opcodes_inverse['OP_PUSH4'][0].to_bytes(1, 'big'))
+            else:
+                code.append(opcodes_inverse[current_symbol][0].to_bytes(1, 'big'))
+            code.append(b''.join(args))
+
+    code = b''.join(code)
+    return (
+        index,
+        (
+            len(code).to_bytes(3, 'big'),
+            code
+        )
+    )
+
+
+def parse_try(symbols: list[str]) -> tuple[int, tuple[bytes]]:
+    """Parses a statement starting with OP_TRY. Returns tuple (int
+        advance, tuple[bytes] parts). Called recursively to handle
+        nested try clauses.
+    """
+    yert(len(symbols) > 0, 'missing OP_TRY clause contents')
+    code = []
+    index = 0
+    except_len = 0
+
+    if symbols[0] == '{':
+        # case 1: OP_TRY { statements }
+        yert('}' in symbols[1:], 'unterminated OP_TRY: missing matching }')
+        index += 1
+    else:
+        # case 2: OP_TRY statements END_TRY
+        # case 3: OP_TRY statements EXCEPT
+        yert('END_TRY' in symbols[1:] or 'EXCEPT' in symbols[1:],
+             'missing END_TRY or EXCEPT')
+
+    while index < len(symbols):
+        current_symbol = symbols[index]
+
+        if current_symbol == '}':
+            if len(symbols) < index+2 or symbols[index+1] != 'EXCEPT':
+                index += 2
+                break
+            index += 1
+            continue
+        elif current_symbol == 'END_TRY':
+            index += 2
+            break
+        elif current_symbol == 'EXCEPT':
+            advance, parts = parse_except(symbols[index+1:])
+            index += advance + 1
+            code.extend(parts)
+            except_len = len(b''.join(parts))
+            break
+        elif current_symbol == 'OP_TRY':
+            advance, parts = parse_try(symbols[index+1:])
+            index += advance
+            code.extend(parts)
+        else:
+            yert(current_symbol in opcodes_inverse or current_symbol == 'OP_PUSH',
+                f'unrecognized opcode: {current_symbol}')
+            advance, args = get_args(current_symbol, symbols[index+1:])
+            if current_symbol == 'OP_PUSH':
+                if len(args) < 2:
+                    code.append(opcodes_inverse['OP_PUSH0'][0].to_bytes(1, 'big'))
+                elif len(args[0]) == 1:
+                    code.append(opcodes_inverse['OP_PUSH1'][0].to_bytes(1, 'big'))
+                elif len(args[0]) == 2:
+                    code.append(opcodes_inverse['OP_PUSH2'][0].to_bytes(1, 'big'))
+                elif len(args[0]) == 4:
+                    code.append(opcodes_inverse['OP_PUSH4'][0].to_bytes(1, 'big'))
+            else:
+                code.append(opcodes_inverse[current_symbol][0].to_bytes(1, 'big'))
+            code.append(b''.join(args))
+            index += advance
+
+    code = b''.join(code)
+
+    return (
+        index,
+        (
+            opcodes_inverse['OP_TRY_EXCEPT'][0].to_bytes(1, 'big'),
+            (len(code) - except_len).to_bytes(3, 'big'),
+            code
+        )
+    )
+
+
+
+def parse_except(symbols: list[str]) -> tuple[int, tuple[bytes]]:
+    """Parses an EXCEPT clause. Returns tuple (int advance, tuple[bytes]
+        parts). Recursively calls parse_try to handle nested exception
+        handling clauses.
+    """
+    yert(len(symbols) > 0, 'missing EXCEPT clause contents')
+    code = []
+    index = 0
+
+    if symbols[0] == '{':
+        # case 1: EXCEPT { statements }
+        yert('}' in symbols[1:], 'unterminated EXCEPT: missing matching }')
+        index = 1
+    else:
+        yert('END_EXCEPT' in symbols[1:], 'missing END_EXCEPT')
+
+    while index < len(symbols):
+        current_symbol = symbols[index]
+
+        if current_symbol in ('}', 'END_EXCEPT'):
+            index += 2
+            break
+        elif current_symbol == 'EXCEPT':
+            raise SyntaxError('cannot have multiple EXCEPT clauses')
+        elif current_symbol == 'OP_IF':
+            advance, parts = parse_if(symbols[index+1:])
+            index += advance
+            code.extend(parts)
+        elif current_symbol == 'OP_TRY':
+            advance, parts = parse_try(symbols[index+1:])
             index += advance
             code.extend(parts)
         else:
@@ -584,10 +718,10 @@ def compile_script(script: str) -> bytes:
                 raise SyntaxError(f'unterminated comment starting with {symbol}') from None
             continue
 
-        vert(symbol in opcodes_inverse or symbol in nopcodes_inverse or symbol == 'OP_PUSH',
+        vert(symbol in opcodes_inverse or symbol in nopcodes_inverse or
+             symbol in ('OP_PUSH', 'OP_TRY'),
              f'unrecognized opcode: {symbol}')
 
-        # handle definition
         if symbol == 'OP_DEF':
             def_code = b''
             name = symbols[index + 1]
@@ -628,6 +762,10 @@ def compile_script(script: str) -> bytes:
                     advance, parts = parse_if(symbols[i+1:search_idx])
                     i += advance
                     def_code += b''.join(parts)
+                elif current_symbol == 'OP_TRY':
+                    advance, parts = parse_try(symbols[i+1:search_idx])
+                    i += advance
+                    def_code += b''.join(parts)
                 elif current_symbol in ('}', 'END_DEF'):
                     i += 1
                     continue
@@ -663,6 +801,10 @@ def compile_script(script: str) -> bytes:
         elif symbol == 'OP_IF':
             advance, parts = parse_if(symbols[index+1:])
             index += advance + 1
+            code.append(b''.join(parts))
+        elif symbol == 'OP_TRY':
+            advance, parts = parse_try(symbols[index+1:])
+            index += advance
             code.append(b''.join(parts))
         else:
             advance, args = get_args(symbol, symbols[index+1:])
@@ -731,6 +873,18 @@ def decompile_script(script: bytes, indent: int = 0) -> list[str]:
                 add_line(') ELSE (')
                 code_lines.extend(else_lines)
                 add_line(')')
+            case 'OP_TRY_EXCEPT':
+                try_len = int.from_bytes(tape.read(3), 'big')
+                try_body = tape.read(try_len)
+                try_lines = decompile_script(try_body, indent+1)
+                except_len = int.from_bytes(tape.read(3), 'big')
+                except_body = tape.read(except_len)
+                except_lines = decompile_script(except_body, indent+1)
+                add_line('OP_TRY {')
+                code_lines.extend(try_lines)
+                add_line('} EXCEPT {')
+                code_lines.extend(except_lines)
+                add_line('}')
             case 'OP_FALSE' | 'OP_TRUE' | 'OP_POP0' | 'OP_SIZE' | \
                 'OP_READ_CACHE_Q' | 'OP_READ_CACHE_Q_SIZE' | 'OP_DIV_INTS' | \
                 'OP_MOD_INTS' | 'OP_DIV_FLOATS' | 'OP_MOD_FLOATS' | 'OP_DUP' | \

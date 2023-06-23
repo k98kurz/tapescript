@@ -354,11 +354,13 @@ OP_DUP then OP_SHA256; call OP_SWAP 1 2; if not bool, call OP_SWAP2; call
 OP_CONCAT; call OP_SHA256; push root hash onto the queue; call OP_EQUAL_VERIFY;
 call OP_EVAL.
 
-## NOP61 - 61 - x3D
+## OP_TRY_EXCEPT - 61 - x3D
 
-Read the next byte from the tape, interpreting as an unsigned int and pull that
-many values from the queue. Does nothing with the values. Useful for later
-soft-forks by redefining byte codes.
+Read the next 3 bytes from the tape, interpreting as an unsigned int; read that
+many bytes from the tape as the TRY subroutine definition; read 3 bytes from the
+tape, interpreting as an unsigned int; read that many bytes as the EXCEPT
+subroutine definition; execute the TRY subroutine in a try block; if an error
+occurs, serialize it and put it in the cache then run the EXCEPT subroutine.
 
 ## NOP62 - 62 - x3E
 

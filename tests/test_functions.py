@@ -1242,6 +1242,25 @@ class TestFunctions(unittest.TestCase):
         assert self.queue.get(False) == b'N'
         assert self.queue.empty()
 
+    def test_OP_TRY_EXCEPT_reads_2_definitions_from_tape_executes_properly(self):
+        try_len = (2).to_bytes(3, 'big')
+        except_len = (1).to_bytes(3, 'big')
+        try_def = b'\x00\x20'
+        except_def = b'\x01'
+        self.tape = classes.Tape(try_len + try_def + except_len + except_def)
+        assert self.queue.empty()
+        assert b'E' not in self.cache
+        functions.OP_TRY_EXCEPT(self.tape, self.queue, self.cache)
+        assert self.tape.has_terminated()
+        assert b'E' in self.cache
+        assert len(self.cache[b'E']) == 1
+        exname, exstr = str(self.cache[b'E'][0], 'utf-8').split('|')
+        assert exname == 'ScriptExecutionError'
+        assert exstr == 'OP_VERIFY check failed'
+        assert not self.queue.empty()
+        item = self.queue.get(False)
+        assert item == b'\x01'
+
     def test_OP_EVAL_pulls_value_from_queue_and_runs_as_script(self):
         code = b'\x02F'
         assert self.queue.empty()
