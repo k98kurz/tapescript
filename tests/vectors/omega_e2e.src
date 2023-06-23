@@ -94,6 +94,9 @@ OP_TRY {
 } EXCEPT {
     OP_READ_CACHE x45
     OP_PUSH s"ScriptExecutionError|OP_VERIFY check failed"
+    OP_TRY {
+        OP_EQUAL_VERIFY
+    }
 }
 NOP62 d1
 NOP63 d1

@@ -624,6 +624,10 @@ def parse_try(symbols: list[str]) -> tuple[int, tuple[bytes]]:
 
     code = b''.join(code)
 
+    if except_len == 0:
+        code += except_len.to_bytes(3, 'big')
+        except_len = 3
+
     return (
         index,
         (
@@ -632,7 +636,6 @@ def parse_try(symbols: list[str]) -> tuple[int, tuple[bytes]]:
             code
         )
     )
-
 
 
 def parse_except(symbols: list[str]) -> tuple[int, tuple[bytes]]:
@@ -882,8 +885,9 @@ def decompile_script(script: bytes, indent: int = 0) -> list[str]:
                 except_lines = decompile_script(except_body, indent+1)
                 add_line('OP_TRY {')
                 code_lines.extend(try_lines)
-                add_line('} EXCEPT {')
-                code_lines.extend(except_lines)
+                if except_lines:
+                    add_line('} EXCEPT {')
+                    code_lines.extend(except_lines)
                 add_line('}')
             case 'OP_FALSE' | 'OP_TRUE' | 'OP_POP0' | 'OP_SIZE' | \
                 'OP_READ_CACHE_Q' | 'OP_READ_CACHE_Q_SIZE' | 'OP_DIV_INTS' | \
