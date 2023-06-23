@@ -49,6 +49,23 @@ To call an op, write the op name followed by any argument(s). For example,
 `OP_PUSH s"hello world"` will convert the utf-8 string "hello world" into bytes
 and push it onto the queue, utilizing `OP_PUSH1`.
 
+### Subtapes
+
+Some features are implemented using subtapes by reading a 2 byte uint size
+argument from the tape, then reading that many bytes from the tape as the
+subtape definition, then executing the subtape. Subtape definitions have a
+maximum size of 64KiB (2^16-1 bytes). The following features use subtapes:
+
+- `OP_IF`
+- `OP_IF_ELSE`
+- `OP_DEF`
+- `OP_TRY_EXCEPT`
+- `OP_EVAL`
+
+Note that `OP_EVAL` does not require any arguments because it reads the top item
+from the queue as the subtape definition rather than parsing one out from the
+tape.
+
 ### Conditional programming
 
 Tapescript includes three conditional operators: `OP_IF`, `OP_IF_ELSE`, and
@@ -94,6 +111,39 @@ only two branches per level. These form a Merkle-tree like script structure.
 See "Example 5: merklized script" in the [script_examples.md](https://github.com/k98kurz/tapescript/blob/master/script_examples.md#example-5-merklized-script)
 file for a thorough example of how this works and how it compares to using
 `OP_IF_ELSE` for conditional execution and cryptographic script commitments.
+
+### Exception handling
+
+Some ops, such as `OP_VERIFY` and `OP_CHECK_EPOCH_VERIFY`, will raise exceptions
+under certain conditions. If these ops are called within an `OP_TRY` block, the
+exception will be caught, serialized, and put into the cache under the key x45,
+then the `EXCEPT` block will be executed. Example:
+
+```s
+OP_TRY {
+    OP_VERIFY
+    OP_TRUE
+} EXCEPT {
+    OP_READ_CACHE x45
+    OP_PUSH s"ScriptExecutionError|OP_VERIFY check failed"
+    OP_EQUAL
+    OP_NOT
+}
+```
+
+The above results in a `true` value if it executed without error and `false` if
+it raised a `ScriptExecutionError` with the given error message.
+
+This feature can be combined with soft forks for conditional logic.
+
+```s
+OP_TRY {
+    OP_PUSH s"this is a new feature"
+    OP_SOME_SOFT_FORK_RAISES_ERROR d1
+} EXCEPT {
+    OP_PUSH s"old nodes will not execute this"
+}
+```
 
 ### Defining and calling functions
 
@@ -149,8 +199,13 @@ conditional clause, i.e. `) ELSE (` should be its own line.
 - If `END_IF` is used instead of a closing parenthesis, it should be on its own
 line following the final statement of the conditional clause.
 - The type prefix of a value should be lowercase. If not, at least be consistent.
-- Brackets and parenthesis are recommended instead `END_DEF`/`END_IF`. Choose a
-single convention and be consistent.
+- The opening bracket of a try...except block should be at the end of the line
+starting `OP_TRY`, and the closing bracket be on its own line following the
+statements in the block. If an `EXCEPT` block is specified, it should be on the
+same line as the closing bracket of the previous block. If `END_TRY` is used
+instead of a closing bracket, then it should be on its own line.
+- Brackets and parenthesis are recommended instead `END_DEF`/`END_IF`/`END_TRY`.
+Choose a single convention and be consistent.
 
 ## Ops
 
@@ -272,6 +327,9 @@ puts the 2 resulting strings onto the queue
 - `OP_CHECK_TRANSFER count` - checks proofs of a transfer; see section below
 - `OP_MERKLEVAL hash` - enforces cryptographic commitment to branching script;
 see section above
+- `OP_TRY_EXCEPT size1 try_body size2 except_body` - executes the first block; if
+an exception is raised, it is serialized into a string and put on the queue,
+then the second block is executed
 - `NOP count` - removes `count` values from the queue; dummy ops useful for soft
 fork updates
 

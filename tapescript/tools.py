@@ -122,13 +122,13 @@ def _format_function_doc(function: Callable) -> str:
     if hasattr(return_annotation, '__name__'):
         return_annotation = return_annotation.__name__
 
-    val = '\n\n## '
+    val = '\n\n## `'
     val += name
     val += '('
     val += annotations
     val += '): -> '
     val += return_annotation
-    val += f'\n\n{docstring}'
+    val += f'`\n\n{docstring}'
     return val
 
 def generate_docs() -> list[str]:
@@ -173,12 +173,15 @@ def generate_docs() -> list[str]:
     paragraphs.append(_format_function_doc(add_opcode_parsing_handlers))
     paragraphs.append('\n\n# Tools')
     paragraphs.append(_format_function_doc(create_merklized_script))
-    paragraphs.append(_format_function_doc(generate_docs) + '\n')
+    paragraphs.append(_format_function_doc(generate_docs))
+    paragraphs.append(_format_function_doc(add_soft_fork) + '\n')
 
     return paragraphs
 
 def add_soft_fork(code: int, name: str, op: Callable) -> None:
-    """Adds a soft fork."""
+    """Adds a soft fork, adding the op to the interpreter and handlers
+        for compiling and decompiling.
+    """
     tert(callable(op), 'op must be callable')
 
     def compiler_handler(opname: str, symbols: list[str],

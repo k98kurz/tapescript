@@ -236,7 +236,7 @@ Runs OP_CHECK_EPOCH, then OP_VERIFY.
 
 ## OP_DEF - 41 - x29
 
-Read the next byte from the tape as the definition number; read the next 3 bytes
+Read the next byte from the tape as the definition number; read the next 2 bytes
 from the tape, interpreting as an unsigned int; read that many bytes from the
 tape as the subroutine definition; advance the pointer appropriately.
 
@@ -247,15 +247,15 @@ that definition tape, the queue, and the cache.
 
 ## OP_IF - 43 - x2B
 
-Read the next 3 bytes from the tape, interpreting as an unsigned int; read that
+Read the next 2 bytes from the tape, interpreting as an unsigned int; read that
 many bytes from the tape as a subroutine definition; pull a value from the queue
 and evaluate as a bool; if it is true, run the subroutine; advance the pointer
 appropriately.
 
 ## OP_IF_ELSE - 44 - x2C
 
-Read the next 3 bytes from the tape, interpreting as an unsigned int; read that
-many bytes from the tape as the IF subroutine definition; read the next 3 bytes
+Read the next 2 bytes from the tape, interpreting as an unsigned int; read that
+many bytes from the tape as the IF subroutine definition; read the next 2 bytes
 from the tape, interpreting as an unsigned int; read that many bytes from the
 tape as the ELSE subroutine definition; pull a value from the queue and evaluate
 as a bool; if it is true, run the IF subroutine; else run the ELSE subroutine;
@@ -356,8 +356,8 @@ call OP_EVAL.
 
 ## OP_TRY_EXCEPT - 61 - x3D
 
-Read the next 3 bytes from the tape, interpreting as an unsigned int; read that
-many bytes from the tape as the TRY subroutine definition; read 3 bytes from the
+Read the next 2 bytes from the tape, interpreting as an unsigned int; read that
+many bytes from the tape as the TRY subroutine definition; read 2 bytes from the
 tape, interpreting as an unsigned int; read that many bytes as the EXCEPT
 subroutine definition; execute the TRY subroutine in a try block; if an error
 occurs, serialize it and put it in the cache then run the EXCEPT subroutine.
@@ -1529,52 +1529,52 @@ soft-forks by redefining byte codes.
 
 # Other interpreter functions
 
-## run_script(script: bytes, cache_vals: dict = {}, contracts: dict = {}): -> tuple[Tape, LifoQueue, dict]
+## `run_script(script: bytes, cache_vals: dict = {}, contracts: dict = {}): -> tuple[Tape, LifoQueue, dict]`
 
 Run the given script byte code. Returns a tape, queue, and dict.
 
-## run_tape(tape: Tape, queue: LifoQueue, cache: dict): -> None
+## `run_tape(tape: Tape, queue: LifoQueue, cache: dict): -> None`
 
 Run the given tape using the queue and cache.
 
-## run_auth_script(script: bytes, cache_vals: dict = {}, contracts: dict = {}): -> bool
+## `run_auth_script(script: bytes, cache_vals: dict = {}, contracts: dict = {}): -> bool`
 
 Run the given auth script byte code. Returns True iff the queue has a single
 \x01 value after script execution and no errors were raised; otherwise, returns
 False.
 
-## add_opcode(code: int, name: str, function: Callable): -> None
+## `add_opcode(code: int, name: str, function: Callable): -> None`
 
 Adds an OP implementation with the code, name, and function.
 
-## add_contract(contract_id: bytes, contract: object): -> None
+## `add_contract(contract_id: bytes, contract: object): -> None`
 
 Add a contract to be loaded on each script execution.
 
-## remove_contract(contract_id: bytes): -> None
+## `remove_contract(contract_id: bytes): -> None`
 
 Remove a loaded contract to prevent it from being included on script execution.
 
-## add_contract_interface(interface: Protocol): -> None
+## `add_contract_interface(interface: Protocol): -> None`
 
 Adds an interface for type checking contracts. Interface must be a
 runtime_checkable Protocol.
 
-## remove_contract_interface(interface: Protocol): -> None
+## `remove_contract_interface(interface: Protocol): -> None`
 
 Removes an interface for type checking contracts.
 
 # Parsing functions
 
-## compile_script(script: str): -> bytes
+## `compile_script(script: str): -> bytes`
 
 Compile the given human-readable script into byte code.
 
-## decompile_script(script: bytes, indent: int = 0): -> list
+## `decompile_script(script: bytes, indent: int = 0): -> list`
 
 Decompile the byte code into human-readable script.
 
-## add_opcode_parsing_handlers(opname: str, compiler_handler: Callable, decompiler_handler: Callable): -> unseen_return_value
+## `add_opcode_parsing_handlers(opname: str, compiler_handler: Callable, decompiler_handler: Callable): -> unseen_return_value`
 
 Adds the handlers for parsing a new OP. The opname should start with OP_. The
 compiler_handler should have this annotation: ( opname: str, symbols: list[str],
@@ -1585,12 +1585,17 @@ else parsing will fail.
 
 # Tools
 
-## create_merklized_script(branches: list, levels: list = None): -> tuple
+## `create_merklized_script(branches: list, levels: list = None): -> tuple`
 
 Produces a Merklized, branching script structure with a branch on the left at
 every level. Returns a tuple of root script and list of branch execution
 scripts.
 
-## generate_docs(): -> list
+## `generate_docs(): -> list`
 
 Generates the docs file using annotations and docstrings.
+
+## `add_soft_fork(code: int, name: str, op: Callable): -> unseen_return_value`
+
+Adds a soft fork, adding the op to the interpreter and handlers for compiling
+and decompiling.

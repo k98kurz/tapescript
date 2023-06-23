@@ -18,6 +18,7 @@ controls in a distributed system.
 - [x] Half-decent docs
 - [x] Decent docs
 - [x] Package published
+- [x] Added try...except
 
 ## Usage
 
@@ -223,6 +224,12 @@ OP_PUSH x0123
 OP_PUSH x3210
 ```
 
+Additionally, conditional programming can be accomplished with soft fork ops by
+using `OP_TRY_EXCEPT`. The `EXCEPT` clause will never be executed by nodes that
+have not activated the soft fork, but it will be executed by nodes that have
+activated the soft fork and encountered an exception during execution of the new
+op.
+
 ### Testing
 
 First, clone the repo, set up the virtualenv, and install requirements.
@@ -245,7 +252,7 @@ python test/test_parsing.py
 python test/test_tools.py
 ```
 
-There are currently 158 tests and 31 test vectors used for validating the
+There are currently 159 tests and 31 test vectors used for validating the
 compiler, decompiler, and script running functions.
 
 ## ISC License
