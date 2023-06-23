@@ -88,7 +88,13 @@ OP_CONCAT_STR
 OP_SPLIT_STR d21
 OP_CHECK_TRANSFER d2
 OP_MERKLEVAL xfeedbeeffeedbeeffeedbeeffeedbeeffeedbeeffeedbeeffeedbeeffeedbeef
-NOP61 d1
+OP_TRY {
+    OP_FALSE
+    OP_VERIFY
+} EXCEPT {
+    OP_READ_CACHE x45
+    OP_PUSH s"ScriptExecutionError|OP_VERIFY check failed"
+}
 NOP62 d1
 NOP63 d1
 NOP64 d1
