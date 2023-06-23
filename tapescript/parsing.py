@@ -500,7 +500,7 @@ def parse_if(symbols: list[str]) -> tuple[int, tuple[bytes]]:
         index,
         (
             opcodes_inverse[opcode][0].to_bytes(1, 'big'),
-            (len(code) - else_len).to_bytes(3, 'big'),
+            (len(code) - else_len).to_bytes(2, 'big'),
             code
         )
     )
@@ -556,7 +556,7 @@ def parse_else(symbols: list[str]) -> tuple[int, tuple[bytes]]:
     return (
         index,
         (
-            len(code).to_bytes(3, 'big'),
+            len(code).to_bytes(2, 'big'),
             code
         )
     )
@@ -625,14 +625,14 @@ def parse_try(symbols: list[str]) -> tuple[int, tuple[bytes]]:
     code = b''.join(code)
 
     if except_len == 0:
-        code += except_len.to_bytes(3, 'big')
-        except_len = 3
+        code += except_len.to_bytes(2, 'big')
+        except_len = 2
 
     return (
         index,
         (
             opcodes_inverse['OP_TRY_EXCEPT'][0].to_bytes(1, 'big'),
-            (len(code) - except_len).to_bytes(3, 'big'),
+            (len(code) - except_len).to_bytes(2, 'big'),
             code
         )
     )
@@ -692,7 +692,7 @@ def parse_except(symbols: list[str]) -> tuple[int, tuple[bytes]]:
     return (
         index,
         (
-            len(code).to_bytes(3, 'big'),
+            len(code).to_bytes(2, 'big'),
             code
         )
     )
@@ -793,8 +793,8 @@ def compile_script(script: str) -> bytes:
 
             # add def size to code
             def_size = len(def_code)
-            yert(def_size < 2**24, 'def size limit exceeded')
-            code.append(def_size.to_bytes(3, 'big'))
+            yert(def_size < 2**16, 'def size limit exceeded')
+            code.append(def_size.to_bytes(2, 'big'))
 
             # add def code to code
             code.append(def_code)
@@ -851,24 +851,24 @@ def decompile_script(script: bytes, indent: int = 0) -> list[str]:
         match op_name:
             case 'OP_DEF':
                 def_handle = tape.read(1)[0]
-                def_length = int.from_bytes(tape.read(3), 'big')
+                def_length = int.from_bytes(tape.read(2), 'big')
                 def_body = tape.read(def_length)
                 def_lines = decompile_script(def_body, indent+1)
                 add_line(f'OP_DEF {def_handle}' + ' {')
                 code_lines.extend(def_lines)
                 add_line('}')
             case 'OP_IF':
-                if_len = int.from_bytes(tape.read(3), 'big')
+                if_len = int.from_bytes(tape.read(2), 'big')
                 if_body = tape.read(if_len)
                 if_lines = decompile_script(if_body, indent+1)
                 add_line('OP_IF (')
                 code_lines.extend(if_lines)
                 add_line(')')
             case 'OP_IF_ELSE':
-                if_len = int.from_bytes(tape.read(3), 'big')
+                if_len = int.from_bytes(tape.read(2), 'big')
                 if_body = tape.read(if_len)
                 if_lines = decompile_script(if_body, indent+1)
-                else_len = int.from_bytes(tape.read(3), 'big')
+                else_len = int.from_bytes(tape.read(2), 'big')
                 else_body = tape.read(else_len)
                 else_lines = decompile_script(else_body, indent+1)
                 add_line('OP_IF (')
@@ -877,10 +877,10 @@ def decompile_script(script: bytes, indent: int = 0) -> list[str]:
                 code_lines.extend(else_lines)
                 add_line(')')
             case 'OP_TRY_EXCEPT':
-                try_len = int.from_bytes(tape.read(3), 'big')
+                try_len = int.from_bytes(tape.read(2), 'big')
                 try_body = tape.read(try_len)
                 try_lines = decompile_script(try_body, indent+1)
-                except_len = int.from_bytes(tape.read(3), 'big')
+                except_len = int.from_bytes(tape.read(2), 'big')
                 except_body = tape.read(except_len)
                 except_lines = decompile_script(except_body, indent+1)
                 add_line('OP_TRY {')

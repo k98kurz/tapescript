@@ -943,7 +943,7 @@ class TestFunctions(unittest.TestCase):
 
     def test_OP_DEF_creates_subtape_definition(self):
         assert self.queue.empty()
-        self.tape = classes.Tape(b'\x00\x00\x00\x0bhello world')
+        self.tape = classes.Tape(b'\x00\x00\x0bhello world')
         assert not self.tape.definitions
         functions.OP_DEF(self.tape, self.queue, self.cache)
         assert b'\x00' in self.tape.definitions
@@ -1202,8 +1202,8 @@ class TestFunctions(unittest.TestCase):
             functions.OP_CALL(self.tape, self.queue, self.cache)
         assert str(e.exception) == 'callstack limit exceeded'
 
-    def test_OP_IF_reads_3uint_length_from_tape_pulls_top_queue_bool_and_executes_if_true(self):
-        length = b'\x00\x00\x02'
+    def test_OP_IF_reads_2uint_length_from_tape_pulls_top_queue_bool_and_executes_if_true(self):
+        length = b'\x00\x02'
         op_push0 = b'\x02'
         self.tape = classes.Tape(length + op_push0 + b'X')
         assert self.queue.empty()
@@ -1213,7 +1213,7 @@ class TestFunctions(unittest.TestCase):
         assert self.queue.get(False) == b'X'
         assert self.queue.empty()
 
-        length = b'\x00\x00\x02'
+        length = b'\x00\x02'
         op_push0 = b'\x02'
         self.tape = classes.Tape(length + op_push0 + b'X')
         assert self.queue.empty()
@@ -1223,7 +1223,7 @@ class TestFunctions(unittest.TestCase):
         assert self.queue.empty()
 
     def test_OP_IF_ELSE_reads_2_definitions_from_tape_and_executes_first_one_if_top_queue_value(self):
-        length = b'\x00\x00\x02'
+        length = b'\x00\x02'
         if_def = b'\x02Y'
         else_def = b'\x02N'
         self.tape = classes.Tape(length + if_def + length + else_def)
@@ -1243,8 +1243,8 @@ class TestFunctions(unittest.TestCase):
         assert self.queue.empty()
 
     def test_OP_TRY_EXCEPT_reads_2_definitions_from_tape_executes_properly(self):
-        try_len = (2).to_bytes(3, 'big')
-        except_len = (1).to_bytes(3, 'big')
+        try_len = b'\x00\x02'
+        except_len = b'\x00\x01'
         try_def = b'\x00\x20'
         except_def = b'\x01'
         self.tape = classes.Tape(try_len + try_def + except_len + except_def)
@@ -1442,19 +1442,19 @@ class TestFunctions(unittest.TestCase):
 
     def test_infinite_recursion_results_in_callstack_limit_exceeded_error(self):
         with self.assertRaises(errors.ScriptExecutionError) as e:
-            functions.run_script(b'\x29\x00\x00\x00\x02\x2a\x00\x2a\x00')
+            functions.run_script(b'\x29\x00\x00\x02\x2a\x00\x2a\x00')
         assert str(e.exception) == 'callstack limit exceeded'
 
     def test_OP_RETURN_exits_local_context_and_returns_to_outer_context(self):
         # return from def before adding int false to queue
-        code = b'\x29\x00\x00\x00\x02\x30\x00\x2a\x00\x01'
+        code = b'\x29\x00\x00\x02\x30\x00\x2a\x00\x01'
         tape, queue, _ = functions.run_script(code)
         assert tape.has_terminated()
         assert queue.get(False) == b'\x01'
         assert queue.empty()
 
         # return from def after adding int false to queue
-        code = b'\x29\x00\x00\x00\x02\x00\x30\x2a\x00\x01'
+        code = b'\x29\x00\x00\x02\x00\x30\x2a\x00\x01'
         tape, queue, _ = functions.run_script(code)
         assert tape.has_terminated()
         assert queue.get(False) == b'\x01'

@@ -605,12 +605,12 @@ def OP_CHECK_EPOCH_VERIFY(tape: Tape, queue: LifoQueue, cache: dict) -> None:
 
 def OP_DEF(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Read the next byte from the tape as the definition number; read
-        the next 3 bytes from the tape, interpreting as an unsigned int;
+        the next 2 bytes from the tape, interpreting as an unsigned int;
         read that many bytes from the tape as the subroutine definition;
         advance the pointer appropriately.
     """
     def_handle = tape.read(1)
-    def_size = int.from_bytes(tape.read(3), 'big')
+    def_size = int.from_bytes(tape.read(2), 'big')
 
     def_data = tape.read(def_size)
     subtape = Tape(
@@ -638,13 +638,13 @@ def OP_CALL(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     subtape.pointer = 0
 
 def OP_IF(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Read the next 3 bytes from the tape, interpreting as an unsigned
+    """Read the next 2 bytes from the tape, interpreting as an unsigned
         int; read that many bytes from the tape as a subroutine
         definition; pull a value from the queue and evaluate as a bool;
         if it is true, run the subroutine; advance the pointer
         appropriately.
     """
-    def_size = int.from_bytes(tape.read(3), 'big')
+    def_size = int.from_bytes(tape.read(2), 'big')
 
     def_data = tape.read(def_size)
 
@@ -659,18 +659,18 @@ def OP_IF(tape: Tape, queue: LifoQueue, cache: dict) -> None:
         run_tape(subtape, queue, cache)
 
 def OP_IF_ELSE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Read the next 3 bytes from the tape, interpreting as an unsigned
+    """Read the next 2 bytes from the tape, interpreting as an unsigned
         int; read that many bytes from the tape as the IF subroutine
-        definition; read the next 3 bytes from the tape, interpreting as
+        definition; read the next 2 bytes from the tape, interpreting as
         an unsigned int; read that many bytes from the tape as the ELSE
         subroutine definition; pull a value from the queue and evaluate
         as a bool; if it is true, run the IF subroutine; else run the
         ELSE subroutine; advance the pointer appropriately.
     """
-    if_def_size = int.from_bytes(tape.read(3), 'big')
+    if_def_size = int.from_bytes(tape.read(2), 'big')
     if_def_data = tape.read(if_def_size)
 
-    else_def_size = int.from_bytes(tape.read(3), 'big')
+    else_def_size = int.from_bytes(tape.read(2), 'big')
     else_def_data = tape.read(else_def_size)
 
     subtape = Tape(
@@ -908,18 +908,18 @@ def OP_MERKLEVAL(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     OP_EVAL(tape, queue, cache)
 
 def OP_TRY_EXCEPT(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Read the next 3 bytes from the tape, interpreting as an unsigned
+    """Read the next 2 bytes from the tape, interpreting as an unsigned
         int; read that many bytes from the tape as the TRY subroutine
-        definition; read 3 bytes from the tape, interpreting as an
+        definition; read 2 bytes from the tape, interpreting as an
         unsigned int; read that many bytes as the EXCEPT subroutine
         definition; execute the TRY subroutine in a try block; if an
         error occurs, serialize it and put it in the cache then run the
         EXCEPT subroutine.
     """
-    try_def_size = int.from_bytes(tape.read(3), 'big')
+    try_def_size = int.from_bytes(tape.read(2), 'big')
     try_def_data = tape.read(try_def_size)
 
-    except_def_size = int.from_bytes(tape.read(3), 'big')
+    except_def_size = int.from_bytes(tape.read(2), 'big')
     except_def_data = tape.read(except_def_size)
 
     subtape = Tape(
