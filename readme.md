@@ -278,6 +278,8 @@ permission granted to any company that contracts to supply weapons or
 logistics to any national military; nor is permission granted to any
 national government or governmental agency; nor is permission granted to
 any employees, associates, or affiliates of these designated entities.
+Notwithstanding the above exceptions, the code may be used without
+constraint for demonstration, educational, or entertainment purposes.
 
 THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL
 WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
