@@ -476,6 +476,10 @@ def parse_if(symbols: list[str]) -> tuple[int, tuple[bytes]]:
             advance, parts = parse_if(symbols[index+1:])
             index += advance
             code.extend(parts)
+        elif current_symbol == 'OP_TRY':
+            advance, parts = parse_try(symbols[index+1:])
+            index += advance
+            code.extend(parts)
         else:
             yert(current_symbol in opcodes_inverse or current_symbol == 'OP_PUSH',
                 f'unrecognized opcode: {current_symbol}')
@@ -532,6 +536,10 @@ def parse_else(symbols: list[str]) -> tuple[int, tuple[bytes]]:
             raise SyntaxError('cannot have multiple ELSE clauses')
         elif current_symbol == 'OP_IF':
             advance, parts = parse_if(symbols[index+1:])
+            index += advance
+            code.extend(parts)
+        elif current_symbol == 'OP_TRY':
+            advance, parts = parse_try(symbols[index+1:])
             index += advance
             code.extend(parts)
         else:

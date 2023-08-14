@@ -224,6 +224,7 @@ class TestParsing(unittest.TestCase):
             'omega_e2e.src': 'omega_e2e.hex',
             'branching_e2e.src': 'branching_e2e.hex',
             'trydef.src': 'trydef.hex',
+            'try_in_if.src': 'try_in_if.hex',
         }
         vectors = {}
         names = {}

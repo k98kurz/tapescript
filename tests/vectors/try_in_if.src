@@ -1,0 +1,11 @@
+OP_IF (
+	OP_TRY {
+		OP_EQUAL_VERIFY
+	} EXCEPT {
+		OP_RETURN
+	}
+) ELSE (
+	OP_TRY {
+		OP_EQUAL_VERIFY
+	}
+)
