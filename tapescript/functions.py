@@ -123,9 +123,9 @@ def OP_WRITE_CACHE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
         the queue and write them to the cache; advance the pointer
         appropriately.
     """
-    size = int.from_bytes(tape.read(1))
+    size = int.from_bytes(tape.read(1), 'big')
     key = tape.read(size)
-    n_items = int.from_bytes(tape.read(1))
+    n_items = int.from_bytes(tape.read(1), 'big')
     items = []
 
     for _ in range(n_items):

@@ -1563,8 +1563,8 @@ class TestFunctions(unittest.TestCase):
     def test_p2pk_e2e(self):
         message = b'spending bitcoinz or something'
         ts = int(time())
-        ts_bytes = ts.to_bytes(4)
-        old_ts = (1694791613).to_bytes(4)
+        ts_bytes = ts.to_bytes(4, 'big')
+        old_ts = (1694791613).to_bytes(4, 'big')
         cache_vals = {
             'sigfield1': message,
             'timestamp': ts,
