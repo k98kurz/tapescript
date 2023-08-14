@@ -1202,6 +1202,18 @@ class TestFunctions(unittest.TestCase):
             functions.OP_CALL(self.tape, self.queue, self.cache)
         assert str(e.exception) == 'callstack limit exceeded'
 
+    def test_OP_CALL_does_not_reset_definition_pointer(self):
+        self.tape = classes.Tape(b'\x00')
+        subtape = classes.Tape(b'\x2b\x00\x03\x00\x2a\x00\x02\x03')
+        self.tape.definitions[b'\x00'] = subtape
+        subtape.definitions = self.tape.definitions
+        assert self.queue.empty()
+        self.queue.put(b'\x01', False)
+        functions.OP_CALL(self.tape, self.queue, self.cache)
+        assert self.tape.definitions[b'\x00'].pointer == 0
+        assert not self.queue.empty()
+        assert self.queue.get(False) == b'\x03'
+
     def test_OP_IF_reads_2uint_length_from_tape_pulls_top_queue_bool_and_executes_if_true(self):
         length = b'\x00\x02'
         op_push0 = b'\x02'

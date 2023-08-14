@@ -632,10 +632,12 @@ def OP_CALL(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     def_handle = tape.read(1)
     tape.callstack_count += 1
     subtape = tape.definitions[def_handle]
+    init_pointer = subtape.pointer
     subtape.callstack_count = tape.callstack_count
 
-    run_tape(subtape, queue, cache)
     subtape.pointer = 0
+    run_tape(subtape, queue, cache)
+    subtape.pointer = init_pointer
 
 def OP_IF(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Read the next 2 bytes from the tape, interpreting as an unsigned
