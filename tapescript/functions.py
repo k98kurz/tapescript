@@ -638,6 +638,8 @@ def OP_CALL(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     subtape.pointer = 0
     run_tape(subtape, queue, cache)
     subtape.pointer = init_pointer
+    if 'returned' in cache:
+        del cache['returned']
 
 def OP_IF(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Read the next 2 bytes from the tape, interpreting as an unsigned
@@ -659,6 +661,8 @@ def OP_IF(tape: Tape, queue: LifoQueue, cache: dict) -> None:
             contracts=tape.contracts
         )
         run_tape(subtape, queue, cache)
+        if 'returned' in cache:
+            OP_RETURN(tape, queue, cache)
 
 def OP_IF_ELSE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Read the next 2 bytes from the tape, interpreting as an unsigned
@@ -727,6 +731,7 @@ def OP_RANDOM(tape: Tape, queue: LifoQueue, cache: dict) -> None:
 def OP_RETURN(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Ends the script."""
     tape.pointer = len(tape.data)
+    cache['returned'] = True
 
 def OP_SET_FLAG(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int;
