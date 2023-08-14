@@ -71,7 +71,7 @@ class TestTools(unittest.TestCase):
         tape, queue, cache = functions.run_script(unlocking_script + locking_script)
         assert tape.has_terminated()
         assert not queue.empty()
-        assert int.from_bytes(queue.get(False)) == 123
+        assert int.from_bytes(queue.get(False), 'big') == 123
         assert queue.empty()
 
     def test_create_merklized_script_2_branches_e2e(self):
@@ -83,7 +83,7 @@ class TestTools(unittest.TestCase):
         tape, queue, cache = functions.run_script(unlocking_scripts[0] + locking_script)
         assert tape.has_terminated()
         assert not queue.empty()
-        assert int.from_bytes(queue.get(False)) == 123
+        assert int.from_bytes(queue.get(False), 'big') == 123
         assert queue.empty()
 
         tape, queue, cache = functions.run_script(unlocking_scripts[1] + locking_script)
@@ -103,7 +103,7 @@ class TestTools(unittest.TestCase):
         tape, queue, cache = functions.run_script(unlocking_scripts[0] + locking_script)
         assert tape.has_terminated()
         assert not queue.empty()
-        assert int.from_bytes(queue.get(False)) == 123
+        assert int.from_bytes(queue.get(False), 'big') == 123
         assert queue.empty()
 
         tape, queue, cache = functions.run_script(unlocking_scripts[1] + locking_script)
@@ -129,7 +129,7 @@ class TestTools(unittest.TestCase):
             tape, queue, cache = functions.run_script(unlocking_scripts[i] + locking_script)
             assert tape.has_terminated()
             assert not queue.empty()
-            assert int.from_bytes(queue.get(False)) == i
+            assert int.from_bytes(queue.get(False), 'big') == i
             assert queue.empty()
 
     def test_add_soft_fork_e2e(self):
