@@ -687,6 +687,8 @@ def OP_IF_ELSE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
         contracts=tape.contracts,
     )
     run_tape(subtape, queue, cache)
+    if 'returned' in cache:
+        OP_RETURN(tape, queue, cache)
 
 def OP_EVAL(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Pulls a value from the stack then attempts to run it as a script.
@@ -950,6 +952,9 @@ def OP_TRY_EXCEPT(tape: Tape, queue: LifoQueue, cache: dict) -> None:
             contracts=tape.contracts,
         )
         run_tape(subtape, queue, cache)
+
+    if 'returned' in cache:
+        OP_RETURN(tape, queue, cache)
 
 def NOP(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int
