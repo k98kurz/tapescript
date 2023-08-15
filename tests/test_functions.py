@@ -1481,6 +1481,22 @@ class TestFunctions(unittest.TestCase):
         assert queue.get(False) == b'\x02'
         assert queue.empty()
 
+    def test_OP_RETURN_within_OP_IF_ELSE_exits_outer_context(self):
+        # return from def within OP_IF before adding int false to queue
+        code = b'\x29\x00\x00\x08\x2c\x00\x02\x30\x00\x00\x00\x01\x01\x2a\x00\x02\x02'
+        tape, queue, _ = functions.run_script(code)
+        assert tape.has_terminated()
+        assert queue.get(False) == b'\x02'
+        assert queue.empty()
+
+    def test_OP_RETURN_within_OP_TRY_EXCEPT_exits_outer_context(self):
+        # return from def within OP_TRY_EXCEPT before adding int false to queue
+        code = b'\x29\x00\x00\x07\x3d\x00\x01\x30\x00\x00\x01\x2a\x00\x02\x02'
+        tape, queue, _ = functions.run_script(code)
+        assert tape.has_terminated()
+        assert queue.get(False) == b'\x02'
+        assert queue.empty()
+
     def test_add_opcode_raises_errors_for_invalid_input(self):
         function = lambda tape, queue, cache: queue.put('nonsense')
         with self.assertRaises(TypeError) as e:
