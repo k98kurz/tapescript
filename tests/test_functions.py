@@ -1497,6 +1497,21 @@ class TestFunctions(unittest.TestCase):
         assert queue.get(False) == b'\x02'
         assert queue.empty()
 
+    def test_OP_RETURN_within_OP_EVAL_does_not_exit_outer_context(self):
+        # do not return from def within OP_EVAL before adding \xff to queue
+        code = b'\x29\x00\x00\x05' + b'\x02\x30\x2d\x02\xff' + b'\x2a\x00'
+        tape, queue, _ = functions.run_script(code)
+        assert tape.has_terminated()
+        assert queue.get(False) == b'\xff'
+        assert queue.empty()
+
+    def test_OP_RETURN_within_OP_EVAL_exits_outer_context_when_eval_return_flag_set(self):
+        # return from def within OP_EVAL before adding \xff to queue
+        code = b'\x29\x00\x00\x05' + b'\x02\x30\x2d\x02\xff' + b'\x2a\x00'
+        tape, queue, _ = functions.run_script(code, additional_flags={'eval_return':True})
+        assert tape.has_terminated()
+        assert queue.empty()
+
     def test_add_opcode_raises_errors_for_invalid_input(self):
         function = lambda tape, queue, cache: queue.put('nonsense')
         with self.assertRaises(TypeError) as e:

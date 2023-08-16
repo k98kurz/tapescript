@@ -636,7 +636,7 @@ def OP_CALL(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     subtape.callstack_count = tape.callstack_count
 
     subtape.pointer = 0
-    run_tape(subtape, queue, cache)
+    run_tape(subtape, queue, cache, additional_flags=tape.flags)
     subtape.pointer = init_pointer
     if 'returned' in cache:
         del cache['returned']
@@ -660,7 +660,7 @@ def OP_IF(tape: Tape, queue: LifoQueue, cache: dict) -> None:
             definitions={**tape.definitions},
             contracts=tape.contracts
         )
-        run_tape(subtape, queue, cache)
+        run_tape(subtape, queue, cache, additional_flags=tape.flags)
         if 'returned' in cache:
             OP_RETURN(tape, queue, cache)
 
@@ -686,18 +686,16 @@ def OP_IF_ELSE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
         definitions={**tape.definitions},
         contracts=tape.contracts,
     )
-    run_tape(subtape, queue, cache)
+    run_tape(subtape, queue, cache, additional_flags=tape.flags)
     if 'returned' in cache:
         OP_RETURN(tape, queue, cache)
 
 def OP_EVAL(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Pulls a value from the stack then attempts to run it as a script.
-        Any values pulled from the eval queue are then put on the main
-        queue. Script is disallowed from using OP_EVAL or modifying
-        tape.flags, tape.definitions, or cache; it is executed with
-        callstack_count=tape.callstack_count+1 and copies of
-        tape.callstack_limit, tape.flags, tape.definitions, cache, and
-        queue.
+        OP_EVAL shares a common queue and cache with other ops. Script
+        is disallowed from modifying tape.flags ortape.definitions; it
+        is executed with callstack_count=tape.callstack_count+1 and
+        copies of tape.flags and tape.definitions.
     """
     sert('disallow_OP_EVAL' not in tape.flags, 'OP_EVAL disallowed')
     script = queue.get(False)
@@ -714,7 +712,12 @@ def OP_EVAL(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     )
 
     # run
-    run_tape(subtape, queue, cache)
+    run_tape(subtape, queue, cache, additional_flags=tape.flags)
+    if 'returned' in cache:
+        if 'eval_return' in tape.flags:
+            OP_RETURN(tape, queue, cache)
+        else:
+            del cache['returned']
 
 def OP_NOT(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Pulls a value from the queue, interpreting as a bool; performs
@@ -940,7 +943,7 @@ def OP_TRY_EXCEPT(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     )
 
     try:
-        run_tape(subtape, queue, cache)
+        run_tape(subtape, queue, cache, additional_flags=tape.flags)
     except BaseException as e:
         serialized = e.__class__.__name__ + '|' + str(e)
         cache[b'E'] = [serialized.encode('utf-8')]
@@ -951,7 +954,7 @@ def OP_TRY_EXCEPT(tape: Tape, queue: LifoQueue, cache: dict) -> None:
             definitions={**tape.definitions},
             contracts=tape.contracts,
         )
-        run_tape(subtape, queue, cache)
+        run_tape(subtape, queue, cache, additional_flags=tape.flags)
 
     if 'returned' in cache:
         OP_RETURN(tape, queue, cache)
@@ -1115,25 +1118,30 @@ def add_opcode(code: int, name: str, function: Callable) -> None:
         del nopcodes[code]
         del nopcodes_inverse[nopname]
 
-def set_tape_flags(tape: Tape) -> Tape:
+def set_tape_flags(tape: Tape, additional_flags: dict = {}) -> Tape:
     for key in flags:
         if type(key) is str:
             tape.flags[key] = flags[key]
+    for key in additional_flags:
+        if type(key) is str:
+            tape.flags[key] = additional_flags[key]
     return tape
 
 def run_script(script: bytes, cache_vals: dict = {},
-               contracts: dict = {}) -> tuple[Tape, LifoQueue, dict]:
+               contracts: dict = {},
+               additional_flags: dict = {}) -> tuple[Tape, LifoQueue, dict]:
     """Run the given script byte code. Returns a tape, queue, and dict."""
     tape = Tape(script)
     queue = LifoQueue()
     cache = {**cache_vals}
     tape.contracts = {**_contracts, **contracts}
-    run_tape(tape, queue, cache)
+    run_tape(tape, queue, cache, additional_flags=additional_flags)
     return (tape, queue, cache)
 
-def run_tape(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+def run_tape(tape: Tape, queue: LifoQueue, cache: dict,
+             additional_flags: dict = {}) -> None:
     """Run the given tape using the queue and cache."""
-    tape = set_tape_flags(tape)
+    tape = set_tape_flags(tape, additional_flags)
     while not tape.has_terminated():
         op_code = tape.read(1)[0]
         if op_code in opcodes:
