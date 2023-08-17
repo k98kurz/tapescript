@@ -112,6 +112,10 @@ See "Example 5: merklized script" in the [script_examples.md](https://github.com
 file for a thorough example of how this works and how it compares to using
 `OP_IF_ELSE` for conditional execution and cryptographic script commitments.
 
+A tool is provided that generates the locking and unlocking scripts for use with
+`OP_MERKLEVAL`. See the "#### Merklized Scripts" section of the readme for more
+details.
+
 ### Exception handling
 
 Some ops, such as `OP_VERIFY` and `OP_CHECK_EPOCH_VERIFY`, will raise exceptions

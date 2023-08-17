@@ -263,11 +263,11 @@ advance the pointer appropriately.
 
 ## OP_EVAL - 45 - x2D
 
-Pulls a value from the stack then attempts to run it as a script. Any values
-pulled from the eval queue are then put on the main queue. Script is disallowed
-from using OP_EVAL or modifying tape.flags, tape.definitions, or cache; it is
-executed with callstack_count=tape.callstack_count+1 and copies of
-tape.callstack_limit, tape.flags, tape.definitions, cache, and queue.
+Pulls a value from the stack then attempts to run it as a script. OP_EVAL shares
+a common queue and cache with other ops. Script is disallowed from modifying
+tape.flags or tape.definitions; it is executed with
+callstack_count=tape.callstack_count+1 and copies of tape.flags and
+tape.definitions; it also has access to all loaded contracts.
 
 ## OP_NOT - 46 - x2E
 
@@ -1529,11 +1529,11 @@ soft-forks by redefining byte codes.
 
 # Other interpreter functions
 
-## `run_script(script: bytes, cache_vals: dict = {}, contracts: dict = {}): -> tuple[Tape, LifoQueue, dict]`
+## `run_script(script: bytes, cache_vals: dict = {}, contracts: dict = {}, additional_flags: dict = {}): -> tuple[Tape, LifoQueue, dict]`
 
 Run the given script byte code. Returns a tape, queue, and dict.
 
-## `run_tape(tape: Tape, queue: LifoQueue, cache: dict): -> None`
+## `run_tape(tape: Tape, queue: LifoQueue, cache: dict, additional_flags: dict = {}): -> None`
 
 Run the given tape using the queue and cache.
 
