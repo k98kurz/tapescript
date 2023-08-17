@@ -693,7 +693,7 @@ def OP_IF_ELSE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
 def OP_EVAL(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Pulls a value from the stack then attempts to run it as a script.
         OP_EVAL shares a common queue and cache with other ops. Script
-        is disallowed from modifying tape.flags ortape.definitions; it
+        is disallowed from modifying tape.flags or tape.definitions; it
         is executed with callstack_count=tape.callstack_count+1 and
         copies of tape.flags and tape.definitions.
     """
