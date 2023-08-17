@@ -695,7 +695,8 @@ def OP_EVAL(tape: Tape, queue: LifoQueue, cache: dict) -> None:
         OP_EVAL shares a common queue and cache with other ops. Script
         is disallowed from modifying tape.flags or tape.definitions; it
         is executed with callstack_count=tape.callstack_count+1 and
-        copies of tape.flags and tape.definitions.
+        copies of tape.flags and tape.definitions; it also has access to
+        all loaded contracts.
     """
     sert('disallow_OP_EVAL' not in tape.flags, 'OP_EVAL disallowed')
     script = queue.get(False)
