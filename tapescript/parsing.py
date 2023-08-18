@@ -43,7 +43,9 @@ def get_symbols(script: str) -> list[str]:
 
 additional_opcodes = {}
 
-def add_opcode_parsing_handlers(opname: str, compiler_handler: Callable, decompiler_handler: Callable) -> None:
+def add_opcode_parsing_handlers(
+        opname: str, compiler_handler: Callable, decompiler_handler: Callable
+    ) -> None:
     """Adds the handlers for parsing a new OP. The opname should start
         with OP_. The compiler_handler should have this annotation: (
         opname: str, symbols: list[str], symbols_to_advance: int,
@@ -55,11 +57,16 @@ def add_opcode_parsing_handlers(opname: str, compiler_handler: Callable, decompi
     """
     additional_opcodes[opname] = (compiler_handler, decompiler_handler)
 
-def _get_additional_opcode_args(opname: str, symbols: list[str], symbols_to_advance: int, symbol_index: int) -> tuple[int, tuple[bytes]]:
+def _get_additional_opcode_args(
+        opname: str, symbols: list[str], symbols_to_advance: int,
+        symbol_index: int
+    ) -> tuple[int, tuple[bytes]]:
     vert(opname in additional_opcodes, f'unrecognized opname {opname}')
     return additional_opcodes[opname][0](opname, symbols, symbols_to_advance, symbol_index)
 
-def _get_OP_PUSH_args(opname: str, symbols: list[str], symbols_to_advance: int) -> tuple[int, tuple[bytes]]:
+def _get_OP_PUSH_args(
+        opname: str, symbols: list[str], symbols_to_advance: int
+    ) -> tuple[int, tuple[bytes]]:
     args = []
     symbols_to_advance += 1
     val = symbols[0]
@@ -103,7 +110,9 @@ def _get_OP_PUSH_args(opname: str, symbols: list[str], symbols_to_advance: int) 
     args.append(val)
     return (symbols_to_advance, args)
 
-def _get_OP_WRITE_CACHE_args(opname: str, symbols: list[str], symbols_to_advance: int) -> tuple[int, tuple[bytes]]:
+def _get_OP_WRITE_CACHE_args(
+        opname: str, symbols: list[str], symbols_to_advance: int
+    ) -> tuple[int, tuple[bytes]]:
     symbols_to_advance += 2
     cache_key = symbols[0]
     count = symbols[1]
@@ -151,7 +160,9 @@ def _get_OP_WRITE_CACHE_args(opname: str, symbols: list[str], symbols_to_advance
 
     return (symbols_to_advance, [size.to_bytes(1, 'big'), cache_key, count.to_bytes(1, 'big')])
 
-def _get_OP_PUSH0_type_args(opname: str, symbols: list[str], symbols_to_advance: int, symbol_index: int) -> tuple[int, tuple[bytes]]:
+def _get_OP_PUSH0_type_args(
+        opname: str, symbols: list[str], symbols_to_advance: int, symbol_index: int
+    ) -> tuple[int, tuple[bytes]]:
     args = []
     symbols_to_advance += 1
     val = symbols[0]
@@ -173,7 +184,10 @@ def _get_OP_PUSH0_type_args(opname: str, symbols: list[str], symbols_to_advance:
             args.append(val if len(val) == 1 else b'\x00')
     return (symbols_to_advance, args)
 
-def _get_OP_PUSH1_type_args(opname: str, symbols: list[str], symbols_to_advance: int, symbol_index: int) -> tuple[int, tuple[bytes]]:
+def _get_OP_PUSH1_type_args(
+        opname: str, symbols: list[str], symbols_to_advance: int,
+        symbol_index: int
+    ) -> tuple[int, tuple[bytes]]:
     args = []
     val = None
 
@@ -221,7 +235,10 @@ def _get_OP_PUSH1_type_args(opname: str, symbols: list[str], symbols_to_advance:
             args.append(val)
     return (symbols_to_advance, args)
 
-def _get_OP_PUSH2_args(opname: str, symbols: list[str], symbols_to_advance: int, symbol_index: int) -> tuple[int, tuple[bytes]]:
+def _get_OP_PUSH2_args(
+        opname: str, symbols: list[str], symbols_to_advance: int,
+        symbol_index: int
+    ) -> tuple[int, tuple[bytes]]:
     args = []
     val = None
 
@@ -268,7 +285,10 @@ def _get_OP_PUSH2_args(opname: str, symbols: list[str], symbols_to_advance: int,
     args.append(val)
     return (symbols_to_advance, args)
 
-def _get_OP_PUSH4_args(opname: str, symbols: list[str], symbols_to_advance: int, symbol_index: int) -> tuple[int, tuple[bytes]]:
+def _get_OP_PUSH4_args(
+        opname: str, symbols: list[str], symbols_to_advance: int,
+        symbol_index: int
+    ) -> tuple[int, tuple[bytes]]:
     args = []
     val = None
 
@@ -316,7 +336,10 @@ def _get_OP_PUSH4_args(opname: str, symbols: list[str], symbols_to_advance: int,
     args.append(val)
     return (symbols_to_advance, args)
 
-def _get_OP_DIV_FLOAT_args(opname: str, symbols: list[str], symbols_to_advance: int, symbol_index: int) -> tuple[int, tuple[bytes]]:
+def _get_OP_DIV_FLOAT_args(
+        opname: str, symbols: list[str], symbols_to_advance: int,
+        symbol_index: int
+    ) -> tuple[int, tuple[bytes]]:
     args = []
     symbols_to_advance += 1
     val = symbols[0]
@@ -334,7 +357,10 @@ def _get_OP_DIV_FLOAT_args(opname: str, symbols: list[str], symbols_to_advance: 
             args.append(bytes.fromhex(val[1:]))
     return (symbols_to_advance, args)
 
-def _get_OP_SWAP_args(opname: str, symbols: list[str], symbols_to_advance: int, symbol_index: int) -> tuple[int, tuple[bytes]]:
+def _get_OP_SWAP_args(
+        opname: str, symbols: list[str], symbols_to_advance: int,
+        symbol_index: int
+    ) -> tuple[int, tuple[bytes]]:
     args = []
     symbols_to_advance += 2
     vals = symbols[:2]
@@ -359,7 +385,10 @@ def _get_OP_SWAP_args(opname: str, symbols: list[str], symbols_to_advance: int, 
                 args.append(bytes.fromhex(val[1:]))
     return (symbols_to_advance, args)
 
-def _get_OP_MERKLEVAL_args(opname: str, symbols: list[str], symbols_to_advance: int, symbol_index: int) -> tuple[int, tuple[bytes]]:
+def _get_OP_MERKLEVAL_args(
+        opname: str, symbols: list[str], symbols_to_advance: int,
+        symbol_index: int
+    ) -> tuple[int, tuple[bytes]]:
     args = []
     symbols_to_advance += 1
     val = symbols[0]
@@ -368,10 +397,15 @@ def _get_OP_MERKLEVAL_args(opname: str, symbols: list[str], symbols_to_advance: 
     args.append(bytes.fromhex(val[1:]))
     return (symbols_to_advance, args)
 
-def _get_nopcode_args(opname: str, symbols: list[str], symbols_to_advance: int, symbol_index: int) -> tuple[int, tuple[bytes]]:
+def _get_nopcode_args(
+        opname: str, symbols: list[str], symbols_to_advance: int,
+        symbol_index: int
+    ) -> tuple[int, tuple[bytes]]:
     return _get_OP_PUSH0_type_args(opname, symbols, symbols_to_advance, symbol_index)
 
-def get_args(opname: str, symbols: list[str], symbol_index: int) -> tuple[int, tuple[bytes]]:
+def get_args(
+        opname: str, symbols: list[str], symbol_index: int
+    ) -> tuple[int, tuple[bytes]]:
     """Get the number of symbols to advance and args for an op."""
     symbols_to_advance = 1
     args = []
