@@ -140,10 +140,18 @@ def generate_docs() -> list[str]:
         doc = opcodes_inverse[opname][1].__doc__
         data[number] = (opname, doc)
 
+    nop_doc = None
+    min_nop_number, max_nop_number = 255, 0
     for nopname in nopcodes_inverse:
+        if nop_doc is None:
+            nop_doc = nopcodes_inverse[nopname][1].__doc__
         number = nopcodes_inverse[nopname][0]
-        doc = nopcodes_inverse[nopname][1].__doc__
-        data[number] = (nopname, doc)
+        min_nop_number = number if number < min_nop_number else min_nop_number
+        max_nop_number = number if number > max_nop_number else max_nop_number
+    nop_code_snippet = f"{min_nop_number}-{max_nop_number} " + \
+        f"(x{min_nop_number.to_bytes(1, 'big').hex().upper()}-" + \
+        f"{max_nop_number.to_bytes(1, 'big').hex().upper()})"
+    nop_doc = f"Codes in {nop_code_snippet}\n" + nop_doc
 
     paragraphs = [
         '# OPs\n\n'
@@ -157,6 +165,9 @@ def generate_docs() -> list[str]:
         line = f'\n## {data[number][0]} - {number} - x{number.to_bytes(1, "big").hex().upper()}\n\n'
         docstring = _format_docstring(data[number][1])
         paragraphs.append(line + docstring + '\n')
+
+    paragraphs.append(f"\n## NOP Codes - {nop_code_snippet}\n\n" +
+                      _format_docstring(nop_doc) + '\n')
 
     paragraphs.append('\n\n# Other interpreter functions')
     paragraphs.append(_format_function_doc(run_script))
