@@ -1,5 +1,5 @@
 from .classes import Tape
-from .errors import ScriptExecutionError
+from .errors import ScriptExecutionError, SyntaxError
 from .functions import (
     run_script,
     run_tape,
