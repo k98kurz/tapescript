@@ -184,22 +184,24 @@ def add_soft_fork(code: int, name: str, op: Callable) -> None:
     """
     tert(callable(op), 'op must be callable')
 
-    def compiler_handler(opname: str, symbols: list[str],
-                         symbols_to_advance: int) -> tuple[int, tuple[bytes]]:
+    def compiler_handler(
+            opname: str, symbols: list[str], symbols_to_advance: int,
+            symbol_index: int
+        ) -> tuple[int, tuple[bytes]]:
         symbols_to_advance += 1
         val = symbols[0]
         yert(val[0] in ('d', 'x'),
-            f'{opname} argument must be prefaced with d or x')
+            f'{opname} - argument must be prefaced with d or x - symbol {symbol_index}')
         match val[0]:
             case 'd':
                 val = int(val[1:])
                 yert(0 <= val < 256,
-                    f'{opname} argument must be between 0-255')
+                    f'{opname} - argument must be between 0-255 - symbol {symbol_index}')
                 val = val.to_bytes(1, 'big')
             case 'x':
                 val = bytes.fromhex(val[1:])
                 yert(len(val) == 1,
-                    f'{opname} argument must be 1 byte')
+                    f'{opname} - argument must be 1 byte - symbol {symbol_index}')
         return (symbols_to_advance, (val,))
 
     def decompiler_handler(opname: str, tape: Tape) -> list[str]:
