@@ -152,7 +152,7 @@ def _get_OP_WRITE_CACHE_args(
             else:
                 count = int(count[1:])
         case 'x':
-            count = bytes.fromhex(count[1:])
+            count = int.from_bytes(bytes.fromhex(count[1:]), 'big')
 
     size = len(cache_key)
     yert(size < 256, 'cache_key max length of 255 exceeded for OP_WRITE_CACHE')
