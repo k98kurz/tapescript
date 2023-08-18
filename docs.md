@@ -1578,10 +1578,10 @@ Decompile the byte code into human-readable script.
 
 Adds the handlers for parsing a new OP. The opname should start with OP_. The
 compiler_handler should have this annotation: ( opname: str, symbols: list[str],
-symbols_to_advance: int) -> tuple[int, tuple[bytes]]. The decompiler_handler
-should have this annotation: (op_name: str, tape: Tape) -> listr[str]. The OP
-implementation must be added to the interpreter via the add_opcode function,
-else parsing will fail.
+symbols_to_advance: int, symbol_index: int) -> tuple[int, tuple[bytes]]. The
+decompiler_handler should have this annotation: (op_name: str, tape: Tape) ->
+listr[str]. The OP implementation must be added to the interpreter via the
+add_opcode function, else parsing will fail.
 
 # Tools
 

@@ -91,7 +91,7 @@ The interpreter flags can be changed by changing the `functions.flags` dict.
 
 #### Adding ops
 
-The ops can be updated via monkeypatching.
+The ops can be updated via a plugin system.
 
 ```py
 from queue import LifoQueue
@@ -103,8 +103,11 @@ def OP_SOME_NONSENSE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     for _ in range(count):
         queue.put(b'some nonsense')
 
-def OP_SOME_NONSENSE_compiler(opname: str, symbols: list[str], symbols_to_advance: int):
+def OP_SOME_NONSENSE_compiler(opname: str, symbols: list[str],
+        symbols_to_advance: int, symbol_index: int):
     symbols_to_advance += 1
+    if symbols[0][0] != 'd':
+        raise SyntaxError(f'{opname} - int argument must begin with d - {symbol_index}')
     val = int(symbols[0][1:]).to_bytes(1, 'big)
     return (symbols_to_advance, (val,))
 
