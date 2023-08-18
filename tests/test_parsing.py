@@ -48,12 +48,12 @@ class TestParsing(unittest.TestCase):
 
     def test_parse_if_errors_on_incomplete_OP_IF(self):
         with self.assertRaises(errors.SyntaxError) as e:
-            parsing.parse_if(['(', 'OP_POP0'])
-        assert str(e.exception) == 'unterminated OP_IF: missing matching )'
+            parsing.parse_if(['(', 'OP_POP0'], 0)
+        assert str(e.exception) == 'unterminated OP_IF: missing matching ) - symbol 0'
 
         with self.assertRaises(errors.SyntaxError) as e:
-            parsing.parse_if(['OP_POP0'])
-        assert str(e.exception) == 'missing END_IF'
+            parsing.parse_if(['OP_POP0'], 0)
+        assert str(e.exception) == 'missing END_IF - symbol 0'
 
     def test_compile_script_errors_on_nonstr_input(self):
         with self.assertRaises(ValueError) as e:
@@ -68,35 +68,35 @@ class TestParsing(unittest.TestCase):
     def test_compile_script_errors_on_invalid_opcode_use_syntax(self):
         with self.assertRaises(errors.SyntaxError) as e:
             parsing.compile_script('OP_DEF notnumeric OP_DEF 1 OP_PUSH x01 END_DEF END_DEF')
-        assert str(e.exception) == 'def number must be numeric'
+        assert 'def number must be numeric' in str(e.exception)
 
         with self.assertRaises(ValueError) as e:
             parsing.compile_script('OP_DEF x123 OP_DEF 1 OP_PUSH x01 END_DEF END_DEF')
-        assert str(e.exception) == 'def number must be in x00-xff'
+        assert 'def number must be in x00-xff' in str(e.exception)
 
         with self.assertRaises(ValueError) as e:
             parsing.compile_script('OP_DEF 2000 OP_DEF 1 OP_PUSH x01 END_DEF END_DEF')
-        assert str(e.exception) == 'def number must be in 0-255'
+        assert 'def number must be in 0-255' in str(e.exception)
 
         with self.assertRaises(ValueError) as e:
             parsing.compile_script('OP_DEF d2000 OP_DEF 1 OP_PUSH x01 END_DEF END_DEF')
-        assert str(e.exception) == 'def number must be in d0-d255'
+        assert 'def number must be in d0-d255' in str(e.exception)
 
         with self.assertRaises(errors.SyntaxError) as e:
             parsing.compile_script('OP_DEF 1 { OP_PUSH x01')
-        assert str(e.exception) == 'missing matching }'
+        assert 'missing matching }' in str(e.exception)
 
         with self.assertRaises(errors.SyntaxError) as e:
             parsing.compile_script('OP_DEF 1 OP_PUSH x01')
-        assert str(e.exception) == 'missing END_DEF'
+        assert 'missing END_DEF' in str(e.exception)
 
         with self.assertRaises(errors.SyntaxError) as e:
             parsing.compile_script('OP_DEF 0 OP_DEF 1 OP_PUSH x01 END_DEF END_DEF')
-        assert str(e.exception) == 'cannot use OP_DEF within OP_DEF body'
+        assert 'cannot use OP_DEF within OP_DEF body' in str(e.exception)
 
         with self.assertRaises(errors.SyntaxError) as e:
             parsing.compile_script('OP_DEF 0 { d123 }')
-        assert str(e.exception) == 'statements must begin with valid op code, not d123'
+        assert 'statements must begin with valid op code, not d123' in str(e.exception)
 
         with self.assertRaises(errors.SyntaxError) as e:
             parsing.compile_script('OP_DEF 0 { OP_PUSH 123 }')
@@ -108,63 +108,63 @@ class TestParsing(unittest.TestCase):
 
         with self.assertRaises(errors.SyntaxError) as e:
             parsing.compile_script('OP_DEF 0 { OP_PUSH1 asd }')
-        assert str(e.exception) == 'values for OP_PUSH1 must be prefaced with d, x, or s; ASD is invalid'
+        assert 'values for OP_PUSH1 must be prefaced with d, x, or s' in str(e.exception)
 
         with self.assertRaises(ValueError) as e:
             parsing.compile_script('OP_DEF 0 { OP_PUSH1 dnotnumeric }')
-        assert str(e.exception) == 'value prefaced by d must be decimal int or float'
+        assert 'value prefaced by d must be decimal int or float' in str(e.exception)
 
         with self.assertRaises(errors.SyntaxError) as e:
             parsing.compile_script('OP_DEF 0 { OP_PUSH0 asd }')
-        assert str(e.exception) == 'numeric args must be prefaced with d or x'
+        assert 'numeric args must be prefaced with d or x' in str(e.exception)
 
         with self.assertRaises(ValueError) as e:
             parsing.compile_script('OP_DEF 0 { OP_PUSH0 dnotnumeric }')
-        assert str(e.exception) == 'value prefaced by d must be decimal int'
+        assert 'value prefaced by d must be decimal int' in str(e.exception)
 
         with self.assertRaises(ValueError) as e:
             parsing.compile_script('OP_DEF 0 { OP_PUSH0 x1234 }')
-        assert str(e.exception) == 'value must be at most 1 byte long'
+        assert 'value must be at most 1 byte long' in str(e.exception)
 
         with self.assertRaises(errors.SyntaxError) as e:
             parsing.compile_script('OP_DEF 0 { OP_PUSH2 asd }')
-        assert str(e.exception) == 'values for OP_PUSH2 must be prefaced with d, x, or s'
+        assert 'values for OP_PUSH2 must be prefaced with d, x, or s' in str(e.exception)
 
         with self.assertRaises(ValueError) as e:
             parsing.compile_script('OP_DEF 0 { OP_PUSH2 dnotnumeric }')
-        assert str(e.exception) == 'value prefaced by d must be decimal int'
+        assert 'value prefaced by d must be decimal int' in str(e.exception)
 
         with self.assertRaises(errors.SyntaxError) as e:
             parsing.compile_script('OP_DEF 0 { OP_PUSH4 asd }')
-        assert str(e.exception) == 'values for OP_PUSH4 must be prefaced with d, x, or s'
+        assert 'values for OP_PUSH4 must be prefaced with d, x, or s' in str(e.exception)
 
         with self.assertRaises(ValueError) as e:
             parsing.compile_script('OP_DEF 0 { OP_PUSH4 dnotnumeric }')
-        assert str(e.exception) == 'value prefaced by d must be decimal int'
+        assert 'value prefaced by d must be decimal int' in str(e.exception)
 
         with self.assertRaises(errors.SyntaxError) as e:
             parsing.compile_script('OP_DEF 0 { OP_DIV_FLOAT asd }')
-        assert str(e.exception) == 'numeric args must be prefaced with d or x'
+        assert 'numeric args must be prefaced with d or x' in str(e.exception)
 
         with self.assertRaises(ValueError) as e:
             parsing.compile_script('OP_DEF 0 { OP_DIV_FLOAT dnotnumeric }')
-        assert str(e.exception) == 'OP_DIV_FLOAT value prefaced by d must be decimal float'
+        assert 'value prefaced by d must be decimal float' in str(e.exception)
 
         with self.assertRaises(ValueError) as e:
             parsing.compile_script('OP_DEF 0 { OP_MOD_FLOAT x123456 }')
-        assert str(e.exception) == 'OP_MOD_FLOAT value prefaced by x must be 8 long (4 bytes)'
+        assert 'value prefaced by x must be 8 long (4 bytes)' in str(e.exception)
 
         with self.assertRaises(errors.SyntaxError) as e:
             parsing.compile_script('OP_DEF 0 { OP_SWAP asd d123 }')
-        assert str(e.exception) == 'numeric args must be prefaced with d or x'
+        assert 'numeric args must be prefaced with d or x' in str(e.exception)
 
         with self.assertRaises(ValueError) as e:
             parsing.compile_script('OP_DEF 0 { OP_SWAP dnotnumeric x1234 }')
-        assert str(e.exception) == 'OP_SWAP value prefaced by d must be decimal int'
+        assert 'value prefaced by d must be decimal int' in str(e.exception)
 
         with self.assertRaises(ValueError) as e:
             parsing.compile_script('OP_DEF 0 { OP_SWAP x1234 d123 }')
-        assert str(e.exception) == 'OP_SWAP value prefaced by x must be 2 long (1 byte)'
+        assert 'value prefaced by x must be 2 long (1 byte)' in str(e.exception)
 
     def test_compile_script_errors_on_unterminated_comment(self):
         with self.assertRaises(errors.SyntaxError) as e:
@@ -179,11 +179,11 @@ class TestParsing(unittest.TestCase):
     def test_compile_script_errors_on_incomplete_OP_IF(self):
         with self.assertRaises(errors.SyntaxError) as e:
             parsing.compile_script('OP_IF ( OP_POP0')
-        assert str(e.exception) == 'unterminated OP_IF: missing matching )'
+        assert 'unterminated OP_IF: missing matching )' in str(e.exception)
 
         with self.assertRaises(errors.SyntaxError) as e:
             parsing.compile_script('OP_IF OP_POP0')
-        assert str(e.exception) == 'missing END_IF'
+        assert 'missing END_IF' in str(e.exception)
 
     def test_compile_script_returns_bytes(self):
         code = parsing.compile_script('OP_POP0')
@@ -443,7 +443,8 @@ class TestParsing(unittest.TestCase):
         functions.opcodes[255] = ('OP_GRAB_INT', OP_GRAB_INT)
         functions.opcodes_inverse['OP_GRAB_INT'] = (255, OP_GRAB_INT)
 
-        def compiler(opname: str, symbols: list[str], symbols_to_advance: int):
+        def compiler(opname: str, symbols: list[str], symbols_to_advance: int,
+                     symbol_index: int):
             symbols_to_advance += 1
             val = int(symbols[0][1:]).to_bytes(1, 'big')
             return (symbols_to_advance, (val,))
