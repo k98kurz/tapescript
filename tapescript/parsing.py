@@ -490,6 +490,13 @@ def parse_if(symbols: list[str], symbol_index: int) -> tuple[int, tuple[bytes]]:
 
     while index < len(symbols):
         current_symbol = symbols[index]
+        if current_symbol in ('"', "'", '#'):
+            # skip forward past the matching symbol
+            try:
+                index = symbols.index(current_symbol, index+1) + 1
+            except ValueError:
+                raise SyntaxError(f'unterminated comment starting with {current_symbol}') from None
+            continue
 
         if current_symbol == ')':
             if len(symbols) < index+2 or symbols[index+1] != 'ELSE':
@@ -564,6 +571,13 @@ def parse_else(symbols: list[str], symbol_index: int) -> tuple[int, tuple[bytes]
 
     while index < len(symbols):
         current_symbol = symbols[index]
+        if current_symbol in ('"', "'", '#'):
+            # skip forward past the matching symbol
+            try:
+                index = symbols.index(current_symbol, index+1) + 1
+            except ValueError:
+                raise SyntaxError(f'unterminated comment starting with {current_symbol}') from None
+            continue
 
         if current_symbol in (')', 'END_IF'):
             index += 2
@@ -628,6 +642,13 @@ def parse_try(symbols: list[str], symbol_index: int) -> tuple[int, tuple[bytes]]
 
     while index < len(symbols):
         current_symbol = symbols[index]
+        if current_symbol in ('"', "'", '#'):
+            # skip forward past the matching symbol
+            try:
+                index = symbols.index(current_symbol, index+1) + 1
+            except ValueError:
+                raise SyntaxError(f'unterminated comment starting with {current_symbol}') from None
+            continue
 
         if current_symbol == '}':
             if len(symbols) < index+2 or symbols[index+1] != 'EXCEPT':
@@ -700,6 +721,13 @@ def parse_except(symbols: list[str], symbol_index: int) -> tuple[int, tuple[byte
 
     while index < len(symbols):
         current_symbol = symbols[index]
+        if current_symbol in ('"', "'", '#'):
+            # skip forward past the matching symbol
+            try:
+                index = symbols.index(current_symbol, index+1) + 1
+            except ValueError:
+                raise SyntaxError(f'unterminated comment starting with {current_symbol}') from None
+            continue
 
         if current_symbol in ('}', 'END_EXCEPT'):
             index += 2
@@ -816,6 +844,14 @@ def compile_script(script: str) -> bytes:
             i = index + 1
             while i <= search_idx:
                 current_symbol = symbols[i]
+                # ignore comments (symbols between matching #, ', or ")
+                if current_symbol in ('"', "'", '#'):
+                    # skip forward past the matching symbol
+                    try:
+                        i = symbols.index(current_symbol, i+1) + 1
+                    except ValueError:
+                        raise SyntaxError(f'unterminated comment starting with {current_symbol}') from None
+                    continue
                 yert(current_symbol[:3] == 'OP_' or (current_symbol in ('}', 'END_DEF')),
                      f'statements must begin with valid op code, not {current_symbol} - symbol {i}')
                 yert(current_symbol != 'OP_DEF',
