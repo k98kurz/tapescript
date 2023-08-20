@@ -5,6 +5,7 @@ from .functions import (
     int_to_bytes,
     opcodes,
     opcodes_inverse,
+    opcode_aliases,
     nopcodes,
     nopcodes_inverse
 )
@@ -51,7 +52,7 @@ def add_opcode_parsing_handlers(
         opname: str, symbols: list[str], symbols_to_advance: int,
         symbol_index: int) -> tuple[int, tuple[bytes]]. The
         decompiler_handler should have this annotation: (op_name: str,
-        tape: Tape) -> listr[str]. The OP implementation must be added
+        tape: Tape) -> list[str]. The OP implementation must be added
         to the interpreter via the add_opcode function, else parsing
         will fail.
     """
@@ -244,7 +245,8 @@ def _get_OP_PUSH2_args(
 
     if opname == 'OP_PUSH2':
         # human-readable syntax of OP_PUSH2 [size] [val] or OP_PUSH2 [val]
-        if symbols[1] not in ('(',')','{','}') and symbols[1][:3] != 'OP_' and \
+        if symbols[1] not in ('(',')','{','}') and symbols[1] not in opcode_aliases and \
+            symbols[1] not in opcodes_inverse and symbols[1] not in nopcodes_inverse and \
             symbols[1] not in ('END_IF', 'END_DEF', 'ELSE'):
             symbols_to_advance += 2
             val = symbols[1]
@@ -498,6 +500,11 @@ def parse_if(symbols: list[str], symbol_index: int) -> tuple[int, tuple[bytes]]:
                 raise SyntaxError(f'unterminated comment starting with {current_symbol}') from None
             continue
 
+        if current_symbol in opcode_aliases:
+            current_symbol = opcode_aliases[current_symbol]
+        if current_symbol in ('PUSH', 'TRY', 'DEF', 'IF'):
+            current_symbol = 'OP_' + current_symbol
+
         if current_symbol == ')':
             if len(symbols) < index+2 or symbols[index+1] != 'ELSE':
                 index += 2
@@ -523,10 +530,11 @@ def parse_if(symbols: list[str], symbol_index: int) -> tuple[int, tuple[bytes]]:
             index += advance
             code.extend(parts)
         else:
-            yert(current_symbol in opcodes_inverse or current_symbol == 'OP_PUSH',
+            yert(current_symbol in opcodes_inverse
+                 or current_symbol in ('OP_PUSH', 'PUSH'),
                 f'unrecognized opcode: {current_symbol} - symbol {symbol_index+index}')
             advance, args = get_args(current_symbol, symbols[index+1:], symbol_index+index)
-            if current_symbol == 'OP_PUSH':
+            if current_symbol in ('OP_PUSH', 'PUSH'):
                 if len(args) < 2:
                     code.append(opcodes_inverse['OP_PUSH0'][0].to_bytes(1, 'big'))
                 elif len(args[0]) == 1:
@@ -578,6 +586,11 @@ def parse_else(symbols: list[str], symbol_index: int) -> tuple[int, tuple[bytes]
             except ValueError:
                 raise SyntaxError(f'unterminated comment starting with {current_symbol}') from None
             continue
+
+        if current_symbol in opcode_aliases:
+            current_symbol = opcode_aliases[current_symbol]
+        if current_symbol in ('PUSH', 'TRY', 'DEF', 'IF'):
+            current_symbol = 'OP_' + current_symbol
 
         if current_symbol in (')', 'END_IF'):
             index += 2
@@ -649,6 +662,11 @@ def parse_try(symbols: list[str], symbol_index: int) -> tuple[int, tuple[bytes]]
             except ValueError:
                 raise SyntaxError(f'unterminated comment starting with {current_symbol}') from None
             continue
+
+        if current_symbol in opcode_aliases:
+            current_symbol = opcode_aliases[current_symbol]
+        if current_symbol in ('PUSH', 'TRY', 'DEF', 'IF'):
+            current_symbol = 'OP_' + current_symbol
 
         if current_symbol == '}':
             if len(symbols) < index+2 or symbols[index+1] != 'EXCEPT':
@@ -729,6 +747,11 @@ def parse_except(symbols: list[str], symbol_index: int) -> tuple[int, tuple[byte
                 raise SyntaxError(f'unterminated comment starting with {current_symbol}') from None
             continue
 
+        if current_symbol in opcode_aliases:
+            current_symbol = opcode_aliases[current_symbol]
+        if current_symbol in ('PUSH', 'TRY', 'DEF', 'IF'):
+            current_symbol = 'OP_' + current_symbol
+
         if current_symbol in ('}', 'END_EXCEPT'):
             index += 2
             break
@@ -743,11 +766,11 @@ def parse_except(symbols: list[str], symbol_index: int) -> tuple[int, tuple[byte
             index += advance
             code.extend(parts)
         else:
-            yert(current_symbol in opcodes_inverse or current_symbol == 'OP_PUSH',
+            yert(current_symbol in opcodes_inverse or current_symbol in ('OP_PUSH', 'PUSH'),
                 f'unrecognized opcode: {current_symbol} - symbol {symbol_index+index}')
             advance, args = get_args(current_symbol, symbols[index+1:], symbol_index+index)
             index += advance
-            if current_symbol == 'OP_PUSH':
+            if current_symbol in ('OP_PUSH', 'PUSH'):
                 if len(args) < 2:
                     code.append(opcodes_inverse['OP_PUSH0'][0].to_bytes(1, 'big'))
                 elif len(args[0]) == 1:
@@ -800,7 +823,7 @@ def compile_script(script: str) -> bytes:
     while index < len(symbols):
         symbol = symbols[index]
 
-        # ignore comments (symbols between matchin #, ', or ")
+        # ignore comments (symbols between matching #, ', or ")
         if symbol in ('"', "'", '#'):
             # skip forward past the matching symbol
             try:
@@ -809,8 +832,13 @@ def compile_script(script: str) -> bytes:
                 raise SyntaxError(f'unterminated comment starting with {symbol}') from None
             continue
 
-        vert(symbol in opcodes_inverse or symbol in nopcodes_inverse or
-             symbol in ('OP_PUSH', 'OP_TRY'),
+        if symbol in opcode_aliases:
+            symbol = opcode_aliases[symbol]
+        if symbol in ('PUSH', 'TRY', 'DEF'):
+            symbol = 'OP_' + symbol
+
+        vert(symbol in opcodes_inverse or symbol in nopcodes_inverse
+             or symbol in ('OP_PUSH', 'PUSH', 'OP_TRY', 'TRY'),
              f'unrecognized opcode: {symbol}')
 
         if symbol == 'OP_DEF':
@@ -852,7 +880,10 @@ def compile_script(script: str) -> bytes:
                     except ValueError:
                         raise SyntaxError(f'unterminated comment starting with {current_symbol}') from None
                     continue
-                yert(current_symbol[:3] == 'OP_' or (current_symbol in ('}', 'END_DEF')),
+                if current_symbol in opcode_aliases:
+                    current_symbol = 'OP_' + current_symbol
+                yert(current_symbol in opcodes_inverse or
+                     current_symbol in ('}', 'END_DEF', 'OP_PUSH', 'PUSH', 'OP_TRY', 'TRY'),
                      f'statements must begin with valid op code, not {current_symbol} - symbol {i}')
                 yert(current_symbol != 'OP_DEF',
                     f'cannot use OP_DEF within OP_DEF body - symbol {i}')
@@ -868,10 +899,12 @@ def compile_script(script: str) -> bytes:
                 elif current_symbol in ('}', 'END_DEF'):
                     i += 1
                     continue
+                elif current_symbol in opcode_aliases:
+                    advance, args = get_args('OP_' + current_symbol, symbols[i+1:], i)
                 else:
                     advance, args = get_args(current_symbol, symbols[i+1:], i)
                     i += advance
-                    if current_symbol == 'OP_PUSH':
+                    if current_symbol in ('OP_PUSH', 'PUSH'):
                         if len(args) < 2:
                             def_code += opcodes_inverse['OP_PUSH0'][0].to_bytes(1, 'big')
                         elif len(args[0]) == 1:

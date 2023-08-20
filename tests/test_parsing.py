@@ -222,6 +222,7 @@ class TestParsing(unittest.TestCase):
             'merkleval_unlocking_script_ba.src': 'merkleval_unlocking_script_ba.hex',
             'merkleval_unlocking_script_bb.src': 'merkleval_unlocking_script_bb.hex',
             'omega_e2e.src': 'omega_e2e.hex',
+            'omega_e2e_aliases.src': 'omega_e2e.hex',
             'branching_e2e.src': 'branching_e2e.hex',
             'trydef.src': 'trydef.hex',
             'try_in_if.src': 'try_in_if.hex',

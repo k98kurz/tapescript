@@ -1046,6 +1046,10 @@ opcodes_inverse = {
     opcodes[key][0]: (key, opcodes[key][1]) for key in opcodes
 }
 
+opcode_aliases = {
+    k[3:]: k for k, _ in opcodes_inverse.items()
+}
+
 nopcodes_inverse = {
     nopcodes[key][0]: (key, nopcodes[key][1]) for key in nopcodes
 }
