@@ -470,6 +470,101 @@ def get_args(
     return (symbols_to_advance, tuple(args))
 
 
+def parse_def(symbols: list[str], symbol_index: int) -> tuple[int, tuple[bytes]]:
+    code = []
+    def_code = b''
+    index = 0
+    name = symbols[index + 1]
+    yert(name.isnumeric() or name[0] in ('d', 'x'), 'def number must be numeric')
+    if name[0] == 'd':
+        name = int(name[1:])
+        vert(0 <= name < 256, 'def number must be in d0-d255')
+    elif name[0] == 'x':
+        vert(len(name[1:]) < 3, 'def number must be in x00-xff')
+        name = bytes.fromhex(name[1:])[0]
+    else:
+        name = int(name)
+        vert(0 <= name < 256, 'def number must be in 0-255')
+
+    if symbols[index + 2] == '{':
+        # case 1: OP_DEF number { match }
+        yert('}' in symbols[index:], 'missing matching }')
+        search_idx = index + _find_matching_brace(symbols[index+2:], '{', '}') + 2
+        index += 2
+    else:
+        # case 2: find END_DEF
+        yert('END_DEF' in symbols[index:], 'missing END_DEF')
+        search_idx = symbols.index('END_DEF')
+        index += 1
+
+    # add OP_DEF to code
+    code.append(opcodes_inverse['OP_DEF'][0].to_bytes(1, 'big'))
+
+    i = index + 1
+    while i <= search_idx:
+        current_symbol = symbols[i]
+        # ignore comments (symbols between matching #, ', or ")
+        if current_symbol in ('"', "'", '#'):
+            # skip forward past the matching symbol
+            try:
+                i = symbols.index(current_symbol, i+1) + 1
+            except ValueError:
+                raise SyntaxError(f'unterminated comment starting with {current_symbol}') from None
+            continue
+        if current_symbol in opcode_aliases:
+            current_symbol = 'OP_' + current_symbol
+        yert(current_symbol in opcodes_inverse or
+                current_symbol in ('}', 'END_DEF', 'OP_PUSH', 'PUSH', 'OP_TRY', 'TRY'),
+                f'statements must begin with valid op code, not {current_symbol} - symbol {i}')
+        yert(current_symbol != 'OP_DEF',
+            f'cannot use OP_DEF within OP_DEF body - symbol {i}')
+
+        if current_symbol == 'OP_IF':
+            advance, parts = parse_if(symbols[i+1:search_idx], i)
+            i += advance
+            def_code += b''.join(parts)
+        elif current_symbol == 'OP_TRY':
+            advance, parts = parse_try(symbols[i+1:search_idx], i)
+            i += advance
+            def_code += b''.join(parts)
+        elif current_symbol in ('}', 'END_DEF'):
+            i += 1
+            continue
+        elif current_symbol in opcode_aliases:
+            advance, args = get_args('OP_' + current_symbol, symbols[i+1:], i)
+        else:
+            advance, args = get_args(current_symbol, symbols[i+1:], i)
+            i += advance
+            if current_symbol in ('OP_PUSH', 'PUSH'):
+                if len(args) < 2:
+                    def_code += opcodes_inverse['OP_PUSH0'][0].to_bytes(1, 'big')
+                elif len(args[0]) == 1:
+                    def_code += opcodes_inverse['OP_PUSH1'][0].to_bytes(1, 'big')
+                elif len(args[0]) == 2:
+                    def_code += opcodes_inverse['OP_PUSH2'][0].to_bytes(1, 'big')
+                elif len(args[0]) == 4:
+                    def_code += opcodes_inverse['OP_PUSH4'][0].to_bytes(1, 'big')
+            else:
+                def_code += opcodes_inverse[current_symbol][0].to_bytes(1, 'big')
+            def_code += b''.join(args)
+
+    # add def handle to code
+    code.append(name.to_bytes(1, 'big'))
+
+    # add def size to code
+    def_size = len(def_code)
+    yert(def_size < 2**16, 'def size limit exceeded')
+    code.append(def_size.to_bytes(2, 'big'))
+
+    # add def code to code
+    code.append(def_code)
+
+    # advance the index
+    index = search_idx + 1
+
+    return (index, tuple(code))
+
+
 def parse_if(symbols: list[str], symbol_index: int) -> tuple[int, tuple[bytes]]:
     """Parses a statement starting with OP_IF. Returns tuple (int
         advance, tuple[bytes] parts). Called recursively to handle nested
@@ -842,94 +937,9 @@ def compile_script(script: str) -> bytes:
              f'unrecognized opcode: {symbol}')
 
         if symbol == 'OP_DEF':
-            def_code = b''
-            name = symbols[index + 1]
-            yert(name.isnumeric() or name[0] in ('d', 'x'), 'def number must be numeric')
-            if name[0] == 'd':
-                name = int(name[1:])
-                vert(0 <= name < 256, 'def number must be in d0-d255')
-            elif name[0] == 'x':
-                vert(len(name[1:]) < 3, 'def number must be in x00-xff')
-                name = bytes.fromhex(name[1:])[0]
-            else:
-                name = int(name)
-                vert(0 <= name < 256, 'def number must be in 0-255')
-
-            if symbols[index + 2] == '{':
-                # case 1: OP_DEF number { match }
-                yert('}' in symbols[index:], 'missing matching }')
-                search_idx = index + _find_matching_brace(symbols[index+2:], '{', '}') + 2
-                index += 2
-            else:
-                # case 2: find END_DEF
-                yert('END_DEF' in symbols[index:], 'missing END_DEF')
-                search_idx = symbols.index('END_DEF')
-                index += 1
-
-            # add OP_DEF to code
-            code.append(opcodes_inverse['OP_DEF'][0].to_bytes(1, 'big'))
-
-            i = index + 1
-            while i <= search_idx:
-                current_symbol = symbols[i]
-                # ignore comments (symbols between matching #, ', or ")
-                if current_symbol in ('"', "'", '#'):
-                    # skip forward past the matching symbol
-                    try:
-                        i = symbols.index(current_symbol, i+1) + 1
-                    except ValueError:
-                        raise SyntaxError(f'unterminated comment starting with {current_symbol}') from None
-                    continue
-                if current_symbol in opcode_aliases:
-                    current_symbol = 'OP_' + current_symbol
-                yert(current_symbol in opcodes_inverse or
-                     current_symbol in ('}', 'END_DEF', 'OP_PUSH', 'PUSH', 'OP_TRY', 'TRY'),
-                     f'statements must begin with valid op code, not {current_symbol} - symbol {i}')
-                yert(current_symbol != 'OP_DEF',
-                    f'cannot use OP_DEF within OP_DEF body - symbol {i}')
-
-                if current_symbol == 'OP_IF':
-                    advance, parts = parse_if(symbols[i+1:search_idx], i)
-                    i += advance
-                    def_code += b''.join(parts)
-                elif current_symbol == 'OP_TRY':
-                    advance, parts = parse_try(symbols[i+1:search_idx], i)
-                    i += advance
-                    def_code += b''.join(parts)
-                elif current_symbol in ('}', 'END_DEF'):
-                    i += 1
-                    continue
-                elif current_symbol in opcode_aliases:
-                    advance, args = get_args('OP_' + current_symbol, symbols[i+1:], i)
-                else:
-                    advance, args = get_args(current_symbol, symbols[i+1:], i)
-                    i += advance
-                    if current_symbol in ('OP_PUSH', 'PUSH'):
-                        if len(args) < 2:
-                            def_code += opcodes_inverse['OP_PUSH0'][0].to_bytes(1, 'big')
-                        elif len(args[0]) == 1:
-                            def_code += opcodes_inverse['OP_PUSH1'][0].to_bytes(1, 'big')
-                        elif len(args[0]) == 2:
-                            def_code += opcodes_inverse['OP_PUSH2'][0].to_bytes(1, 'big')
-                        elif len(args[0]) == 4:
-                            def_code += opcodes_inverse['OP_PUSH4'][0].to_bytes(1, 'big')
-                    else:
-                        def_code += opcodes_inverse[current_symbol][0].to_bytes(1, 'big')
-                    def_code += b''.join(args)
-
-            # add def handle to code
-            code.append(name.to_bytes(1, 'big'))
-
-            # add def size to code
-            def_size = len(def_code)
-            yert(def_size < 2**16, 'def size limit exceeded')
-            code.append(def_size.to_bytes(2, 'big'))
-
-            # add def code to code
-            code.append(def_code)
-
-            # advance the index
-            index = search_idx + 1
+            advance, parts = parse_def(symbols[index:], index)
+            index += advance
+            code.append(b''.join(parts))
         elif symbol == 'OP_IF':
             advance, parts = parse_if(symbols[index+1:], index)
             index += advance + 1
