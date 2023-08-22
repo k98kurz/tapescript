@@ -471,10 +471,13 @@ def get_args(
 
 
 def parse_def(symbols: list[str], symbol_index: int) -> tuple[int, tuple[bytes]]:
+    yert(len(symbols) > 0, f'missing OP_DEF clause contents at symbol {symbol_index}')
+    vert(symbols[0] in ('OP_DEF', 'DEF'), f'malformed OP_DEF clause: must begin OP_DEF not {symbols[0]}' +
+         f' at symbol {symbol_index}')
     code = []
     def_code = b''
     index = 0
-    name = symbols[index + 1]
+    name = symbols[1]
     yert(name.isnumeric() or name[0] in ('d', 'x'), 'def number must be numeric')
     if name[0] == 'd':
         name = int(name[1:])
@@ -486,28 +489,27 @@ def parse_def(symbols: list[str], symbol_index: int) -> tuple[int, tuple[bytes]]
         name = int(name)
         vert(0 <= name < 256, 'def number must be in 0-255')
 
-    if symbols[index + 2] == '{':
+    if symbols[2] == '{':
         # case 1: OP_DEF number { match }
-        yert('}' in symbols[index:], 'missing matching }')
-        search_idx = index + _find_matching_brace(symbols[index+2:], '{', '}') + 2
-        index += 2
+        yert('}' in symbols, 'missing matching }')
+        search_idx = index + _find_matching_brace(symbols[2:], '{', '}') + 2
+        index = 3
     else:
         # case 2: find END_DEF
         yert('END_DEF' in symbols[index:], 'missing END_DEF')
         search_idx = symbols.index('END_DEF')
-        index += 1
+        index = 2
 
     # add OP_DEF to code
     code.append(opcodes_inverse['OP_DEF'][0].to_bytes(1, 'big'))
 
-    i = index + 1
-    while i <= search_idx:
-        current_symbol = symbols[i]
+    while index <= search_idx:
+        current_symbol = symbols[index]
         # ignore comments (symbols between matching #, ', or ")
         if current_symbol in ('"', "'", '#'):
             # skip forward past the matching symbol
             try:
-                i = symbols.index(current_symbol, i+1) + 1
+                index = symbols.index(current_symbol, index+1) + 1
             except ValueError:
                 raise SyntaxError(f'unterminated comment starting with {current_symbol}') from None
             continue
@@ -515,26 +517,27 @@ def parse_def(symbols: list[str], symbol_index: int) -> tuple[int, tuple[bytes]]
             current_symbol = 'OP_' + current_symbol
         yert(current_symbol in opcodes_inverse or
                 current_symbol in ('}', 'END_DEF', 'OP_PUSH', 'PUSH', 'OP_TRY', 'TRY'),
-                f'statements must begin with valid op code, not {current_symbol} - symbol {i}')
+                f'statements must begin with valid op code, not {current_symbol} - symbol {index}')
         yert(current_symbol != 'OP_DEF',
-            f'cannot use OP_DEF within OP_DEF body - symbol {i}')
+            f'cannot use OP_DEF within OP_DEF body - symbol {index}')
 
         if current_symbol == 'OP_IF':
-            advance, parts = parse_if(symbols[i+1:search_idx], i)
-            i += advance
+            advance, parts = parse_if(symbols[index:search_idx], symbol_index+index)
+            index += advance
             def_code += b''.join(parts)
         elif current_symbol == 'OP_TRY':
-            advance, parts = parse_try(symbols[i+1:search_idx], i)
-            i += advance
+            advance, parts = parse_try(symbols[index:search_idx], index)
+            index += advance
             def_code += b''.join(parts)
         elif current_symbol in ('}', 'END_DEF'):
-            i += 1
-            continue
-        elif current_symbol in opcode_aliases:
-            advance, args = get_args('OP_' + current_symbol, symbols[i+1:], i)
+            index += 1
+            break
         else:
-            advance, args = get_args(current_symbol, symbols[i+1:], i)
-            i += advance
+            vert(current_symbol in opcodes_inverse or current_symbol in nopcodes_inverse
+                 or current_symbol == 'OP_PUSH',
+                 f'unrecognized opcode: {current_symbol} - symbol {symbol_index+index}')
+            advance, args = get_args(current_symbol, symbols[index+1:], index)
+            index += advance
             if current_symbol in ('OP_PUSH', 'PUSH'):
                 if len(args) < 2:
                     def_code += opcodes_inverse['OP_PUSH0'][0].to_bytes(1, 'big')
@@ -559,10 +562,7 @@ def parse_def(symbols: list[str], symbol_index: int) -> tuple[int, tuple[bytes]]
     # add def code to code
     code.append(def_code)
 
-    # advance the index
-    index = search_idx + 1
-
-    return (index, tuple(code))
+    return (search_idx+1, tuple(code))
 
 
 def parse_if(symbols: list[str], symbol_index: int) -> tuple[int, tuple[bytes]]:
@@ -572,12 +572,14 @@ def parse_if(symbols: list[str], symbol_index: int) -> tuple[int, tuple[bytes]]:
         the proper op code for the if statement.
     """
     yert(len(symbols) > 0, f'missing OP_IF clause contents - symbol {symbol_index}')
+    vert(symbols[0] in ('OP_IF', 'IF'), f'malformed OP_IF: must begin OP_IF not {symbols[0]}'+
+         f' at symbol {symbol_index}')
     opcode = 'OP_IF'
     code = []
-    index = 0
+    index = 1
     else_len = 0
 
-    if symbols[0] == '(':
+    if symbols[1] == '(':
         # case 1: OP_IF ( statements )
         yert(')' in symbols[1:], f'unterminated OP_IF: missing matching ) - symbol {symbol_index}')
         index += 1
@@ -597,36 +599,40 @@ def parse_if(symbols: list[str], symbol_index: int) -> tuple[int, tuple[bytes]]:
 
         if current_symbol in opcode_aliases:
             current_symbol = opcode_aliases[current_symbol]
-        if current_symbol in ('PUSH', 'TRY', 'DEF', 'IF'):
+        if current_symbol in ('PUSH', 'TRY'):
             current_symbol = 'OP_' + current_symbol
 
         if current_symbol == ')':
             if len(symbols) < index+2 or symbols[index+1] != 'ELSE':
-                index += 2
+                index += 1
                 break
             index += 1
             continue
         elif current_symbol == 'END_IF':
             index += 2
             break
+        elif current_symbol == 'OP_DEF':
+            advance, parts = parse_def(symbols[index:], symbol_index+index)
+            index += advance
+            code.extend(parts)
         elif current_symbol == 'ELSE':
             opcode = 'OP_IF_ELSE'
-            advance, parts = parse_else(symbols[index+1:], symbol_index+index)
-            index += advance + 1
+            advance, parts = parse_else(symbols[index:], symbol_index+index)
+            index += advance
             code.extend(parts)
             else_len = len(b''.join(parts))
             break
         elif current_symbol == 'OP_IF':
-            advance, parts = parse_if(symbols[index+1:], symbol_index+index)
+            advance, parts = parse_if(symbols[index:], symbol_index+index)
             index += advance
             code.extend(parts)
         elif current_symbol == 'OP_TRY':
-            advance, parts = parse_try(symbols[index+1:], symbol_index+index)
+            advance, parts = parse_try(symbols[index:], symbol_index+index)
             index += advance
             code.extend(parts)
         else:
-            yert(current_symbol in opcodes_inverse
-                 or current_symbol in ('OP_PUSH', 'PUSH'),
+            vert(current_symbol in opcodes_inverse or current_symbol in nopcodes_inverse
+                 or current_symbol == 'OP_PUSH',
                 f'unrecognized opcode: {current_symbol} - symbol {symbol_index+index}')
             advance, args = get_args(current_symbol, symbols[index+1:], symbol_index+index)
             if current_symbol in ('OP_PUSH', 'PUSH'):
@@ -661,16 +667,22 @@ def parse_else(symbols: list[str], symbol_index: int) -> tuple[int, tuple[bytes]
         clauses.
     """
     yert(len(symbols) > 0, f'missing ELSE clause contents - symbol {symbol_index}')
+    vert(symbols[0] == 'ELSE', f'malformed ELSE clause: must begin ELSE not {symbols[0]}' +
+         f' at symbol {symbol_index}')
     code = []
-    index = 0
+    index = 1
 
-    if symbols[0] == '(':
+    if symbols[1] == '(':
         # case 1: ELSE ( statements )
         yert(')' in symbols[1:],
              f'unterminated ELSE: missing matching ) - starting symbol {symbol_index}')
-        index = 1
+        index = 2
+        end_index = _find_matching_brace(symbols, '(', ')')
     else:
         yert('END_IF' in symbols[1:], f'missing END_IF - starting symbol {symbol_index}')
+        end_index = _find_matching_brace(symbols, 'ELSE', 'END_IF')
+
+    # print(f"parse_else: {end_index=} {symbols[0:end_index+1]}")
 
     while index < len(symbols):
         current_symbol = symbols[index]
@@ -684,24 +696,27 @@ def parse_else(symbols: list[str], symbol_index: int) -> tuple[int, tuple[bytes]
 
         if current_symbol in opcode_aliases:
             current_symbol = opcode_aliases[current_symbol]
-        if current_symbol in ('PUSH', 'TRY', 'DEF', 'IF'):
+        if current_symbol in ('PUSH', 'TRY'):
             current_symbol = 'OP_' + current_symbol
 
         if current_symbol in (')', 'END_IF'):
-            index += 2
+            index += 1
             break
-        elif current_symbol == 'ELSE':
-            raise SyntaxError('cannot have multiple ELSE clauses')
         elif current_symbol == 'OP_IF':
-            advance, parts = parse_if(symbols[index+1:], symbol_index+index)
+            advance, parts = parse_if(symbols[index:], symbol_index+index)
+            index += advance
+            code.extend(parts)
+        elif current_symbol == 'OP_DEF':
+            advance, parts = parse_def(symbols[index:], symbol_index+index)
             index += advance
             code.extend(parts)
         elif current_symbol == 'OP_TRY':
-            advance, parts = parse_try(symbols[index+1:], symbol_index+index)
+            advance, parts = parse_try(symbols[index:], symbol_index+index)
             index += advance
             code.extend(parts)
         else:
-            yert(current_symbol in opcodes_inverse or current_symbol == 'OP_PUSH',
+            vert(current_symbol in opcodes_inverse or current_symbol in nopcodes_inverse
+                 or current_symbol == 'OP_PUSH',
                 f'unrecognized opcode: {current_symbol} - symbol {symbol_index+index}')
             advance, args = get_args(current_symbol, symbols[index+1:], symbol_index+index)
             index += advance
@@ -734,14 +749,16 @@ def parse_try(symbols: list[str], symbol_index: int) -> tuple[int, tuple[bytes]]
         nested try clauses.
     """
     yert(len(symbols) > 0, f'missing OP_TRY clause contents - symbol {symbol_index}')
+    vert(symbols[0] in ('OP_TRY', 'TRY'), f'malformed OP_TRY clause: must begin OP_TRY not {symbols[0]}' +
+         f' at symbol {symbol_index}')
     code = []
-    index = 0
+    index = 1
     except_len = 0
 
-    if symbols[0] == '{':
+    if symbols[1] == '{':
         # case 1: OP_TRY { statements }
         yert('}' in symbols[1:], f'unterminated OP_TRY: missing matching }} - symbol {symbol_index}')
-        index += 1
+        index = 2
     else:
         # case 2: OP_TRY statements END_TRY
         # case 3: OP_TRY statements EXCEPT
@@ -760,30 +777,37 @@ def parse_try(symbols: list[str], symbol_index: int) -> tuple[int, tuple[bytes]]
 
         if current_symbol in opcode_aliases:
             current_symbol = opcode_aliases[current_symbol]
-        if current_symbol in ('PUSH', 'TRY', 'DEF', 'IF'):
+        if current_symbol in ('PUSH', 'TRY'):
             current_symbol = 'OP_' + current_symbol
 
         if current_symbol == '}':
-            if len(symbols) < index+2 or symbols[index+1] != 'EXCEPT':
-                index += 2
-                break
             index += 1
-            continue
+            if len(symbols) < index+2 or symbols[index] != 'EXCEPT':
+                break
+        elif current_symbol == 'OP_IF':
+            advance, parts = parse_if(symbols[index:], symbol_index+index)
+            index += advance
+            code.extend(parts)
+        elif current_symbol == 'OP_DEF':
+            advance, parts = parse_def(symbols[index:], symbol_index+index)
+            index += advance
+            code.extend(parts)
         elif current_symbol == 'END_TRY':
             index += 2
             break
         elif current_symbol == 'EXCEPT':
-            advance, parts = parse_except(symbols[index+1:], symbol_index+index)
-            index += advance + 1
+            advance, parts = parse_except(symbols[index:], symbol_index+index)
+            index += advance
             code.extend(parts)
             except_len = len(b''.join(parts))
             break
         elif current_symbol == 'OP_TRY':
-            advance, parts = parse_try(symbols[index+1:], symbol_index+index)
+            advance, parts = parse_try(symbols[index:], symbol_index+index)
             index += advance
             code.extend(parts)
         else:
-            yert(current_symbol in opcodes_inverse or current_symbol == 'OP_PUSH',
+            vert(current_symbol in opcodes_inverse or current_symbol in nopcodes_inverse
+                 or current_symbol == 'OP_PUSH',
                 f'unrecognized opcode: {current_symbol} - symbol {symbol_index+index}')
             advance, args = get_args(current_symbol, symbols[index+1:], symbol_index+index)
             if current_symbol == 'OP_PUSH':
@@ -822,13 +846,15 @@ def parse_except(symbols: list[str], symbol_index: int) -> tuple[int, tuple[byte
         handling clauses.
     """
     yert(len(symbols) > 0, f'missing EXCEPT clause contents - symbol {symbol_index}')
+    yert(symbols[0] == 'EXCEPT', f'malformed EXCEPT: must begin EXCEPT not {symbols[0]}'+
+         f'at symbol {symbol_index}')
     code = []
-    index = 0
+    index = 1
 
-    if symbols[0] == '{':
+    if symbols[1] == '{':
         # case 1: EXCEPT { statements }
         yert('}' in symbols[1:], f'unterminated EXCEPT: missing matching }} - symbol {symbol_index}')
-        index = 1
+        index = 2
     else:
         yert('END_EXCEPT' in symbols[1:], f'missing END_EXCEPT - symbol {symbol_index}')
 
@@ -848,20 +874,25 @@ def parse_except(symbols: list[str], symbol_index: int) -> tuple[int, tuple[byte
             current_symbol = 'OP_' + current_symbol
 
         if current_symbol in ('}', 'END_EXCEPT'):
-            index += 2
+            index += 1
             break
         elif current_symbol == 'EXCEPT':
             raise SyntaxError('cannot have multiple EXCEPT clauses')
         elif current_symbol == 'OP_IF':
-            advance, parts = parse_if(symbols[index+1:], symbol_index+index)
+            advance, parts = parse_if(symbols[index:], symbol_index+index)
+            index += advance
+            code.extend(parts)
+        elif current_symbol == 'OP_DEF':
+            advance, parts = parse_def(symbols[index:], symbol_index+index)
             index += advance
             code.extend(parts)
         elif current_symbol == 'OP_TRY':
-            advance, parts = parse_try(symbols[index+1:], symbol_index+index)
+            advance, parts = parse_try(symbols[index:], symbol_index+index)
             index += advance
             code.extend(parts)
         else:
-            yert(current_symbol in opcodes_inverse or current_symbol in ('OP_PUSH', 'PUSH'),
+            vert(current_symbol in opcodes_inverse or current_symbol in nopcodes_inverse
+                 or current_symbol == 'OP_PUSH',
                 f'unrecognized opcode: {current_symbol} - symbol {symbol_index+index}')
             advance, args = get_args(current_symbol, symbols[index+1:], symbol_index+index)
             index += advance
@@ -929,23 +960,25 @@ def compile_script(script: str) -> bytes:
 
         if symbol in opcode_aliases:
             symbol = opcode_aliases[symbol]
-        if symbol in ('PUSH', 'TRY', 'DEF'):
+        if symbol in ('PUSH', 'TRY'):
             symbol = 'OP_' + symbol
 
         vert(symbol in opcodes_inverse or symbol in nopcodes_inverse
              or symbol in ('OP_PUSH', 'PUSH', 'OP_TRY', 'TRY'),
-             f'unrecognized opcode: {symbol}')
+             f'unrecognized opcode: {symbol} at symbol {index}' +
+              (f' (after {symbols[index-1]})' if index > 0 else '') +
+              (f' (before {symbols[index+1]})' if index < len(symbols)-1 else ''))
 
         if symbol == 'OP_DEF':
             advance, parts = parse_def(symbols[index:], index)
             index += advance
             code.append(b''.join(parts))
         elif symbol == 'OP_IF':
-            advance, parts = parse_if(symbols[index+1:], index)
-            index += advance + 1
+            advance, parts = parse_if(symbols[index:], index)
+            index += advance
             code.append(b''.join(parts))
         elif symbol == 'OP_TRY':
-            advance, parts = parse_try(symbols[index+1:], index)
+            advance, parts = parse_try(symbols[index:], index)
             index += advance
             code.append(b''.join(parts))
         else:
