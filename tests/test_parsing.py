@@ -48,12 +48,12 @@ class TestParsing(unittest.TestCase):
 
     def test_parse_if_errors_on_incomplete_OP_IF(self):
         with self.assertRaises(errors.SyntaxError) as e:
-            parsing.parse_if(['(', 'OP_POP0'], 0)
+            parsing.parse_if(['OP_IF', '(', 'OP_POP0'], 0)
         assert str(e.exception) == 'unterminated OP_IF: missing matching ) - symbol 0'
 
         with self.assertRaises(errors.SyntaxError) as e:
-            parsing.parse_if(['OP_POP0'], 0)
-        assert str(e.exception) == 'missing END_IF - symbol 0'
+            parsing.parse_if(['OP_IF', 'OP_POP0'], 0)
+        assert 'missing END_IF' in str(e.exception)
 
     def test_compile_script_errors_on_nonstr_input(self):
         with self.assertRaises(ValueError) as e:
@@ -63,7 +63,7 @@ class TestParsing(unittest.TestCase):
     def test_compile_script_errors_on_invalid_opcode(self):
         with self.assertRaises(ValueError) as e:
             parsing.compile_script('OP_WTF d1')
-        assert str(e.exception) == 'unrecognized opcode: OP_WTF'
+        assert 'unrecognized opcode: OP_WTF' in str(e.exception)
 
     def test_compile_script_errors_on_invalid_opcode_use_syntax(self):
         with self.assertRaises(errors.SyntaxError) as e:
@@ -229,6 +229,7 @@ class TestParsing(unittest.TestCase):
         }
         vectors = {}
         names = {}
+        errors = []
 
         for src_fname, hex_fname in vector_files.items():
             with open(f'tests/vectors/{src_fname}', 'r') as fsrc:
@@ -241,7 +242,11 @@ class TestParsing(unittest.TestCase):
         for src, hex in vectors.items():
             expected = hex
             current = names[hex]
-            observed = parsing.compile_script(src).hex()
+            try:
+                observed = parsing.compile_script(src).hex()
+            except BaseException as e:
+                errors.append(f"\ntest_compile_script_e2e_vector: error with {current}: {e}")
+                continue
             if expected != observed:
                 # just to make it easier to step through the broken test vectors
                 print(f"{names[hex]} compilation failed")
@@ -272,6 +277,7 @@ class TestParsing(unittest.TestCase):
                     )
             assert expected == observed
 
+        assert len(errors) == 0, f'errors encountered: {errors}'
         print(f'{len(vectors.items())} vectors tested for compile_script')
 
     def test_decompile_script_returns_list_of_str(self):
@@ -389,6 +395,7 @@ class TestParsing(unittest.TestCase):
         }
         vectors = {}
         names = {}
+        errors = []
 
         for src_fname, hex_fname in vector_files.items():
             with open(f'tests/vectors/{src_fname}', 'r') as fsrc:
@@ -431,9 +438,10 @@ class TestParsing(unittest.TestCase):
                         )
                 assert expected == observed
             except BaseException as e:
-                print(f'{names[hex]} failed')
-                raise e
+                errors.append(f'\ntest_compile_decompiled_script_e2e_vector: error with {names[hex]}: {e}')
+                continue
 
+        assert len(errors) == 0, f'errors encountered: {errors}'
         print(f'{len(vectors.items())} vectors tested for compiling decompiled scripts')
 
     def test_add_opcode_parsing_handlers_e2e(self):

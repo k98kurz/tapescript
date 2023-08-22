@@ -38,6 +38,30 @@ DEF 2 {
 }
 
 
+IF (
+    DEF 3 {
+        FALSE
+    }
+) ELSE (
+    DEF 3 {
+        TRUE
+    }
+)
+
+
+TRY {
+    IF (
+        TRUE
+    )
+    DEF 4 {
+        CALL d0
+    }
+} EXCEPT {
+    DEF 4 {
+        FALSE
+    }
+}
+
 FALSE
 CALL d0
 TRUE

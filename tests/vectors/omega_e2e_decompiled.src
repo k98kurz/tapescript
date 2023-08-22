@@ -27,6 +27,27 @@ OP_DEF 2 {
         )
     )
 }
+OP_IF (
+    OP_DEF 3 {
+        OP_FALSE
+    }
+) ELSE (
+    OP_DEF 3 {
+        OP_TRUE
+    }
+)
+OP_TRY {
+    OP_IF (
+        OP_TRUE
+    )
+    OP_DEF 4 {
+        OP_CALL d0
+    }
+} EXCEPT {
+    OP_DEF 4 {
+        OP_FALSE
+    }
+}
 OP_FALSE
 OP_CALL d0
 OP_TRUE
