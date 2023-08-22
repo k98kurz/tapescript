@@ -23,13 +23,14 @@ def get_symbols(script: str) -> list[str]:
     while len(splits):
         token = splits.pop()
         if token[:2] in ('s"', "s'"):
+            quote = token[1]
             # match to end of string value
-            found = '"' in token[3:] or "'" in token[3:]
+            found = quote in token[3:]
             parts = [token]
             while not found and len(splits):
                 next = splits.pop()
                 parts.append(next)
-                if '"' in next or "'" in next:
+                if quote in next:
                     found = True
             yert(found, 'unterminated string encountered')
             token = ' '.join(parts)
