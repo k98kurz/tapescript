@@ -263,7 +263,7 @@ python test/test_parsing.py
 python test/test_tools.py
 ```
 
-There are currently 159 tests and 32 test vectors used for validating the
+There are currently 165 tests and 34 test vectors used for validating the
 compiler, decompiler, and script running functions.
 
 ## ISC License
