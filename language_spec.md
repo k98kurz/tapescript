@@ -6,13 +6,13 @@ This scripting language was inspired by Bitcoin script. The main use envisioned
 is as a method for embedding ACL into decentralized data structures, e.g. hash
 DAGs. The core mechanisms under the hood are the following:
 
-1. Tape: the `Tape` takes the script bytes and advances a pointer as the bytes are
-read. It also keeps a dict of flags which control how certain ops execute and
-a dict of contracts mapping contract_id to dict contracts used for checking
+1. Tape: the `Tape` takes the script bytes and advances a pointer as the bytes
+are read. It also keeps a dict of flags which control how certain ops execute
+and a dict of contracts mapping contract_id to dict contracts used for checking
 transfers between compatible protocols.
-2. Queue: the `LifoQueue` provides a memory structure similar to the stack used in
-Forth and Bitcoin script. Most ops interact with the queue, and most values are
-stored in the queue.
+2. Queue: the `LifoQueue` provides a memory structure similar to the stack used
+in Forth and Bitcoin script. Most ops interact with the queue, and most values
+are stored in the queue.
 3. Cache: the `dict` cache is where special values are held, e.g. a timestamp or
 the parts of a message to be used for checking signatures. Additionally, it is
 possible to move items from queue to cache or vice versa with the limitation
@@ -23,13 +23,13 @@ values are stored with `str` cache keys and thus inaccessible to scripts.
 
 The syntax of tapescript is simple and unforgiving, and it takes two forms: the
 bytes fed into the interpreter and the human-readable source code fed into the
-compiler (which is really a transpiler). The syntax for byte code is just the
+compiler which produces bytecode for the VM. The syntax for bytecode is just the
 op code followed by its arguments. The syntax for human-readable code is
 outlined below.
 
 All symbols must be separated by whitespace, but which whitespace is used does
 not matter. (Making source code easy on the eyes is still recommended, as it is
-in any language; see [Style](## Style) section for detailed recommentations.)
+in any language; see [Style](## Style) section for detailed recommendations.)
 Any op name, value, or bracket/parenthesis is a symbol.
 
 ### Values
@@ -39,6 +39,10 @@ All values in human-readable tapescript are prefixed by an encoding char:
 - `s`: any value starting with `s` is is a string (e.g. `s"hello world"`)
 - `x`: any value starting with `x` is hexadecimal bytes (e.g. `x00ff`)
 
+Note that string escapes are not currently supported. It is especially important
+to note that an escaped quotation mark will not be interpreted by the compiler
+as escaped and will instead terminate the string and cause a syntax error.
+
 ### Comments
 
 Everything between two hashtags or double quotes is disregarded as a comment.
@@ -47,7 +51,8 @@ Everything between two hashtags or double quotes is disregarded as a comment.
 
 To call an op, write the op name followed by any argument(s). For example,
 `OP_PUSH s"hello world"` will convert the utf-8 string "hello world" into bytes
-and push it onto the queue, utilizing `OP_PUSH1`.
+and push it onto the queue, utilizing `OP_PUSH1`. Note that each op has an alias
+equal to the name of the op without the `OP_` prefix.
 
 ### Subtapes
 
@@ -126,17 +131,17 @@ then the `EXCEPT` block will be executed. Example:
 ```s
 OP_TRY {
     OP_VERIFY
-    OP_TRUE
+    OP_PUSH x20
 } EXCEPT {
     OP_READ_CACHE x45
     OP_PUSH s"ScriptExecutionError|OP_VERIFY check failed"
     OP_EQUAL
-    OP_NOT
 }
 ```
 
-The above results in a `true` value if it executed without error and `false` if
-it raised a `ScriptExecutionError` with the given error message.
+The above results in a `20` hexadecimal value if it executed without error,
+`true` if it raised a `ScriptExecutionError` with the given error message, and
+`false` is some other error was raised.
 
 This feature can be combined with soft forks for conditional logic.
 
@@ -144,6 +149,7 @@ This feature can be combined with soft forks for conditional logic.
 OP_TRY {
     OP_PUSH s"this is a new feature"
     OP_SOME_SOFT_FORK_RAISES_ERROR d1
+    OP_PUSH s"old nodes will always execute this"
 } EXCEPT {
     OP_PUSH s"old nodes will not execute this"
 }
@@ -151,12 +157,12 @@ OP_TRY {
 
 ### Defining and calling functions
 
-A function can be defined using `OP_DEF`. Up to 256 functions can be
-defined, and all statements between the opening and closing curly braces (`{`
-and `}`) or before a terminal `END_DEF` will be executed when the function is
-called using `OP_CALL`. Each definition is referenced by an integer 0-255.
-Note that the definition number passed as an argument for `OP_CALL` must be a
-value like any other, while the integer used with `OP_DEF` is just a plain int.
+A function can be defined using `OP_DEF`. Up to 256 functions can be defined,
+and all statements between the opening and closing curly braces (`{` and `}`)
+or before a terminal `END_DEF` will be executed when the function is called
+using `OP_CALL`. Each definition is referenced by an integer 0-255. Note that
+the definition number passed as an argument for `OP_CALL` must be a value like
+any other, while the integer used with `OP_DEF` can be a plain int or a value.
 
 Also note that the compiler currently does not support defining functions within
 other functions. The interpreter can probably handle it, but that would be
@@ -170,7 +176,6 @@ OP_DEF 0 {
 }
 
 OP_DEF 1
-    OP_DUP
     OP_SHAKE256 d20
 END_DEF
 
