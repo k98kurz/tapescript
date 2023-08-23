@@ -36,7 +36,9 @@ and [docs.md](https://github.com/k98kurz/tapescript/blob/master/docs.md) files
 for syntax and operation specifics.
 
 Once you have a script written, use the `compile_script(code: str) -> bytes`
-function to turn it into the byte code that the interpreter runs.
+function to turn it into the byte code that the interpreter runs. Note that each
+`OP_` function has an alias that excludes the `OP_` prefix; e.g. `OP_PUSH d1`
+can also be written `PUSH d1`.
 
 #### Merklized scripts
 

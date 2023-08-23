@@ -1,5 +1,7 @@
 # OPs
 
+Each `OP_` function has an alias that excludes the `OP_` prefix.
+
 All `OP_` functions have the following signature:
 
 ```python

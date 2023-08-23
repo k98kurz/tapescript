@@ -155,6 +155,7 @@ def generate_docs() -> list[str]:
 
     paragraphs = [
         '# OPs\n\n'
+        'Each `OP_` function has an alias that excludes the `OP_` prefix.\n\n'
         'All `OP_` functions have the following signature:\n\n'
         '```python\n'
         'def OP_WHATEVER(tape: Tape, queue: LifoQueue, cache: dict) -> None:\n'
