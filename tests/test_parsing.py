@@ -473,6 +473,29 @@ class TestParsing(unittest.TestCase):
         del functions.opcodes[255]
         del functions.opcodes_inverse['OP_GRAB_INT']
 
+    def test_define_macro_and_invoke_macro_e2e(self):
+        defsrc = '!= test [ arg1 arg2 ] { PUSH arg1 PUSH arg2 EQUALVERIFY }'
+        callsrc = '!test [ d12 d23 ]'
+        symbols = parsing.get_symbols(defsrc)
+
+        assert len(parsing.macros) == 0
+        index = parsing.define_macro(symbols)
+        assert type(index) is int and index == len(symbols)
+        assert len(parsing.macros) == 1
+        assert 'test' in parsing.macros, f"{parsing.macros=}"
+        assert 'args' in parsing.macros['test']
+        assert 'template' in parsing.macros['test']
+
+        symbols = parsing.get_symbols(callsrc)
+        result = parsing.invoke_macro(symbols)
+        assert type(result) is tuple
+        assert len(result) == 2
+        assert type(result[0]) is int
+        assert result[0] == len(symbols)
+        assert type(result[1]) is bytes
+
+        parsing.macros = {}
+
     def bytes_xor(self, first: bytes, second: bytes) -> bytes:
         while len(first) > len(second):
             second = second + b'\x00'

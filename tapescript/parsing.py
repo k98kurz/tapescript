@@ -44,6 +44,57 @@ def get_symbols(script: str) -> list[str]:
 
 
 additional_opcodes = {}
+macros = {}
+
+def define_macro(symbols: list[str]) -> int:
+    """Defines a macro. Code syntax is `!= name [ args ] { statements }`.
+        Returns the number by which to advance the symbol index.
+    """
+    yert(symbols[0] == '!=', 'macro definition must begin with !=')
+    name = symbols[1].lower()
+    yert(name.isalpha(), 'macro name must be alphabetic')
+    yert(symbols[2] == '[',
+         'macro definition must be of form != name [ args ] { statements }')
+    closing_brace_index = _find_matching_brace(symbols, '[', ']')
+    args = symbols[3:closing_brace_index]
+    for arg in args:
+        yert(arg.isalnum(), f'macro arg names must be alphanumeric, not {arg}')
+    yert(symbols[closing_brace_index+1] == '{',
+         'macro definition must be of form != name [ args ] { statements }')
+    open_brace_index = closing_brace_index+1
+    closing_brace_index = _find_matching_brace(
+        symbols, '{', '}'
+    )
+    statement_symbols = symbols[open_brace_index+1:closing_brace_index-1]
+
+    macros[name] = {
+        'args': args,
+        'template': statement_symbols,
+    }
+    return closing_brace_index + 1
+
+def invoke_macro(symbols: list[str]) -> tuple[int, bytes]:
+    """Invokes a macro, returning the number by which to advance the
+        symbol index and the compiled bytecode. May raise a SyntaxError.
+    """
+    yert(symbols[0][0] == '!', f'macro call must start with !, not {symbols[0][0]}')
+    name = symbols[0][1:].lower()
+    yert(name in macros, f'cannot call undefined macro: {name}')
+    yert(symbols[1] == '[', 'macro call must take form !name [ args ]')
+    closing_brace_index = _find_matching_brace(symbols, '[', ']')
+    args = symbols[2:closing_brace_index]
+    yert(len(args) == len(macros[name]['args']),
+         f'call to macro {name} must have args {macros[name]["args"]}')
+    args = zip(macros[name]['args'], args)
+    args = { a:v for a,v in args }
+
+    src = [*macros[name]['template']]
+    for i in range(len(src)):
+        if src[i] in args:
+            src[i] = args[src[i]]
+
+    code = compile_script(' '.join(src))
+    return (closing_brace_index+1, code)
 
 def add_opcode_parsing_handlers(
         opname: str, compiler_handler: Callable, decompiler_handler: Callable
