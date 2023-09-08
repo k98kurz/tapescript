@@ -188,6 +188,42 @@ This will define two functions, put the 2 bytes x0123 onto the queue, then call
 the two functions in sequence. The result will be a queue with x0123 and
 `shake_256(sha256(b'\x01\x23').digest()).digest(20)`.
 
+### Macros and Variables
+
+As of v0.3.0, the compiler supports macros and variables of a sort.
+
+#### Macros
+
+Macros are code templates that take in arguments and return the source code with
+the template values replaced by the macro arguments.
+
+To define a macro, use the following syntax:
+
+```
+!= name [ arg1 arg2 etc ] {
+    OP_SOMETHING arg1
+    OP_PUSH arg2
+    OP_SOMETHING_ELSE
+    # etc #
+}
+```
+
+To invoke a macro, use the following:
+
+```
+!name [ arg1 arg2 etc ]
+```
+
+Only positional arguments are supported, and the values supplied to macro calls
+must be valid. Each macro invocation will be followed by a separate compilation
+of just the resulting code, and that bytecode will be inserted if successful.
+
+#### Variables
+
+Variables are simply syntactic sugar for using the cache as a set of registers.
+The syntax is simple: `@= name [ values ]` to set and `@name` to copy the values
+onto the stack. Variables cannot be used for arguments to ops.
+
 ## Style
 
 While style of human-readable source scripts is not enforced, the following are

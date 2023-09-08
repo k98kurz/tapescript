@@ -19,6 +19,8 @@ controls in a distributed system.
 - [x] Decent docs
 - [x] Package published
 - [x] Added try...except
+- [x] Aliases without `OP_` prefix
+- [x] Macros and variables
 
 ## Usage
 
