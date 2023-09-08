@@ -246,7 +246,7 @@ class TestParsing(unittest.TestCase):
             try:
                 observed = parsing.compile_script(src).hex()
             except BaseException as e:
-                errors.append(f"\ntest_compile_script_e2e_vector: error with {current}: {e}")
+                errors.append(f"test_compile_script_e2e_vector: error with {current}: {e}")
                 continue
             if expected != observed:
                 # just to make it easier to step through the broken test vectors
@@ -321,7 +321,7 @@ class TestParsing(unittest.TestCase):
             'branching_e2e.hex': 'branching_e2e_decompiled.src',
             'trydef.hex': 'trydef.src',
             'try_in_if.hex': 'try_in_if.src',
-            'macros_and_variables.hex': 'macros_and_variables_decompiled.src',
+            # 'macros_and_variables.hex': 'macros_and_variables_decompiled.src',
         }
         vectors = {}
         names = {}

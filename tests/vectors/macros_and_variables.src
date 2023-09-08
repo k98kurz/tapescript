@@ -11,3 +11,34 @@
 PUSH x01
 @ev
 EQUAL
+
+DEF 0 {
+    != ve [ ] { FALSE }
+    !ve [ ]
+    @= ve [ ]
+    @ve
+}
+
+IF (
+    != vv [ ] { TRUE }
+    !vv [ ]
+    @= vv [ d1 ]
+    @vv
+) ELSE (
+    != a1 [ ] { NOP255 d0 }
+    !a1 [ ]
+    @= a1 [ xfeedbeef ]
+    @a1
+)
+
+TRY {
+    != a2 [ ] { NOP255 d0 }
+    !a2 [ ]
+    @= a2 [ xdeafacab ]
+    @a2
+} EXCEPT {
+    != a2 [ ] { NOP255 d0 }
+    !a2 [ ]
+    @= a2 [ xdeafacab ]
+    @a2
+}

@@ -564,7 +564,7 @@ def get_args(
     return (symbols_to_advance, tuple(args))
 
 
-def parse_def(symbols: list[str], symbol_index: int) -> tuple[int, tuple[bytes]]:
+def parse_def(symbols: list[str], symbol_index: int, macros: dict = {}) -> tuple[int, tuple[bytes]]:
     yert(len(symbols) > 0, f'missing OP_DEF clause contents at symbol {symbol_index}')
     vert(symbols[0] in ('OP_DEF', 'DEF'), f'malformed OP_DEF clause: must begin OP_DEF not {symbols[0]}' +
          f' at symbol {symbol_index}')
@@ -610,17 +610,34 @@ def parse_def(symbols: list[str], symbol_index: int) -> tuple[int, tuple[bytes]]
         if current_symbol in opcode_aliases:
             current_symbol = 'OP_' + current_symbol
         yert(current_symbol in opcodes_inverse or
-                current_symbol in ('}', 'END_DEF', 'OP_PUSH', 'PUSH', 'OP_TRY', 'TRY'),
+             current_symbol in ('}', 'END_DEF', 'OP_PUSH', 'PUSH', 'OP_TRY',
+                                'TRY', '@=', '!=') or
+             (current_symbol[0] in ('!', '@') and current_symbol[1:].isalnum()),
                 f'statements must begin with valid op code, not {current_symbol} - symbol {index}')
         yert(current_symbol != 'OP_DEF',
             f'cannot use OP_DEF within OP_DEF body - symbol {index}')
 
         if current_symbol == 'OP_IF':
-            advance, parts = parse_if(symbols[index:search_idx], symbol_index+index)
+            advance, parts = parse_if(symbols[index:search_idx], symbol_index+index, macros)
+            index += advance
+            def_code += b''.join(parts)
+        elif current_symbol == '@=':
+            advance, parts = set_variable(symbols[index:])
+            index += advance
+            def_code += b''.join(parts)
+        elif current_symbol[0] == '@':
+            advance, parts = load_variable(symbols[index:])
+            index += advance
+            def_code += b''.join(parts)
+        elif current_symbol == '!=':
+            advance = define_macro(symbols[index:], macros=macros)
+            index += advance
+        elif current_symbol[0] == '!':
+            advance, parts = invoke_macro(symbols[index:], macros=macros)
             index += advance
             def_code += b''.join(parts)
         elif current_symbol == 'OP_TRY':
-            advance, parts = parse_try(symbols[index:search_idx], index)
+            advance, parts = parse_try(symbols[index:search_idx], index, macros)
             index += advance
             def_code += b''.join(parts)
         elif current_symbol in ('}', 'END_DEF'):
@@ -659,7 +676,7 @@ def parse_def(symbols: list[str], symbol_index: int) -> tuple[int, tuple[bytes]]
     return (search_idx+1, tuple(code))
 
 
-def parse_if(symbols: list[str], symbol_index: int) -> tuple[int, tuple[bytes]]:
+def parse_if(symbols: list[str], symbol_index: int, macros: dict = {}) -> tuple[int, tuple[bytes]]:
     """Parses a statement starting with OP_IF. Returns tuple (int
         advance, tuple[bytes] parts). Called recursively to handle nested
         conditional clauses. The first element of tuple[bytes] will be
@@ -702,26 +719,41 @@ def parse_if(symbols: list[str], symbol_index: int) -> tuple[int, tuple[bytes]]:
                 break
             index += 1
             continue
+        elif current_symbol == '@=':
+            advance, parts = set_variable(symbols[index:])
+            index += advance
+            code.extend(parts)
+        elif current_symbol[0] == '@':
+            advance, parts = load_variable(symbols[index:])
+            index += advance
+            code.extend(parts)
+        elif current_symbol == '!=':
+            advance = define_macro(symbols[index:], macros=macros)
+            index += advance
+        elif current_symbol[0] == '!':
+            advance, parts = invoke_macro(symbols[index:], macros=macros)
+            index += advance
+            code.extend(parts)
         elif current_symbol == 'END_IF':
             index += 2
             break
         elif current_symbol == 'OP_DEF':
-            advance, parts = parse_def(symbols[index:], symbol_index+index)
+            advance, parts = parse_def(symbols[index:], symbol_index+index, macros)
             index += advance
             code.extend(parts)
         elif current_symbol == 'ELSE':
             opcode = 'OP_IF_ELSE'
-            advance, parts = parse_else(symbols[index:], symbol_index+index)
+            advance, parts = parse_else(symbols[index:], symbol_index+index, macros)
             index += advance
             code.extend(parts)
             else_len = len(b''.join(parts))
             break
         elif current_symbol == 'OP_IF':
-            advance, parts = parse_if(symbols[index:], symbol_index+index)
+            advance, parts = parse_if(symbols[index:], symbol_index+index, macros)
             index += advance
             code.extend(parts)
         elif current_symbol == 'OP_TRY':
-            advance, parts = parse_try(symbols[index:], symbol_index+index)
+            advance, parts = parse_try(symbols[index:], symbol_index+index, macros)
             index += advance
             code.extend(parts)
         else:
@@ -755,7 +787,7 @@ def parse_if(symbols: list[str], symbol_index: int) -> tuple[int, tuple[bytes]]:
     )
 
 
-def parse_else(symbols: list[str], symbol_index: int) -> tuple[int, tuple[bytes]]:
+def parse_else(symbols: list[str], symbol_index: int, macros: dict = {}) -> tuple[int, tuple[bytes]]:
     """Parses an ELSE clause. Returns tuple (int advance, tuple[bytes]
         parts). Recursively calls parse_if to handle nested conditional
         clauses.
@@ -776,8 +808,6 @@ def parse_else(symbols: list[str], symbol_index: int) -> tuple[int, tuple[bytes]
         yert('END_IF' in symbols[1:], f'missing END_IF - starting symbol {symbol_index}')
         end_index = _find_matching_brace(symbols, 'ELSE', 'END_IF')
 
-    # print(f"parse_else: {end_index=} {symbols[0:end_index+1]}")
-
     while index < len(symbols):
         current_symbol = symbols[index]
         if current_symbol in ('"', "'", '#'):
@@ -796,16 +826,31 @@ def parse_else(symbols: list[str], symbol_index: int) -> tuple[int, tuple[bytes]
         if current_symbol in (')', 'END_IF'):
             index += 1
             break
+        elif current_symbol == '@=':
+            advance, parts = set_variable(symbols[index:])
+            index += advance
+            code.extend(parts)
+        elif current_symbol[0] == '@':
+            advance, parts = load_variable(symbols[index:])
+            index += advance
+            code.extend(parts)
+        elif current_symbol == '!=':
+            advance= define_macro(symbols[index:], macros=macros)
+            index += advance
+        elif current_symbol[0] == '!':
+            advance, parts = invoke_macro(symbols[index:], macros=macros)
+            index += advance
+            code.extend(parts)
         elif current_symbol == 'OP_IF':
-            advance, parts = parse_if(symbols[index:], symbol_index+index)
+            advance, parts = parse_if(symbols[index:], symbol_index+index, macros)
             index += advance
             code.extend(parts)
         elif current_symbol == 'OP_DEF':
-            advance, parts = parse_def(symbols[index:], symbol_index+index)
+            advance, parts = parse_def(symbols[index:], symbol_index+index, macros)
             index += advance
             code.extend(parts)
         elif current_symbol == 'OP_TRY':
-            advance, parts = parse_try(symbols[index:], symbol_index+index)
+            advance, parts = parse_try(symbols[index:], symbol_index+index, macros)
             index += advance
             code.extend(parts)
         else:
@@ -837,7 +882,7 @@ def parse_else(symbols: list[str], symbol_index: int) -> tuple[int, tuple[bytes]
     )
 
 
-def parse_try(symbols: list[str], symbol_index: int) -> tuple[int, tuple[bytes]]:
+def parse_try(symbols: list[str], symbol_index: int, macros: dict = {}) -> tuple[int, tuple[bytes]]:
     """Parses a statement starting with OP_TRY. Returns tuple (int
         advance, tuple[bytes] parts). Called recursively to handle
         nested try clauses.
@@ -878,25 +923,40 @@ def parse_try(symbols: list[str], symbol_index: int) -> tuple[int, tuple[bytes]]
             index += 1
             if len(symbols) < index+2 or symbols[index] != 'EXCEPT':
                 break
+        elif current_symbol == '@=':
+            advance, parts = set_variable(symbols[index:])
+            index += advance
+            code.extend(parts)
+        elif current_symbol[0] == '@':
+            advance, parts = load_variable(symbols[index:])
+            index += advance
+            code.extend(parts)
+        elif current_symbol == '!=':
+            advance= define_macro(symbols[index:], macros=macros)
+            index += advance
+        elif current_symbol[0] == '!':
+            advance, parts = invoke_macro(symbols[index:], macros=macros)
+            index += advance
+            code.extend(parts)
         elif current_symbol == 'OP_IF':
-            advance, parts = parse_if(symbols[index:], symbol_index+index)
+            advance, parts = parse_if(symbols[index:], symbol_index+index, macros)
             index += advance
             code.extend(parts)
         elif current_symbol == 'OP_DEF':
-            advance, parts = parse_def(symbols[index:], symbol_index+index)
+            advance, parts = parse_def(symbols[index:], symbol_index+index, macros)
             index += advance
             code.extend(parts)
         elif current_symbol == 'END_TRY':
             index += 2
             break
         elif current_symbol == 'EXCEPT':
-            advance, parts = parse_except(symbols[index:], symbol_index+index)
+            advance, parts = parse_except(symbols[index:], symbol_index+index, macros)
             index += advance
             code.extend(parts)
             except_len = len(b''.join(parts))
             break
         elif current_symbol == 'OP_TRY':
-            advance, parts = parse_try(symbols[index:], symbol_index+index)
+            advance, parts = parse_try(symbols[index:], symbol_index+index, macros)
             index += advance
             code.extend(parts)
         else:
@@ -934,7 +994,7 @@ def parse_try(symbols: list[str], symbol_index: int) -> tuple[int, tuple[bytes]]
     )
 
 
-def parse_except(symbols: list[str], symbol_index: int) -> tuple[int, tuple[bytes]]:
+def parse_except(symbols: list[str], symbol_index: int, macros: dict = {}) -> tuple[int, tuple[bytes]]:
     """Parses an EXCEPT clause. Returns tuple (int advance, tuple[bytes]
         parts). Recursively calls parse_try to handle nested exception
         handling clauses.
@@ -970,18 +1030,33 @@ def parse_except(symbols: list[str], symbol_index: int) -> tuple[int, tuple[byte
         if current_symbol in ('}', 'END_EXCEPT'):
             index += 1
             break
+        elif current_symbol == '@=':
+            advance, parts = set_variable(symbols[index:])
+            index += advance
+            code.extend(parts)
+        elif current_symbol[0] == '@':
+            advance, parts = load_variable(symbols[index:])
+            index += advance
+            code.extend(parts)
+        elif current_symbol == '!=':
+            advance= define_macro(symbols[index:], macros=macros)
+            index += advance
+        elif current_symbol[0] == '!':
+            advance, parts = invoke_macro(symbols[index:], macros=macros)
+            index += advance
+            code.extend(parts)
         elif current_symbol == 'EXCEPT':
             raise SyntaxError('cannot have multiple EXCEPT clauses')
         elif current_symbol == 'OP_IF':
-            advance, parts = parse_if(symbols[index:], symbol_index+index)
+            advance, parts = parse_if(symbols[index:], symbol_index+index, macros)
             index += advance
             code.extend(parts)
         elif current_symbol == 'OP_DEF':
-            advance, parts = parse_def(symbols[index:], symbol_index+index)
+            advance, parts = parse_def(symbols[index:], symbol_index+index, macros)
             index += advance
             code.extend(parts)
         elif current_symbol == 'OP_TRY':
-            advance, parts = parse_try(symbols[index:], symbol_index+index)
+            advance, parts = parse_try(symbols[index:], symbol_index+index, macros)
             index += advance
             code.extend(parts)
         else:
@@ -1032,14 +1107,14 @@ def _find_matching_brace(symbols: list[str], open_brace: str, close_brace: str) 
 def compile_script(script: str) -> bytes:
     """Compile the given human-readable script into byte code."""
     vert(type(script) is str, 'input script must be str')
-
-    # setup
-    code = []
     macros = {}
-
-    # get a list of symbols
     symbols = get_symbols(script)
+    return assemble(symbols, macros=macros)
+
+def assemble(symbols: list[str], macros: dict = {}) -> bytes:
+    """Assemble the symbols into bytecode."""
     index = 0
+    code = []
 
     while index < len(symbols):
         symbol = symbols[index]
@@ -1080,15 +1155,15 @@ def compile_script(script: str) -> bytes:
             index += advance
             code.append(b''.join(parts))
         elif symbol == 'OP_DEF':
-            advance, parts = parse_def(symbols[index:], index)
+            advance, parts = parse_def(symbols[index:], index, macros)
             index += advance
             code.append(b''.join(parts))
         elif symbol == 'OP_IF':
-            advance, parts = parse_if(symbols[index:], index)
+            advance, parts = parse_if(symbols[index:], index, macros)
             index += advance
             code.append(b''.join(parts))
         elif symbol == 'OP_TRY':
-            advance, parts = parse_try(symbols[index:], index)
+            advance, parts = parse_try(symbols[index:], index, macros)
             index += advance
             code.append(b''.join(parts))
         else:
