@@ -63,7 +63,7 @@ class TestParsing(unittest.TestCase):
     def test_compile_script_errors_on_invalid_opcode(self):
         with self.assertRaises(ValueError) as e:
             parsing.compile_script('OP_WTF d1')
-        assert 'unrecognized opcode: OP_WTF' in str(e.exception)
+        assert 'unrecognized symbol: OP_WTF' in str(e.exception)
 
     def test_compile_script_errors_on_invalid_opcode_use_syntax(self):
         with self.assertRaises(errors.SyntaxError) as e:
@@ -474,27 +474,58 @@ class TestParsing(unittest.TestCase):
         del functions.opcodes_inverse['OP_GRAB_INT']
 
     def test_define_macro_and_invoke_macro_e2e(self):
-        defsrc = '!= test [ arg1 arg2 ] { PUSH arg1 PUSH arg2 EQUALVERIFY }'
+        defsrc = '!= test [ arg1 arg2 ] { PUSH arg1 PUSH arg2 EQUAL_VERIFY }'
         callsrc = '!test [ d12 d23 ]'
         symbols = parsing.get_symbols(defsrc)
+        macros = {}
 
-        assert len(parsing.macros) == 0
-        index = parsing.define_macro(symbols)
+        assert len(macros) == 0
+        index = parsing.define_macro(symbols, macros)
         assert type(index) is int and index == len(symbols)
-        assert len(parsing.macros) == 1
-        assert 'test' in parsing.macros, f"{parsing.macros=}"
-        assert 'args' in parsing.macros['test']
-        assert 'template' in parsing.macros['test']
+        assert len(macros) == 1
+        assert 'test' in macros, f"{macros=}"
+        assert 'args' in macros['test']
+        assert 'template' in macros['test']
 
         symbols = parsing.get_symbols(callsrc)
-        result = parsing.invoke_macro(symbols)
+        result = parsing.invoke_macro(symbols, macros)
         assert type(result) is tuple
         assert len(result) == 2
         assert type(result[0]) is int
         assert result[0] == len(symbols)
-        assert type(result[1]) is bytes
+        assert type(result[1]) is tuple
+        assert len(result[1]) == 1
+        assert type(result[1][0]) is bytes
 
-        parsing.macros = {}
+        src = defsrc + ' ' + callsrc
+        result = parsing.compile_script(src)
+        assert type(result) is bytes
+        print(result.hex())
+        assert len(result) == 5
+
+    def test_variables_e2e(self):
+        setsrc = '@= test [ d123 ]'
+        result = parsing.set_variable(parsing.get_symbols(setsrc))
+        assert type(result) is tuple
+        assert len(result) == 2
+        assert result[0] == len(parsing.get_symbols(setsrc))
+        assert type(result[1]) is tuple
+        assert len(result[1]) == 1
+        assert type(result[1][0]) is bytes
+
+        getsrc = '@test'
+        result = parsing.load_variable([getsrc])
+        assert type(result) is tuple
+        assert len(result) == 2
+        assert result[0] == len(parsing.get_symbols(getsrc))
+        assert type(result[1]) is tuple
+        assert len(result[1]) == 1
+        assert type(result[1][0]) is bytes
+
+        src = '@= test [ d123 ] @test PUSH d123 EQUAL'
+        code = parsing.compile_script(src)
+        assert type(code) is bytes
+        assert len(code) == 18
 
     def bytes_xor(self, first: bytes, second: bytes) -> bytes:
         while len(first) > len(second):

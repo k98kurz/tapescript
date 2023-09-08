@@ -44,15 +44,14 @@ def get_symbols(script: str) -> list[str]:
 
 
 additional_opcodes = {}
-macros = {}
 
-def define_macro(symbols: list[str]) -> int:
+def define_macro(symbols: list[str], macros: dict = {}) -> int:
     """Defines a macro. Code syntax is `!= name [ args ] { statements }`.
         Returns the number by which to advance the symbol index.
     """
     yert(symbols[0] == '!=', 'macro definition must begin with !=')
     name = symbols[1].lower()
-    yert(name.isalpha(), 'macro name must be alphabetic')
+    yert(name.isalnum(), 'macro name must be alphanumeric')
     yert(symbols[2] == '[',
          'macro definition must be of form != name [ args ] { statements }')
     closing_brace_index = _find_matching_brace(symbols, '[', ']')
@@ -65,7 +64,7 @@ def define_macro(symbols: list[str]) -> int:
     closing_brace_index = _find_matching_brace(
         symbols, '{', '}'
     )
-    statement_symbols = symbols[open_brace_index+1:closing_brace_index-1]
+    statement_symbols = symbols[open_brace_index+1:closing_brace_index]
 
     macros[name] = {
         'args': args,
@@ -73,7 +72,7 @@ def define_macro(symbols: list[str]) -> int:
     }
     return closing_brace_index + 1
 
-def invoke_macro(symbols: list[str]) -> tuple[int, bytes]:
+def invoke_macro(symbols: list[str], macros: dict = {}) -> tuple[int, tuple[bytes]]:
     """Invokes a macro, returning the number by which to advance the
         symbol index and the compiled bytecode. May raise a SyntaxError.
     """
@@ -94,7 +93,49 @@ def invoke_macro(symbols: list[str]) -> tuple[int, bytes]:
             src[i] = args[src[i]]
 
     code = compile_script(' '.join(src))
-    return (closing_brace_index+1, code)
+    return (closing_brace_index+1, (code,))
+
+def set_variable(symbols: list[str]) -> tuple[int, tuple[bytes]]:
+    """Expand syntactic sugar of `@= name [ vals ]` into proper OPs,
+        then compile and return the number to advance the symbol index
+        and the bytecode.
+    """
+    yert(symbols[0] == '@=',
+         f'set_variable statement must start with @=, not {symbols[0]}')
+    name = symbols[1]
+    yert(name.isalnum(), f'set_variable name must be alphanumeric, not {name}')
+    yert(symbols[2] == '[',
+         'set_variable statement must be of form @= name [ vals ]')
+    closing_brace_index = _find_matching_brace(symbols, '[', ']')
+    vals = symbols[3:closing_brace_index]
+
+    src = []
+    for val in vals:
+        src.extend(['PUSH', val])
+
+    src.append('WRITE_CACHE')
+    src.append('x' + bytes(name, 'utf-8').hex())
+    src.append('d' + str(len(src)))
+
+    code = compile_script(' '.join(src))
+
+    return (
+        closing_brace_index + 1,
+        (code,)
+    )
+
+def load_variable(symbols: list[str]) -> tuple[int, tuple[bytes]]:
+    """Expand the syntactic sugar of `@name` into proper OPs, then
+        compile and return the number to advance the symbol index and
+        the bytecode.
+    """
+    yert(symbols[0][0] == '@',
+         f"load_variable statement must be of form @name, not {symbols[0]}")
+    name = symbols[0][1:]
+    yert(name.isalnum(), f'load_variable name must be alphanumeric, not {name}')
+
+    src = "READ_CACHE x" + bytes(name, 'utf-8').hex()
+    return (1, (compile_script(src),))
 
 def add_opcode_parsing_handlers(
         opname: str, compiler_handler: Callable, decompiler_handler: Callable
@@ -993,6 +1034,7 @@ def compile_script(script: str) -> bytes:
 
     # setup
     code = []
+    macros = {}
 
     # get a list of symbols
     symbols = get_symbols(script)
@@ -1016,12 +1058,27 @@ def compile_script(script: str) -> bytes:
             symbol = 'OP_' + symbol
 
         vert(symbol in opcodes_inverse or symbol in nopcodes_inverse
-             or symbol in ('OP_PUSH', 'PUSH', 'OP_TRY', 'TRY'),
-             f'unrecognized opcode: {symbol} at symbol {index}' +
+             or symbol in ('OP_PUSH', 'OP_TRY', '@=', '!=') or
+             (symbol[0] in ('!', '@') and symbol[1:].isalnum()),
+             f'unrecognized symbol: {symbol} at symbol {index}' +
               (f' (after {symbols[index-1]})' if index > 0 else '') +
               (f' (before {symbols[index+1]})' if index < len(symbols)-1 else ''))
 
-        if symbol == 'OP_DEF':
+        if symbol == '!=':
+            index += define_macro(symbols[index:], macros)
+        elif symbol[0] == '!':
+            advance, parts = invoke_macro(symbols[index:], macros)
+            index += advance
+            code.append(b''.join(parts))
+        elif symbol == '@=':
+            advance, parts = set_variable(symbols[index:])
+            index += advance
+            code.append(b''.join(parts))
+        elif symbol[0] == '@':
+            advance, parts = load_variable(symbols[index:])
+            index += advance
+            code.append(b''.join(parts))
+        elif symbol == 'OP_DEF':
             advance, parts = parse_def(symbols[index:], index)
             index += advance
             code.append(b''.join(parts))
