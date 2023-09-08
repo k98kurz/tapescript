@@ -105,8 +105,20 @@ def set_variable(symbols: list[str]) -> tuple[int, tuple[bytes]]:
          f'set_variable statement must start with @=, not {symbols[0]}')
     name = symbols[1]
     yert(name.isalnum(), f'set_variable name must be alphanumeric, not {name}')
-    yert(symbols[2] == '[',
-         'set_variable statement must be of form @= name [ vals ]')
+    yert(symbols[2] == '[' or symbols[2].isnumeric(),
+         'set_variable statement must be of form @= name [ vals ] or @= name int')
+
+    if symbols[2].isnumeric():
+        count = int(symbols[2])
+        src = ['WRITE_CACHE']
+        src.append('x' + bytes(name, 'utf-8').hex())
+        src.append('d' + str(count))
+        code = compile_script(' '.join(src))
+        return (
+            3,
+            (code,)
+        )
+
     closing_brace_index = _find_matching_brace(symbols, '[', ']')
     vals = symbols[3:closing_brace_index]
 
@@ -803,10 +815,8 @@ def parse_else(symbols: list[str], symbol_index: int, macros: dict = {}) -> tupl
         yert(')' in symbols[1:],
              f'unterminated ELSE: missing matching ) - starting symbol {symbol_index}')
         index = 2
-        end_index = _find_matching_brace(symbols, '(', ')')
     else:
         yert('END_IF' in symbols[1:], f'missing END_IF - starting symbol {symbol_index}')
-        end_index = _find_matching_brace(symbols, 'ELSE', 'END_IF')
 
     while index < len(symbols):
         current_symbol = symbols[index]

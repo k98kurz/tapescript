@@ -12,11 +12,14 @@ PUSH x01
 @ev
 EQUAL
 
+@= ev 1
+
 DEF 0 {
     != ve [ ] { FALSE }
     !ve [ ]
     @= ve [ ]
     @ve
+    @= ve 1
 }
 
 IF (
@@ -24,11 +27,13 @@ IF (
     !vv [ ]
     @= vv [ d1 ]
     @vv
+    @= vv 0
 ) ELSE (
     != a1 [ ] { NOP255 d0 }
     !a1 [ ]
     @= a1 [ xfeedbeef ]
     @a1
+    @= a1 0
 )
 
 TRY {
@@ -36,9 +41,11 @@ TRY {
     !a2 [ ]
     @= a2 [ xdeafacab ]
     @a2
+    @= a2 1
 } EXCEPT {
     != a2 [ ] { NOP255 d0 }
     !a2 [ ]
     @= a2 [ xdeafacab ]
     @a2
+    @= a2 2
 }
