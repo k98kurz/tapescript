@@ -221,8 +221,11 @@ of just the resulting code, and that bytecode will be inserted if successful.
 #### Variables
 
 Variables are simply syntactic sugar for using the cache as a set of registers.
-The syntax is simple: `@= name [ values ]` to set and `@name` to copy the values
-onto the stack. Variables cannot be used for arguments to ops.
+The syntax is simple: `@= name [ values ]` or `@= name int` to set and `@name`
+to copy the values onto the stack. The first setting syntax pushes values onto
+the stack and then puts them from the stack into the cache. The second setting
+syntax simply pulls values from the stack. Variables cannot be used for
+arguments to ops.
 
 ## Style
 
