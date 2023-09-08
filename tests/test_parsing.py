@@ -226,6 +226,7 @@ class TestParsing(unittest.TestCase):
             'branching_e2e.src': 'branching_e2e.hex',
             'trydef.src': 'trydef.hex',
             'try_in_if.src': 'try_in_if.hex',
+            'macros_and_variables.src': 'macros_and_variables.hex',
         }
         vectors = {}
         names = {}
@@ -320,6 +321,7 @@ class TestParsing(unittest.TestCase):
             'branching_e2e.hex': 'branching_e2e_decompiled.src',
             'trydef.hex': 'trydef.src',
             'try_in_if.hex': 'try_in_if.src',
+            'macros_and_variables.hex': 'macros_and_variables_decompiled.src',
         }
         vectors = {}
         names = {}
@@ -500,7 +502,6 @@ class TestParsing(unittest.TestCase):
         src = defsrc + ' ' + callsrc
         result = parsing.compile_script(src)
         assert type(result) is bytes
-        print(result.hex())
         assert len(result) == 5
 
     def test_variables_e2e(self):

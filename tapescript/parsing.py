@@ -35,7 +35,8 @@ def get_symbols(script: str) -> list[str]:
             yert(found, 'unterminated string encountered')
             token = ' '.join(parts)
             symbols.append(token)
-        elif token[0] not in ('s', 'd', 'x'):
+        elif token[0] not in ('s', 'd', 'x', '!', '@') and (
+            len(symbols) == 0 or symbols[-1] not in ('!=', '@=')):
             symbols.append(token.upper())
         else:
             symbols.append(token)
@@ -115,7 +116,7 @@ def set_variable(symbols: list[str]) -> tuple[int, tuple[bytes]]:
 
     src.append('WRITE_CACHE')
     src.append('x' + bytes(name, 'utf-8').hex())
-    src.append('d' + str(len(src)))
+    src.append('d' + str(len(vals)))
 
     code = compile_script(' '.join(src))
 

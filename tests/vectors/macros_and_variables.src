@@ -1,0 +1,13 @@
+!= ev [ val1 val2 ] {
+    PUSH val1
+    PUSH val2
+    EQUAL_VERIFY
+}
+
+!ev [ d123 d321 ]
+
+@= ev [ x01 ]
+
+PUSH x01
+@ev
+EQUAL
