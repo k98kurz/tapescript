@@ -321,7 +321,7 @@ class TestParsing(unittest.TestCase):
             'branching_e2e.hex': 'branching_e2e_decompiled.src',
             'trydef.hex': 'trydef.src',
             'try_in_if.hex': 'try_in_if.src',
-            # 'macros_and_variables.hex': 'macros_and_variables_decompiled.src',
+            'macros_and_variables.hex': 'macros_and_variables_decompiled.src',
         }
         vectors = {}
         names = {}
