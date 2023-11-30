@@ -21,6 +21,8 @@ controls in a distributed system.
 - [x] Added try...except
 - [x] Aliases without `OP_` prefix
 - [x] Macros and variables
+- [ ] Loops
+- [ ] HTLC test vectors: https://github.com/realcodywburns/Tank-Farm/blob/master/contracts/locking/HTLC(mew).sol#L23
 
 ## Usage
 
