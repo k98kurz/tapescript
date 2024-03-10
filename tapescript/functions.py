@@ -847,11 +847,11 @@ def OP_SPLIT_STR(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     queue.put(bytes(part0, 'utf-8'))
 
 def OP_CHECK_TRANSFER(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Read the next byte from the tape, interpreting as an unsigned
-        int count; take an item from the queue as a contract ID; take
-        an item from the queue as an amount; take an item from the queue
-        as a serialized txn constraint; take an item from the queue
-        as a destination (address, locking script hash, etc); take the
+    """Take an item from the queue as a contract ID; take an item from
+        the queue as an amount; take an item from the queue as a
+        serialized txn constraint; take an item from the queue as a
+        destination (address, locking script hash, etc); take an item
+        from the queue, interpreting as an unsigned int count; take
         count number of items from the queue as sources; take the count
         number of items from the queue as transaction proofs; verify
         that the aggregate of the transfers to the destination from the
@@ -862,11 +862,11 @@ def OP_CHECK_TRANSFER(tape: Tape, queue: LifoQueue, cache: dict) -> None:
         corresponding order.
     """
     # get parameters
-    count = int.from_bytes(tape.read(1), 'big')
     contract_id = queue.get(False)
     amount = bytes_to_int(queue.get(False))
     constraint = queue.get(False)
     destination = queue.get(False)
+    count = int.from_bytes(queue.get(False), 'big')
     sources = []
     txn_proofs = []
     all_proofs_valid = True

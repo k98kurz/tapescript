@@ -526,7 +526,7 @@ def get_args(
             'OP_CHECK_TIMESTAMP' | 'OP_CHECK_TIMESTAMP_VERIFY' | \
             'OP_CHECK_EPOCH' | 'OP_CHECK_EPOCH_VERIFY' | 'OP_EVAL' | \
             'OP_NOT' | 'OP_RETURN' | 'OP_DEPTH' | 'OP_SWAP2' | \
-            'OP_CONCAT' | 'OP_CONCAT_STR':
+            'OP_CONCAT' | 'OP_CONCAT_STR' | 'OP_CHECK_TRANSFER':
             # ops that have no arguments on the tape
             # human-readable syntax of OP_[whatever]
             pass
@@ -542,7 +542,7 @@ def get_args(
             # ops that have tape arguments of form [size 0-255] [val]
             return _get_OP_PUSH1_type_args(opname, symbols, symbols_to_advance, symbol_index)
         case 'OP_PUSH0' | 'OP_POP1' | 'OP_ADD_INTS' | 'OP_SUBTRACT_INTS' | \
-            'OP_MULT_INTS' | 'OP_ADD_FLOATS' | 'OP_CHECK_TRANSFER' | \
+            'OP_MULT_INTS' | 'OP_ADD_FLOATS' | \
             'OP_SUBTRACT_FLOATS' | 'OP_ADD_POINTS' | 'OP_CALL' | \
             'OP_COPY' | 'OP_SHAKE256' | 'OP_RANDOM' | 'OP_REVERSE' | \
             'OP_SPLIT' | 'OP_SPLIT_STR' | 'OP_CHECK_SIG' | 'OP_CHECK_SIG_VERIFY':
@@ -1263,7 +1263,7 @@ def decompile_script(script: bytes, indent: int = 0) -> list[str]:
                 'OP_CHECK_TIMESTAMP' | 'OP_CHECK_TIMESTAMP_VERIFY' | \
                 'OP_CHECK_EPOCH' | 'OP_CHECK_EPOCH_VERIFY' | 'OP_EVAL' | \
                 'OP_NOT' | 'OP_RETURN' | 'OP_DEPTH' | 'OP_SWAP2' | \
-                'OP_CONCAT' | 'OP_CONCAT_STR':
+                'OP_CONCAT' | 'OP_CONCAT_STR' | 'OP_CHECK_TRANSFER':
                 # ops that have no arguments on the tape
                 # human-readable syntax of OP_[whatever]
                 add_line(op_name)
@@ -1290,7 +1290,7 @@ def decompile_script(script: bytes, indent: int = 0) -> list[str]:
                 count = tape.read(1)[0]
                 add_line(f'{op_name} x{val.hex()} d{count}')
             case 'OP_PUSH0' | 'OP_POP1' | 'OP_ADD_INTS' | 'OP_SUBTRACT_INTS' | \
-                'OP_MULT_INTS' | 'OP_ADD_FLOATS' | 'OP_CHECK_TRANSFER' | \
+                'OP_MULT_INTS' | 'OP_ADD_FLOATS' | \
                 'OP_SUBTRACT_FLOATS' | 'OP_ADD_POINTS' | 'OP_CALL' | \
                 'OP_COPY' | 'OP_SHAKE256' | 'OP_RANDOM' | 'OP_REVERSE' | \
                 'OP_SPLIT' | 'OP_SPLIT_STR':

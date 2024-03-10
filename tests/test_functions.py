@@ -1140,6 +1140,7 @@ class TestFunctions(unittest.TestCase):
             self.tape = classes.Tape(b'\x01')
             self.queue.put(b'txn_proof')
             self.queue.put(b'source')
+            self.queue.put(b'\x01')
             self.queue.put(b'destination')
             self.queue.put(b'constraint')
             self.queue.put(b'amount')
@@ -1158,9 +1159,10 @@ class TestFunctions(unittest.TestCase):
 
     def test_OP_CHECK_TRANSFER_works(self):
         def setup_transfer():
-            self.tape = classes.Tape(b'\x01')
+            self.tape = classes.Tape(b'\x00')
             self.queue.put(b'txn_proof')
             self.queue.put(b'source')
+            self.queue.put((1).to_bytes(1, 'big'))
             self.queue.put(b'destination')
             self.queue.put(b'constraint')
             self.queue.put((10).to_bytes(1, 'big')) # amount
