@@ -960,6 +960,36 @@ def OP_TRY_EXCEPT(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     if 'returned' in cache:
         OP_RETURN(tape, queue, cache)
 
+def OP_LESS(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+    """Pull two uints val1 and val2 from queue; put (v1<v2) onto queue."""
+    val1 = int.from_bytes(queue.get(False), 'big')
+    val2 = int.from_bytes(queue.get(False), 'big')
+    queue.put(b'\x01' if val1 < val2 else b'\x00')
+
+def OP_LESS_OR_EQUAL(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+    """Pull two uints val1 and val2 from queue; put (v1<=v2) onto queue."""
+    val1 = int.from_bytes(queue.get(False), 'big')
+    val2 = int.from_bytes(queue.get(False), 'big')
+    queue.put(b'\x01' if val1 <= val2 else b'\x00')
+
+def OP_GET_VALUE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+    """Read one byte from the tape as uint size; read size bytes from
+        the tape, interpreting as utf-8 string; put the read-only cache
+        value(s) at that cache key onto the queue, serialized as bytes.
+    """
+    size = tape.read(1)[0]
+    key = str(tape.read(size), 'utf-8')
+    sert(key in cache, f'OP_GET_VALUE key "{key}" not in cache')
+    items = cache[key] if type(cache[key]) in (list, tuple) else [cache[key]]
+    if type(items) in (list, tuple):
+        for val in items:
+            if type(val) in (bytes, bytearray):
+                queue.put(val)
+            elif type(val) is str:
+                queue.put(bytes(val, 'utf-8'))
+            elif type(val) is int:
+                queue.put(int_to_bytes(val))
+
 def NOP(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int
         and pull that many values from the queue. Does nothing with the
@@ -1034,6 +1064,9 @@ opcodes = [
     ('OP_CHECK_TRANSFER', OP_CHECK_TRANSFER),
     ('OP_MERKLEVAL', OP_MERKLEVAL),
     ('OP_TRY_EXCEPT', OP_TRY_EXCEPT),
+    ('OP_LESS', OP_LESS),
+    ('OP_LESS_OR_EQUAL', OP_LESS_OR_EQUAL),
+    ('OP_GET_VALUE', OP_GET_VALUE),
 ]
 opcodes = {x: opcodes[x] for x in range(len(opcodes))}
 
@@ -1049,6 +1082,11 @@ opcodes_inverse = {
 opcode_aliases = {
     k[3:]: k for k, _ in opcodes_inverse.items()
 }
+
+opcode_aliases['LEQ'] = OP_LESS_OR_EQUAL
+opcode_aliases['LEQ'] = OP_LESS_OR_EQUAL
+opcode_aliases['OP_VAL'] = OP_GET_VALUE
+opcode_aliases['VAL'] = OP_GET_VALUE
 
 nopcodes_inverse = {
     nopcodes[key][0]: (key, nopcodes[key][1]) for key in nopcodes
@@ -1091,7 +1129,7 @@ def remove_contract(contract_id: bytes) -> None:
     if contract_id in _contracts:
         del _contracts[contract_id]
 
-def add_contract_interface(interface: Protocol) -> None:
+def add_contract_interface(interface: type) -> None:
     """Adds an interface for type checking contracts. Interface must be
         a runtime_checkable Protocol.
     """
@@ -1099,7 +1137,7 @@ def add_contract_interface(interface: Protocol) -> None:
     if interface.__name__ not in _contract_interfaces:
         _contract_interfaces[interface.__name__] = interface
 
-def remove_contract_interface(interface: Protocol) -> None:
+def remove_contract_interface(interface: type) -> None:
     """Removes an interface for type checking contracts."""
     tert(type(interface) is _ProtocolMeta, 'interface must be a Protocol')
     if interface.__name__ in _contract_interfaces:

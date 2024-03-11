@@ -1381,6 +1381,64 @@ class TestFunctions(unittest.TestCase):
             functions.OP_MERKLEVAL(self.tape, self.queue, self.cache)
         assert str(e.exception) == 'OP_VERIFY check failed'
 
+    def test_OP_LESS_pulls_two_values_from_queue_and_places_bool_on_queue(self):
+        val1 = functions.int_to_bytes(123)
+        val2 = functions.int_to_bytes(321)
+        self.queue.put(val1)
+        self.queue.put(val2)
+        functions.OP_LESS(self.tape, self.queue, self.cache)
+        assert self.queue._qsize() == 1
+        result = self.queue.get(False)
+        assert result == b'\x00'
+
+        self.queue.put(val1)
+        self.queue.put(val1)
+        functions.OP_LESS(self.tape, self.queue, self.cache)
+        assert self.queue._qsize() == 1
+        result = self.queue.get(False)
+        assert result == b'\x00'
+
+        self.queue.put(val2)
+        self.queue.put(val1)
+        functions.OP_LESS(self.tape, self.queue, self.cache)
+        assert self.queue._qsize() == 1
+        result = self.queue.get(False)
+        assert result == b'\x01'
+
+    def test_OP_LESS_OR_EQUAL_pulls_two_values_from_queue_and_places_bool_on_queue(self):
+        val1 = functions.int_to_bytes(123)
+        val2 = functions.int_to_bytes(321)
+        self.queue.put(val1)
+        self.queue.put(val2)
+        functions.OP_LESS_OR_EQUAL(self.tape, self.queue, self.cache)
+        assert self.queue._qsize() == 1
+        result = self.queue.get(False)
+        assert result == b'\x00'
+
+        self.queue.put(val1)
+        self.queue.put(val1)
+        functions.OP_LESS_OR_EQUAL(self.tape, self.queue, self.cache)
+        assert self.queue._qsize() == 1
+        result = self.queue.get(False)
+        assert result == b'\x01'
+
+        self.queue.put(val2)
+        self.queue.put(val1)
+        functions.OP_LESS_OR_EQUAL(self.tape, self.queue, self.cache)
+        assert self.queue._qsize() == 1
+        result = self.queue.get(False)
+        assert result == b'\x01'
+
+    def test_OP_GET_VALUE_pulls_str_from_tape_and_puts_cache_val_onto_queue(self):
+        key = bytes('test', 'utf-8')
+        self.cache['test'] = 123
+        self.tape.data = functions.int_to_bytes(len(key)) + key
+        functions.OP_GET_VALUE(self.tape, self.queue, self.cache)
+        assert self.queue.qsize() == 1
+        assert self.tape.has_terminated()
+        result = self.queue.get(False)
+        assert result == functions.int_to_bytes(123)
+
     # values
     def test_opcodes_is_dict_mapping_ints_to_tuple_str_function(self):
         assert isinstance(functions.opcodes, dict)
