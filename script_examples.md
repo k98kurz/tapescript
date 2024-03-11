@@ -92,7 +92,7 @@ for executions of the other two spending paths.
 
 ```s
 "example 3: underwriting/CDS on obligation"
-# committed script: eltoo-like multisig contract #
+# committed script: multisig contract #
 OP_IF (
     OP_PUSH d<unix epoch of maturation + grace period>
     OP_DUP
@@ -103,7 +103,8 @@ OP_IF (
     OP_PUSH x<encoded txn constraints>
     OP_PUSH d<amount>
     OP_PUSH x<hex contract hash>
-    OP_CHECK_TRANSFER d1
+    OP_PUSH d1
+    OP_CHECK_TRANSFER
     OP_VERIFY
     OP_PUSH x<hex pubkey_CDS_purchaser>
     OP_CHECK_SIG x00
