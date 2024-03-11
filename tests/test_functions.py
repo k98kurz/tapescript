@@ -1429,7 +1429,7 @@ class TestFunctions(unittest.TestCase):
         result = self.queue.get(False)
         assert result == b'\x01'
 
-    def test_OP_GET_VALUE_pulls_str_from_tape_and_puts_cache_val_onto_queue(self):
+    def test_OP_GET_VALUE_pulls_str_from_tape_and_puts_cache_vals_onto_queue(self):
         key = bytes('test', 'utf-8')
         self.cache['test'] = 123
         self.tape.data = functions.int_to_bytes(len(key)) + key
@@ -1438,6 +1438,22 @@ class TestFunctions(unittest.TestCase):
         assert self.tape.has_terminated()
         result = self.queue.get(False)
         assert result == functions.int_to_bytes(123)
+
+        self.cache['test'] = [123, 12.34, 'abc', b'ac']
+        assert self.queue.qsize() == 0
+        self.tape.reset_pointer()
+        functions.OP_GET_VALUE(self.tape, self.queue, self.cache)
+        assert self.queue.qsize() == 4
+        result = [
+            self.queue.get(False),
+            self.queue.get(False),
+            self.queue.get(False),
+            self.queue.get(False),
+        ]
+        assert result[0] == b'ac'
+        assert result[1] == bytes('abc', 'utf-8')
+        assert result[2] == functions.float_to_bytes(12.34)
+        assert result[3] == functions.int_to_bytes(123)
 
     # values
     def test_opcodes_is_dict_mapping_ints_to_tuple_str_function(self):

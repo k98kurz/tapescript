@@ -981,14 +981,15 @@ def OP_GET_VALUE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     key = str(tape.read(size), 'utf-8')
     sert(key in cache, f'OP_GET_VALUE key "{key}" not in cache')
     items = cache[key] if type(cache[key]) in (list, tuple) else [cache[key]]
-    if type(items) in (list, tuple):
-        for val in items:
-            if type(val) in (bytes, bytearray):
-                queue.put(val)
-            elif type(val) is str:
-                queue.put(bytes(val, 'utf-8'))
-            elif type(val) is int:
-                queue.put(int_to_bytes(val))
+    for val in items:
+        if type(val) in (bytes, bytearray):
+            queue.put(val)
+        elif type(val) is str:
+            queue.put(bytes(val, 'utf-8'))
+        elif type(val) is int:
+            queue.put(int_to_bytes(val))
+        elif type(val) is float:
+            queue.put(float_to_bytes(val))
 
 def NOP(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int
@@ -1083,10 +1084,10 @@ opcode_aliases = {
     k[3:]: k for k, _ in opcodes_inverse.items()
 }
 
-opcode_aliases['LEQ'] = OP_LESS_OR_EQUAL
-opcode_aliases['LEQ'] = OP_LESS_OR_EQUAL
-opcode_aliases['OP_VAL'] = OP_GET_VALUE
-opcode_aliases['VAL'] = OP_GET_VALUE
+opcode_aliases['OP_LEQ'] = 'OP_LESS_OR_EQUAL'
+opcode_aliases['LEQ'] = 'OP_LESS_OR_EQUAL'
+opcode_aliases['OP_VAL'] = 'OP_GET_VALUE'
+opcode_aliases['VAL'] = 'OP_GET_VALUE'
 
 nopcodes_inverse = {
     nopcodes[key][0]: (key, nopcodes[key][1]) for key in nopcodes
