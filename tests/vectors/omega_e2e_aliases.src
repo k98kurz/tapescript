@@ -127,9 +127,9 @@ TRY {
         EQUAL_VERIFY
     }
 }
-NOP62 d1
-NOP63 d1
-NOP64 d1
+LESS
+LEQ
+VAL s"test"
 NOP65 d1
 NOP66 d1
 NOP67 d1
