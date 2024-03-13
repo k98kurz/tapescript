@@ -283,13 +283,14 @@ class TestEltoo(unittest.TestCase):
         ''')
         setup_lock = eltoo_setup_lock(self.pubkeyA, self.pubkeyB)
         setup_utxo = UTXO(setup_lock, 100)
+        state = 0
 
         # initial floating trigger txn created before broadcasting setup
-        trigger_lock = eltoo_update_lock(self.pubkeyA, self.pubkeyB, 0)
+        trigger_lock = eltoo_update_lock(self.pubkeyA, self.pubkeyB, state)
         trigger_utxo = UTXO(trigger_lock, 100)
         # trigger 10 seconds into past
         trigger_ts = int(time())-10
-        trigger_txn = Txn(0, trigger_ts, [Entry(
+        trigger_txn = Txn(state, trigger_ts, [Entry(
             [setup_utxo],
             [trigger_utxo],
             [eltoo_witness(
@@ -297,17 +298,19 @@ class TestEltoo(unittest.TestCase):
                 self.prvkeyB,
                 setup_utxo.pack() +
                 trigger_utxo.pack() +
-                b'\x00' + functions.int_to_bytes(trigger_ts)
+                functions.int_to_bytes(state) +
+                functions.int_to_bytes(trigger_ts)
             )]
         )])
         trigger_utxo.txn = trigger_txn
         assert validate_txn(trigger_txn)
 
         # initial floating settlement txn
+        state += 1
         settlement_ts_1 = int(time())-7
         sA_utxo1 = UTXO(settle_A_lock, 50)
         sB_utxo1 = UTXO(settle_B_lock, 50)
-        settlement_txn_1 = Txn(1, settlement_ts_1, [Entry(
+        settlement_txn_1 = Txn(state, settlement_ts_1, [Entry(
             [trigger_utxo],
             [sA_utxo1, sB_utxo1],
             [eltoo_witness(
@@ -315,7 +318,8 @@ class TestEltoo(unittest.TestCase):
                 self.prvkeyB,
                 trigger_utxo.pack() +
                 sA_utxo1.pack() + sB_utxo1.pack() +
-                b'\x01' + functions.int_to_bytes(settlement_ts_1)
+                functions.int_to_bytes(state) +
+                functions.int_to_bytes(settlement_ts_1)
             ) + op_true]
         )])
         sA_utxo1.txn = settlement_txn_1
@@ -323,36 +327,38 @@ class TestEltoo(unittest.TestCase):
         assert validate_txn(settlement_txn_1)
 
         # floating update txn
-        update_ts = int(time())-5
-        update_lock = eltoo_update_lock(self.pubkeyA, self.pubkeyB, 1)
-        update_utxo = UTXO(update_lock, 100)
-        update_txn = Txn(1, update_ts, [Entry(
+        update_ts1 = int(time())-5
+        update_lock1 = eltoo_update_lock(self.pubkeyA, self.pubkeyB, state)
+        update_utxo1 = UTXO(update_lock1, 100)
+        update_txn1 = Txn(state, update_ts1, [Entry(
             [trigger_utxo],
-            [update_utxo],
+            [update_utxo1],
             [eltoo_witness(
                 self.prvkeyA,
                 self.prvkeyB,
-                update_utxo.pack() +
-                b'\x01' + functions.int_to_bytes(update_ts),
+                update_utxo1.pack() +
+                functions.int_to_bytes(state) +
+                functions.int_to_bytes(update_ts1),
                 '01'
             ) + op_false]
         )])
-        update_utxo.txn = update_txn
-        assert validate_txn(update_txn)
+        update_utxo1.txn = update_txn1
+        assert validate_txn(update_txn1)
 
         # updated floating settlement txn
         settlement_ts_2 = int(time())
         sA_utxo2 = UTXO(settle_A_lock, 60)
         sB_utxo2 = UTXO(settle_B_lock, 40)
-        settlement_txn_2 = Txn(1, settlement_ts_2, [Entry(
-            [update_utxo],
+        settlement_txn_2 = Txn(state, settlement_ts_2, [Entry(
+            [update_utxo1],
             [sA_utxo2, sB_utxo2],
             [eltoo_witness(
                 self.prvkeyA,
                 self.prvkeyB,
-                update_utxo.pack() +
+                update_utxo1.pack() +
                 sA_utxo2.pack() + sB_utxo2.pack() +
-                b'\x01' + functions.int_to_bytes(settlement_ts_2)
+                functions.int_to_bytes(state) +
+                functions.int_to_bytes(settlement_ts_2)
             ) + op_true]
         )])
         sA_utxo2.txn = settlement_txn_2
@@ -360,13 +366,54 @@ class TestEltoo(unittest.TestCase):
         assert validate_txn(settlement_txn_2)
 
         # prove that an old settlement txn witness cannot spend the later update txn
-        invalid_settlement_ts_1 = int(time())
-        invalid_settlement_txn_1 = Txn(1, invalid_settlement_ts_1, [Entry(
-            [update_utxo],
+        invalid_settlement_txn_1 = Txn(state, settlement_ts_1, [Entry(
+            [update_utxo1],
             [sA_utxo1, sB_utxo1],
             settlement_txn_1.entries[0].witnesses
         )])
         assert not validate_txn(invalid_settlement_txn_1)
+
+        # floating update txn 2
+        state += 1
+        update_ts2 = int(time())
+        update_lock2 = eltoo_update_lock(self.pubkeyA, self.pubkeyB, state)
+        update_utxo2 = UTXO(update_lock2, 100)
+        update_txn2 = Txn(state, update_ts2, [Entry(
+            [trigger_utxo],
+            [update_utxo2],
+            [eltoo_witness(
+                self.prvkeyA,
+                self.prvkeyB,
+                update_utxo2.pack() +
+                functions.int_to_bytes(state) +
+                functions.int_to_bytes(update_ts2),
+                '01'
+            ) + op_false]
+        )])
+        update_utxo2.txn = update_txn2
+        assert validate_txn(update_txn2)
+
+        # prove the witness can be rebound to spend the first update
+        update_txn2 = Txn(state, update_ts2, [Entry(
+            [update_utxo1],
+            [update_utxo2],
+            update_txn2.entries[0].witnesses
+        )])
+        assert validate_txn(update_txn2)
+
+        # prove that the witness from the first update cannot spend the second
+        invalid_update_txn2 = Txn(state+1, update_ts1, [Entry(
+            [update_utxo2],
+            [update_utxo1],
+            update_txn1.entries[0].witnesses
+        )])
+        assert not validate_txn(invalid_update_txn2)
+        # even with a state number that matches the update2 state
+        invalid_update_txn2.sequence -= 1
+        assert not validate_txn(invalid_update_txn2)
+        # even with a state number that matches the update1 state
+        invalid_update_txn2.sequence -= 1
+        assert not validate_txn(invalid_update_txn2)
 
 
 if __name__ == '__main__':
