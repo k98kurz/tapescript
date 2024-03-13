@@ -1793,6 +1793,28 @@ class TestFunctions(unittest.TestCase):
         assert tape.has_terminated()
         assert queue.empty()
 
+    def test_OP_LOOP_and_recursive_OP_CALL_raises_callstack_limit_error(self):
+        """
+            OP_DEF 0 {
+                OP_LOOP {
+                    OP_CALL 0
+                }
+            }
+            OP_TRUE
+            OP_CALL 0
+        """
+        defbody = functions.opcodes_inverse['OP_LOOP'][0].to_bytes(1, 'big') + \
+            b'\x00\x02' + functions.opcodes_inverse['OP_CALL'][0].to_bytes(1, 'big') + \
+            b'\x00'
+        self.tape = classes.Tape(
+            functions.opcodes_inverse['OP_DEF'][0].to_bytes(1, 'big') +
+            b'\x00' + len(defbody).to_bytes(2, 'big') + defbody + b'\x01' +
+            functions.opcodes_inverse['OP_CALL'][0].to_bytes(1, 'big') + b'\x00'
+        )
+        with self.assertRaises(errors.ScriptExecutionError) as e:
+            functions.run_tape(self.tape, self.queue, self.cache)
+        assert 'callstack limit' in str(e.exception)
+
     def test_add_opcode_raises_errors_for_invalid_input(self):
         function = lambda tape, queue, cache: queue.put('nonsense')
         with self.assertRaises(TypeError) as e:
