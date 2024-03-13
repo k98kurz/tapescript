@@ -321,3 +321,245 @@ OP_PUSH x<hex committed script branch B>
 OP_FALSE
 OP_PUSH x<hex committed script root>
 ```
+
+# Example 6: eltoo-like protocol
+
+This example shows how the features of tapescript can be used to implement the
+[eltoo off-chain protocol](https://blockstream.com/eltoo.pdf) using on-chain
+primitives. This example was implemented as an e2e test
+[here](https://github.com/k98kurz/tapescript/blob/master/tests/test_e2e_eltoo.py).
+This assumes instant confirmation of transactions once broadcast for the sake of
+convenience -- the Unix timestamp based constraints can be adapted for a system
+that enforces causal ordering, e.g. a blockchain or other logical clock.
+
+## Original proposal
+
+In the original paper, designed for Bitcoin and introducing a new sighash flag
+and a change to how sequence numbers are interpreted, the locking scripts were
+as follows:
+- setup: `2 <pubkey A> <pubkey B> 2 OP_CHECKMULTISIGVERIFY`
+- trigger and update:
+```s
+OP_IF
+    <N> OP_CSV
+    2 <pubkey A_(s,i)> <pubkey B_(s,i)> 2 OP_CHECKMULTISIGVERIFY
+ELSE
+    <S_i + 1> OP_CLTV
+    2 <pubkey A_u> <pubkey B_u> 2 OP_CHECKMULTISIGVERIFY
+ENDIF
+```
+
+(`OP_CSV` = `OP_CHECKSEQUENCEVERIFY`; `OP_CLTV` = `OP_CHECKLOCKTIMEVERIFY`)
+
+`<pubkey A>` and `<pubkey B>` are public keys used by the channel participants
+to set up the channel. `<pubkey A_u>` and ``<pubkey B_u>` are public keys used
+for signing update transactions. `<pubkey A_(s,i)>` and ``<pubkey B_(s,i)>` are
+settlement keys calculated using a seed and a state counter used to sign
+settlement transactions.
+
+Before broadcasting the setup transaction to open the channel, a trigger txn is
+signed that spends the setup UTXO, and a settlement txn is signed that spends
+the trigger UTXO to return funds to the channel participants. Both participants
+retain the trigger txn and the initial settlement txn. The update txns are
+signed using the proposed `SIGHASH_NOINPUT` sighash-flag, which blanks the
+previous input field during signature creation and verification, allowing the
+signature to be used for any matching locking script without committing to spend
+a specific UTXO.
+
+To update the channel, an update txn is created with an incremented sequence
+number, and a new settlement txn is also created and signed using the new
+settlement keys for this state. The state counter is held in the txn sequence
+field. Invalidation of earlier update txns is enforced using `OP_CLTV` (i.e. an
+earlier update txn cannot spend the UTXO of a later update txn), and settlement
+txns must wait `N` blocks after the update txn is confirmed on the blockchain
+before becoming valid (enforced by the `OP_CSV`), allowing either participant to
+broadcast a later update txn before the prior settlement txn becomes valid.
+Importantly, the sequence number must be included in signature generation and
+verification.
+
+To open a channel, only the setup txn is broadcast and confirmed. The trigger,
+update, and settlement txns are all held by the participants until they decide
+to close the payment channel and settle, at which point the trigger txn is
+broadcast and confirmed on the blockchain, then the latest update txn, then
+finally the settlement txn. If one participant attempts to cheat the other by
+broadcasting an old settlement transaction, it will first have to broadcast and
+confirm the trigger and corresponding update transaction; the timeout on the
+settlement transaction will allow the other participant to detect the attempted
+fraud and broadcast the most recent update txn, invalidating the old settlement
+txn before it can be confirmed. This also allows for synchronization between
+participants in the case that one node experiences a fault, whereas the current
+Lightning Network protocol causes a total loss of funds for a faulty node.
+
+## Tapescript implementation
+
+Transactions will consist of a list of entries. Each entry will consist of the
+following:
+- `inputs`: ordered list of IDs of funding UTXOs in the form `[(txn_id, index), ...]`
+- `outputs`: ordered list of tuples of locking scripts of the new UTXOs to be
+generated and the values assigned to each, i.e. `[(lock, val), ...]`
+- `witnesses`: the unlocking scripts that satisfy the locking scripts of the
+inputs
+
+Each transaction will contain the following fields:
+- `state`: unsigned 32-bit integer
+- `timestamp`: Unix epoch timestamp at time of transaction creation
+- `entries`: `[entry1, ...]`
+
+The following values must be held as read-only in the cache at execution time:
+- `time`: the Unix epoch timestamp at time of execution
+- `sigfield[1-8]`: the relevant signature fields
+- `input_ts`: greatest txn timestamp from entry inputs
+
+For validating signatures, the following values will be held in the sigfields:
+- `sigfield1`: entry inputs
+- `sigfield2`: entry outputs
+- `sigfield3`: transaction sequence
+- `sigfield4`: transaction timestamp
+
+An important note is that because the tapescript `CHECK_SIG` and
+`CHECK_SIG_VERIFY` ops take a parameter encoding allowable sighash flags,
+invalidating any signatures that use a disallowed flag to exclude a required
+sigfield, the same public keys can be used for all locking scripts. The original
+eltoo proposal was made for the Bitcoin script system, which does not include
+the ability to selectively enable sighash flags in locking scripts, so the
+authors had to use another scheme to ensure that signatures could not be bound
+to settlement transactions without any constraints, hence the use of unique keys
+for each settlement txn spending path in the update txn locking scripts. If
+instead the same keys were used for all locking scripts, an update txn signature
+could be bound to any settlement txn.
+
+By disallowing all sighash flags in the settlement path locking scripts, each
+settlement transaction in the tapescript implementation is bound solely to the
+corresponding update txn, while allowing the exclusion of `sigfield1` containing
+the inputs in the update spending path allows the signatures for update txns to
+couple only to the state counter and outputs.
+
+### Setup txn
+
+Locking script:
+```s
+PUSH x<pubkey A>
+CHECK_SIG_VERIFY x00
+PUSH x<pubkey B>
+CHECK_SIG x00
+```
+
+Txn entry:
+- `inputs`: `[funding inputs]`
+- `outputs`: `[(lock, total value from inputs less fee)]`
+- `witnesses`: `[unlocking scripts]`
+
+Transaction:
+- `state`: `0`
+- `timestamp`: uint32
+- `entries`: `[txn entry]`
+
+### Trigger txn
+
+Locking script:
+```s
+IF (
+    # txn timestamp must be 24 hours greater than youngest input #
+    VAL s"sigfield4"
+    VAL s"input_ts" PUSH d43200 ADD_INTS d2
+    LESS VERIFY
+    # current time must be greater than or equal to txn timestamp #
+    VAL s"time"
+    VAL s"sigfield4"
+    LEQ VERIFY
+    PUSH x<pubkey A>
+    CHECK_SIG_VERIFY x00
+    PUSH x<pubkey B>
+    CHECK_SIG x00
+) ELSE (
+    VAL s"sigfield3"
+    PUSH d0
+    LESS VERIFY
+    PUSH x<pubkey A>
+    CHECK_SIG_VERIFY x01
+    PUSH x<pubkey B>
+    CHECK_SIG x01
+)
+```
+
+Witness matching setup locking script:
+```s
+PUSH x<signature from pubkey B>
+PUSH x<signature from pubkey A>
+```
+
+Txn entry:
+- `inputs`: `[setup UTXO]`
+- `outputs`: `[(locking script, value)]`
+- `witnesses`: `[witness]`
+
+Transaction:
+- `sequence`: `0`
+- `timestamp`: uint32
+- `entries`: `[txn entry]`
+
+### Update txn
+
+Locking script:
+```s
+IF (
+    # txn timestamp must be 24 hours greater than youngest input #
+    VAL s"sigfield4"
+    VAL s"input_ts" PUSH d43200 ADD_INTS d2
+    LESS VERIFY
+    # current time must be greater than or equal to txn timestamp #
+    VAL s"time"
+    VAL s"sigfield4"
+    LEQ VERIFY
+    PUSH x<pubkey A>
+    CHECK_SIG_VERIFY x00
+    PUSH x<pubkey B>
+    CHECK_SIG x00
+) ELSE (
+    VAL s"sigfield3"
+    PUSH d<i>
+    LESS VERIFY
+    PUSH x<pubkey A>
+    CHECK_SIG_VERIFY x01
+    PUSH x<pubkey B>
+    CHECK_SIG x01
+)
+```
+
+Witness matching trigger locking script:
+```s
+PUSH x<signature from pubkey B + x01>
+PUSH x<signature from pubkey A + x01>
+```
+
+Txn entry:
+- `inputs`: `[trigger UTXO]`
+- `outputs`: `[(locking script, value)]`
+- `witnesses`: `[witness]`
+
+Transaction:
+- `sequence`: `previous state + 1`
+- `timestamp`: uint32
+- `entries`: `[txn entry]`
+
+### Settlement txn
+
+Lock_A locking script: `PUSH x<pubkey A> CHECK_SIG x00`
+
+Lock_B locking script: `PUSH x<pubkey B> CHECK_SIG x00`
+
+Witness matching update locking script:
+```s
+PUSH x<signature from pubkey B + x01>
+PUSH x<signature from pubkey A + x01>
+```
+
+Txn entry:
+- `inputs`: `[update UTXO]`
+- `outputs`: `[(lock_A, val_A), (lock_B, val_B)]`
+- `witnesses`: `[witness]`
+
+Transaction:
+- `sequence`: `previous state + 1`
+- `timestamp`: uint32
+- `entries`: `[settlement txn entry]`

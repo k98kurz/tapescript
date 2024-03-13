@@ -232,7 +232,9 @@ arguments to ops.
 While style of human-readable source scripts is not enforced, the following are
 encouraged:
 
-- Each statement invoking an op should be on its own line.
+- Each statement invoking an op should be on its own line except when a few such
+statements are logically connected and result in one or zero values, e.g. two
+`PUSH` ops followed by `ADD_INTS d2` or an op followed by `VERIFY`.
 - The bodies of functions and conditional clauses should be indented. I
 recommend 4 spaces per indentation level.
 - The opening bracket of a function should be at the end of the line starting
@@ -328,7 +330,7 @@ evaluate to `True`
 they are the same or `False` if they are not
 - `OP_EQUAL_VERIFY` - calls `OP_EQUAL` and then `OP_VERIFY`
 - `OP_CHECK_SIG allowed_flags` - takes a VerifyKey and signature from the queue,
-builds a message from the cache values `sigfield[0-7]` depending upon the sig
+builds a message from the cache values `sigfield[1-8]` depending upon the sig
 flags allowed by `allowed_flags` and appended to the signature, checks if the
 signature is valid for the VerifyKey and message, and puts `True` onto the queue
 if the signature validated or `False` if it did not
@@ -372,18 +374,23 @@ and puts the two resulting byte strings onto the queue
 onto the 1st, and puts the result onto the queue
 - `OP_SPLIT_STR idx` - takes a utf-8 string from the queue, splits at `idx`, and
 puts the 2 resulting strings onto the queue
-- `OP_CHECK_TRANSFER count` - checks proofs of a transfer; see section below
+- `OP_CHECK_TRANSFER` - checks proofs of a transfer; see section below
 - `OP_MERKLEVAL hash` - enforces cryptographic commitment to branching script;
 see section above
 - `OP_TRY_EXCEPT size1 try_body size2 except_body` - executes the first block; if
 an exception is raised, it is serialized into a string and put on the queue,
 then the second block is executed
+- `OP_LESS` - pulls 2 values `v1` and `v2` from queue; puts `(v1<v2)` onto queue
+- `OP_LESS_OR_EQUAL` - pulls 2 values `v1` and `v2` from queue; puts `(v1<=v2)`
+onto queue
+- `OP_GET_VALUE key` - puts the read-only cache value(s) at the str `key` onto
+the queue
 - `NOP count` - removes `count` values from the queue; dummy ops useful for soft
 fork updates
 
-### `OP_CHECK_TRANSFER count`
+### `OP_CHECK_TRANSFER`
 
-Reads the next byte from the tape, interpreting as an unsigned int `count`;
+Pulls an item from the queue, interpreting as an unsigned int `count`;
 takes an item from the queue as a `contract_id`; takes an item from the queue as
 an `amount`; takes an item from the queue as a serialized `constraint`; takes an
 item from the queue as a `destination` (address, locking script hash, etc);

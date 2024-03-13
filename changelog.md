@@ -5,10 +5,10 @@
 puts `value1<value2` onto the queue.
 - Added `OP_LESS_OR_EQUAL` (aliases `LESS_OR_EQUAL`, `OP_LEQ`, and `LEQ`): pulls
 value1 then value 2 from the queue and puts `value1<=value2` onto the queue.
-- Added `OP_GET_VALUE s"key"` (aliases `GET_VALUE`, `OP_GETV`, and `GETV`): puts
+- Added `OP_GET_VALUE s"key"` (aliases `GET_VALUE`, `OP_VAL`, and `VAL`): puts
 the read-only cache values at the string key onto the queue.
-- Added example txn protocol using a sequence number (held in sigfield8) and
-sequence number constraint.
+- Added example txn protocol using a sequence number (held in a sigfield) and
+sequence number constraint. Included an e2e test implementing eltoo protocol.
 
 ## 0.3.1
 
