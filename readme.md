@@ -94,7 +94,7 @@ In the case where a signature is expected to be validated, the message parts for
 the signature must be passed in via the `cache_vals` dict at keys `sigfield[1-8]`.
 In the case where `OP_CHECK_TRANSFER` might be called, the contracts must be
 passed in via the `contracts` dict. See the
-[section in the language_spec.md](https://github.com/k98kurz/tapescript/blob/master/language_spec.md#op_check_transfer-count)
+[section in the language_spec.md](https://github.com/k98kurz/tapescript/blob/master/language_spec.md#op_check_transfer)
 file for more informaiton about `OP_CHECK_TRANSFER`.
 
 #### Changing flags
@@ -269,14 +269,22 @@ For windows, replace `source venv/bin/activate` with `source venv/Scripts/activa
 Then run the test suite with the following:
 
 ```bash
+find tests -name test_*.py -exec {} \;
+```
+
+or
+
+```bash
 python test/test_classes.py
 python test/test_functions.py
 python test/test_parsing.py
 python test/test_tools.py
+python test/test_e2e_eltoo.py
 ```
 
-There are currently 167 tests and 35 test vectors used for validating the
-compiler, decompiler, and script running functions.
+There are currently 173 tests and 35 test vectors used for validating the
+compiler, decompiler, and script running functions. This includes 3 tests for a
+proof-of-concept implementation of the eltoo payment channel protocol.
 
 ## ISC License
 
