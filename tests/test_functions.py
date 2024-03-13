@@ -1381,7 +1381,7 @@ class TestFunctions(unittest.TestCase):
             functions.OP_MERKLEVAL(self.tape, self.queue, self.cache)
         assert str(e.exception) == 'OP_VERIFY check failed'
 
-    def test_OP_LESS_pulls_two_values_from_queue_and_places_bool_on_queue(self):
+    def test_OP_LESS_pulls_two_ints_from_queue_and_places_bool_on_queue(self):
         val1 = functions.int_to_bytes(123)
         val2 = functions.int_to_bytes(321)
         self.queue.put(val1)
@@ -1405,7 +1405,7 @@ class TestFunctions(unittest.TestCase):
         result = self.queue.get(False)
         assert result == b'\x01'
 
-    def test_OP_LESS_OR_EQUAL_pulls_two_values_from_queue_and_places_bool_on_queue(self):
+    def test_OP_LESS_OR_EQUAL_pulls_two_ints_from_queue_and_places_bool_on_queue(self):
         val1 = functions.int_to_bytes(123)
         val2 = functions.int_to_bytes(321)
         self.queue.put(val1)
@@ -1454,6 +1454,211 @@ class TestFunctions(unittest.TestCase):
         assert result[1] == bytes('abc', 'utf-8')
         assert result[2] == functions.float_to_bytes(12.34)
         assert result[3] == functions.int_to_bytes(123)
+
+    def test_OP_FLOAT_LESS_pulls_two_floats_from_queue_and_places_bool_on_queue(self):
+        val1 = functions.float_to_bytes(123.0)
+        val2 = functions.float_to_bytes(321.0)
+        self.queue.put(val1)
+        self.queue.put(val2)
+        functions.OP_FLOAT_LESS(self.tape, self.queue, self.cache)
+        assert self.queue._qsize() == 1
+        result = self.queue.get(False)
+        assert result == b'\x00'
+
+        self.queue.put(val1)
+        self.queue.put(val1)
+        functions.OP_FLOAT_LESS(self.tape, self.queue, self.cache)
+        assert self.queue._qsize() == 1
+        result = self.queue.get(False)
+        assert result == b'\x00'
+
+        self.queue.put(val2)
+        self.queue.put(val1)
+        functions.OP_FLOAT_LESS(self.tape, self.queue, self.cache)
+        assert self.queue._qsize() == 1
+        result = self.queue.get(False)
+        assert result == b'\x01'
+
+    def test_OP_FLOAT_LESS_OR_EQUAL_pulls_two_floats_from_queue_and_places_bool_on_queue(self):
+        val1 = functions.float_to_bytes(123.0)
+        val2 = functions.float_to_bytes(321.0)
+        self.queue.put(val1)
+        self.queue.put(val2)
+        functions.OP_FLOAT_LESS_OR_EQUAL(self.tape, self.queue, self.cache)
+        assert self.queue._qsize() == 1
+        result = self.queue.get(False)
+        assert result == b'\x00'
+
+        self.queue.put(val1)
+        self.queue.put(val1)
+        functions.OP_FLOAT_LESS_OR_EQUAL(self.tape, self.queue, self.cache)
+        assert self.queue._qsize() == 1
+        result = self.queue.get(False)
+        assert result == b'\x01'
+
+        self.queue.put(val2)
+        self.queue.put(val1)
+        functions.OP_FLOAT_LESS_OR_EQUAL(self.tape, self.queue, self.cache)
+        assert self.queue._qsize() == 1
+        result = self.queue.get(False)
+        assert result == b'\x01'
+
+    def test_OP_INT_TO_FLOAT_works_correctly(self):
+        val = functions.int_to_bytes(123)
+        self.queue.put(val)
+        functions.OP_INT_TO_FLOAT(self.tape, self.queue, self.cache)
+        result = self.queue.get(False)
+        assert result == functions.float_to_bytes(123 * 1.0)
+
+    def test_OP_FLOAT_TO_INT_works_correctly(self):
+        val = functions.float_to_bytes(123.1)
+        self.queue.put(val)
+        functions.OP_FLOAT_TO_INT(self.tape, self.queue, self.cache)
+        result = self.queue.get(False)
+        assert result == functions.int_to_bytes(123)
+
+    def test_OP_LOOP_raises_error_for_too_many_executions(self):
+        self.tape.data = b'\x00\x00'
+        self.queue.put(b'\x01')
+        with self.assertRaises(errors.ScriptExecutionError) as e:
+            functions.OP_LOOP(self.tape, self.queue, self.cache)
+        assert 'OP_LOOP limit exceeded' in str(e.exception)
+
+    def test_OP_LOOP_executes_for_true_top_queue_value(self):
+        self.tape.data = b'\x00\x01\x00'
+        self.queue.put(b'\x01')
+        assert self.queue.qsize() == 1
+        functions.OP_LOOP(self.tape, self.queue, self.cache)
+        assert self.queue.qsize() == 2
+
+    def test_OP_LOOP_skips_execution_for_false_top_queue_value(self):
+        self.tape.data = b'\x00\x01\x00'
+        self.queue.put(b'\x00')
+        assert self.queue.qsize() == 1
+        functions.OP_LOOP(self.tape, self.queue, self.cache)
+        assert self.queue.qsize() == 1
+
+    def test_OP_CHECK_MULTISIG_pulls_m_sigs_from_queue_then_n_vkeys_and_verifies(self):
+        # 3-of-3
+        self.tape.data = b'\x00\x03\x03'
+        msg = b'hi I am a protocol value that is signed'
+        self.cache['sigfield1'] = msg
+        skeys = [
+            SigningKey(token_bytes(32)),
+            SigningKey(token_bytes(32)),
+            SigningKey(token_bytes(32)),
+        ]
+        vkeys = [skey.verify_key for skey in skeys]
+        sigs = [skey.sign(msg).signature for skey in skeys]
+        [self.queue.put(bytes(sig)) for sig in sigs]
+        [self.queue.put(bytes(vkey)) for vkey in vkeys]
+        functions.OP_CHECK_MULTISIG(self.tape, self.queue, self.cache)
+        assert self.queue.qsize() == 1
+        assert functions.bytes_to_bool(self.queue.get(False))
+
+        # 2-of-3
+        self.tape = classes.Tape(b'\x00\x02\x03')
+        [self.queue.put(bytes(sig)) for sig in sigs[:2]]
+        [self.queue.put(bytes(vkey)) for vkey in vkeys]
+        functions.OP_CHECK_MULTISIG(self.tape, self.queue, self.cache)
+        assert self.queue.qsize() == 1
+        assert functions.bytes_to_bool(self.queue.get(False))
+
+    def test_OP_CHECK_MULTISIG_puts_false_onto_queue_for_reused_sig(self):
+        # 3-of-3
+        self.tape.data = b'\x00\x03\x03'
+        msg = b'hi I am a protocol value that is signed'
+        self.cache['sigfield1'] = msg
+        skeys = [
+            SigningKey(token_bytes(32)),
+            SigningKey(token_bytes(32)),
+            SigningKey(token_bytes(32)),
+        ]
+        vkeys = [skey.verify_key for skey in skeys]
+        sigs = [skey.sign(msg).signature for skey in skeys]
+        [self.queue.put(bytes(sigs[0])) for _ in sigs]
+        [self.queue.put(bytes(vkey)) for vkey in vkeys]
+        functions.OP_CHECK_MULTISIG(self.tape, self.queue, self.cache)
+        assert self.queue.qsize() == 1
+        assert not functions.bytes_to_bool(self.queue.get(False))
+
+    def test_OP_CHECK_MULTISIG_puts_false_onto_queue_for_sig_using_wrong_key(self):
+        # 2-of-2
+        self.tape.data = b'\x00\x02\x02'
+        msg = b'hi I am a protocol value that is signed'
+        self.cache['sigfield1'] = msg
+        skeys = [
+            SigningKey(token_bytes(32)),
+            SigningKey(token_bytes(32)),
+            SigningKey(token_bytes(32)),
+        ]
+        vkeys = [skey.verify_key for skey in skeys]
+        sigs = [skey.sign(msg).signature for skey in skeys]
+        [self.queue.put(bytes(sig)) for sig in sigs[1:]]
+        [self.queue.put(bytes(vkey)) for vkey in vkeys[:2]]
+        functions.OP_CHECK_MULTISIG(self.tape, self.queue, self.cache)
+        assert self.queue.qsize() == 1
+        assert not functions.bytes_to_bool(self.queue.get(False))
+
+    def test_OP_CHECK_MULTISIG_VERIFY_executes_without_error_for_good_paths(self):
+        # 3-of-3
+        self.tape.data = b'\x00\x03\x03'
+        msg = b'hi I am a protocol value that is signed'
+        self.cache['sigfield1'] = msg
+        skeys = [
+            SigningKey(token_bytes(32)),
+            SigningKey(token_bytes(32)),
+            SigningKey(token_bytes(32)),
+        ]
+        vkeys = [skey.verify_key for skey in skeys]
+        sigs = [skey.sign(msg).signature for skey in skeys]
+        [self.queue.put(bytes(sig)) for sig in sigs]
+        [self.queue.put(bytes(vkey)) for vkey in vkeys]
+        functions.OP_CHECK_MULTISIG_VERIFY(self.tape, self.queue, self.cache)
+        assert self.queue.qsize() == 0
+
+        # 2-of-3
+        self.tape = classes.Tape(b'\x00\x02\x03')
+        [self.queue.put(bytes(sig)) for sig in sigs[:2]]
+        [self.queue.put(bytes(vkey)) for vkey in vkeys]
+        functions.OP_CHECK_MULTISIG_VERIFY(self.tape, self.queue, self.cache)
+        assert self.queue.qsize() == 0
+
+    def test_OP_CHECK_MULTISIG_VERIFY_raises_error_for_reused_sig(self):
+        # 3-of-3
+        self.tape.data = b'\x00\x03\x03'
+        msg = b'hi I am a protocol value that is signed'
+        self.cache['sigfield1'] = msg
+        skeys = [
+            SigningKey(token_bytes(32)),
+            SigningKey(token_bytes(32)),
+            SigningKey(token_bytes(32)),
+        ]
+        vkeys = [skey.verify_key for skey in skeys]
+        sigs = [skey.sign(msg).signature for skey in skeys]
+        [self.queue.put(bytes(sigs[0])) for _ in sigs]
+        [self.queue.put(bytes(vkey)) for vkey in vkeys]
+        with self.assertRaises(errors.ScriptExecutionError) as e:
+            functions.OP_CHECK_MULTISIG_VERIFY(self.tape, self.queue, self.cache)
+        assert self.queue.qsize() == 0
+
+    def test_OP_CHECK_MULTISIG_VERIFY_raises_error_for_sig_using_wrong_key(self):
+        # 2-of-2
+        self.tape.data = b'\x00\x02\x02'
+        msg = b'hi I am a protocol value that is signed'
+        self.cache['sigfield1'] = msg
+        skeys = [
+            SigningKey(token_bytes(32)),
+            SigningKey(token_bytes(32)),
+            SigningKey(token_bytes(32)),
+        ]
+        vkeys = [skey.verify_key for skey in skeys]
+        sigs = [skey.sign(msg).signature for skey in skeys]
+        [self.queue.put(bytes(sig)) for sig in sigs[1:]]
+        [self.queue.put(bytes(vkey)) for vkey in vkeys[:2]]
+        with self.assertRaises(errors.ScriptExecutionError) as e:
+            functions.OP_CHECK_MULTISIG_VERIFY(self.tape, self.queue, self.cache)
+        assert self.queue.qsize() == 0
 
     # values
     def test_opcodes_is_dict_mapping_ints_to_tuple_str_function(self):

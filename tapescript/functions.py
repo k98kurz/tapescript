@@ -961,15 +961,15 @@ def OP_TRY_EXCEPT(tape: Tape, queue: LifoQueue, cache: dict) -> None:
         OP_RETURN(tape, queue, cache)
 
 def OP_LESS(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Pull two uints val1 and val2 from queue; put (v1<v2) onto queue."""
-    val1 = int.from_bytes(queue.get(False), 'big')
-    val2 = int.from_bytes(queue.get(False), 'big')
+    """Pull two ints val1 and val2 from queue; put (v1<v2) onto queue."""
+    val1 = bytes_to_int(queue.get(False))
+    val2 = bytes_to_int(queue.get(False))
     queue.put(b'\x01' if val1 < val2 else b'\x00')
 
 def OP_LESS_OR_EQUAL(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Pull two uints val1 and val2 from queue; put (v1<=v2) onto queue."""
-    val1 = int.from_bytes(queue.get(False), 'big')
-    val2 = int.from_bytes(queue.get(False), 'big')
+    """Pull two ints val1 and val2 from queue; put (v1<=v2) onto queue."""
+    val1 = bytes_to_int(queue.get(False))
+    val2 = bytes_to_int(queue.get(False))
     queue.put(b'\x01' if val1 <= val2 else b'\x00')
 
 def OP_GET_VALUE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
@@ -990,6 +990,93 @@ def OP_GET_VALUE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
             queue.put(int_to_bytes(val))
         elif type(val) is float:
             queue.put(float_to_bytes(val))
+
+def OP_FLOAT_LESS(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+    """Pull two floats val1 and val2 from queue; put (v1<v2) onto queue."""
+    val1 = bytes_to_float(queue.get(False))
+    val2 = bytes_to_float(queue.get(False))
+    queue.put(b'\x01' if val1 < val2 else b'\x00')
+
+def OP_FLOAT_LESS_OR_EQUAL(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+    """Pull two floats val1 and val2 from queue; put (v1<=v2) onto queue."""
+    val1 = bytes_to_float(queue.get(False))
+    val2 = bytes_to_float(queue.get(False))
+    queue.put(b'\x01' if val1 <= val2 else b'\x00')
+
+def OP_INT_TO_FLOAT(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+    """Pull a signed int from the queue and put it back as a float."""
+    value = bytes_to_int(queue.get(False))
+    queue.put(float_to_bytes(1.0 * value))
+
+def OP_FLOAT_TO_INT(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+    """Pull a float from the queue and put it back as a signed int."""
+    value = bytes_to_float(queue.get(False))
+    queue.put(int_to_bytes(int(value)))
+
+def OP_LOOP(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+    """Read 2 bytes from the tape as uint len; read that many bytes from
+        the tape as the loop definition; run the loop as long as the top
+        value of the queue is not false or until a callstack limit
+        exceeded error is raised.
+    """
+    loop_size = int.from_bytes(tape.read(2), 'big')
+    loop_def = tape.read(loop_size)
+    condition = queue.get(False)
+    queue.put(condition)
+    count = 0
+
+    subtape = Tape(
+        loop_def, callstack_limit=tape.callstack_limit,
+        callstack_count=tape.callstack_count,
+        definitions=tape.definitions, flags=tape.flags,
+        contracts=tape.contracts
+    )
+
+    while bytes_to_bool(condition):
+        sert(count < tape.callstack_limit, 'OP_LOOP limit exceeded')
+        run_tape(subtape, queue, cache)
+        subtape.reset_pointer()
+        count += 1
+        condition = queue.get(False)
+        queue.put(condition)
+
+def OP_CHECK_MULTISIG(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+    """Reads 1 byte from tape as allowable flags; reads 1 byte from tape
+        as uint m; reads 1 byte from tape as uint n; pulls n values from
+        queue as vkeys; pulls m values from queue as signatures;
+        verifies each signature against vkeys; puts false onto the queue
+        if any signature fails to validate with one of the vkeys or if
+        any vkey is used more than once; puts true onto the queue
+        otherwise.
+    """
+    subtape = Tape(tape.read(1))
+    m = tape.read(1)[0]
+    n = tape.read(1)[0]
+    vkeys = [queue.get(False) for _ in range(n)]
+    sigs = [queue.get(False) for _ in range(m)]
+    confirmed = set()
+
+    for sig in sigs:
+        for vkey in vkeys:
+            subtape.reset_pointer()
+            queue.put(sig)
+            queue.put(vkey)
+            OP_CHECK_SIG(subtape, queue, cache)
+            result = bytes_to_bool(queue.get(False))
+            if result:
+                vkeys.remove(vkey)
+                confirmed.add(sig)
+                break
+
+    if len(confirmed) == len(sigs):
+        queue.put(b'\x01')
+    else:
+        queue.put(b'\x00')
+
+def OP_CHECK_MULTISIG_VERIFY(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+    """Runs OP_CHECK_MULTISIG then OP_VERIFY."""
+    OP_CHECK_MULTISIG(tape, queue, cache)
+    OP_VERIFY(tape, queue, cache)
 
 def NOP(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int
@@ -1068,6 +1155,13 @@ opcodes = [
     ('OP_LESS', OP_LESS),
     ('OP_LESS_OR_EQUAL', OP_LESS_OR_EQUAL),
     ('OP_GET_VALUE', OP_GET_VALUE),
+    ('OP_FLOAT_LESS', OP_FLOAT_LESS),
+    ('OP_FLOAT_LESS_OR_EQUAL', OP_FLOAT_LESS_OR_EQUAL),
+    ('OP_INT_TO_FLOAT', OP_INT_TO_FLOAT),
+    ('OP_FLOAT_TO_INT', OP_FLOAT_TO_INT),
+    ('OP_LOOP', OP_LOOP),
+    ('OP_CHECK_MULTISIG', OP_CHECK_MULTISIG),
+    ('OP_CHECK_MULTISIG_VERIFY', OP_CHECK_MULTISIG_VERIFY),
 ]
 opcodes = {x: opcodes[x] for x in range(len(opcodes))}
 
