@@ -359,18 +359,12 @@ class TestEltoo(unittest.TestCase):
         sB_utxo2.txn = settlement_txn_2
         assert validate_txn(settlement_txn_2)
 
-        # prove that an old settlement txn cannot spend the later update txn
+        # prove that an old settlement txn witness cannot spend the later update txn
         invalid_settlement_ts_1 = int(time())
         invalid_settlement_txn_1 = Txn(1, invalid_settlement_ts_1, [Entry(
             [update_utxo],
             [sA_utxo1, sB_utxo1],
-            [eltoo_witness(
-                self.prvkeyA,
-                self.prvkeyB,
-                trigger_utxo.pack() +
-                sA_utxo1.pack() + sB_utxo1.pack() +
-                b'\x01' + functions.int_to_bytes(invalid_settlement_ts_1)
-            ) + op_true]
+            settlement_txn_1.entries[0].witnesses
         )])
         assert not validate_txn(invalid_settlement_txn_1)
 
