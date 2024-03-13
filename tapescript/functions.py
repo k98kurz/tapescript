@@ -1163,7 +1163,7 @@ opcodes = [
     ('OP_CHECK_MULTISIG', OP_CHECK_MULTISIG),
     ('OP_CHECK_MULTISIG_VERIFY', OP_CHECK_MULTISIG_VERIFY),
 ]
-opcodes = {x: opcodes[x] for x in range(len(opcodes))}
+opcodes: dict[int, tuple[str, Callable]] = {x: opcodes[x] for x in range(len(opcodes))}
 
 nopcodes = {}
 

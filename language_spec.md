@@ -66,6 +66,7 @@ maximum size of 64KiB (2^16-1 bytes). The following features use subtapes:
 - `OP_DEF`
 - `OP_TRY_EXCEPT`
 - `OP_EVAL`
+- `OP_LOOP`
 
 Note that `OP_EVAL` does not require any arguments because it reads the top item
 from the queue as the subtape definition rather than parsing one out from the
@@ -188,6 +189,26 @@ This will define two functions, put the 2 bytes x0123 onto the queue, then call
 the two functions in sequence. The result will be a queue with x0123 and
 `shake_256(sha256(b'\x01\x23').digest()).digest(20)`.
 
+### Loops
+
+As of 0.4.0, tapescript supports loops. Loop logic is similar to conditional
+logic: using `OP_LOOP { clause }`, it is possible to run the `clause` in a loop
+as long as the top value of the queue evaluates to `True`. For example, to count
+down from 10 to 0:
+
+```s
+push d10
+loop {
+    push d1
+    swap2
+    subtract_ints d2
+}
+```
+
+If the top value evaluates to `False`, the loop code will not run. Additionally,
+if the loop runs for more than the `callstack_limit`, a `ScriptExecutionError`
+will be raised to prevent locking up the runtime with an infinite loop.
+
 ### Macros and Variables
 
 As of v0.3.0, the compiler supports macros and variables of a sort.
@@ -199,7 +220,7 @@ the template values replaced by the macro arguments.
 
 To define a macro, use the following syntax:
 
-```
+```s
 != name [ arg1 arg2 etc ] {
     OP_SOMETHING arg1
     OP_PUSH arg2
@@ -210,7 +231,7 @@ To define a macro, use the following syntax:
 
 To invoke a macro, use the following:
 
-```
+```s
 !name [ arg1 arg2 etc ]
 ```
 
@@ -385,6 +406,18 @@ then the second block is executed
 onto queue
 - `OP_GET_VALUE key` - puts the read-only cache value(s) at the str `key` onto
 the queue
+- `OP_FLOAT_LESS` - takes floats `f1` and `f2` from the queue and puts `(f1<f2)`
+onto the queue
+- `OP_FLOAT_LESS_OR_EQUAL` - takes floats `f1` and `f2` from the queue and puts
+`(f1<=f2)` onto the queue
+- `OP_INT_TO_FLOAT` - takes int from queue and puts it back as a float
+- `OP_FLOAT_TO_INT` - takes float from queue and puts it back as an int
+- `OP_LOOP length clause` - runs the clause in a loop as long as the top value
+on the queue is true; errors if the callstack limit is exceeded
+- `OP_CHECK_MULTISIG m n` - takes `n` vkeys and `m` signatures from queue; puts
+true onto the queue if each of the signatures is valid for one of the vkeys and
+if each vkey is used only once; otherwise, puts false onto the queue
+- `OP_CHECK_MULTISIG_VERIFY m n` - calls `OP_CHECK_MULTISIG` then `OP_VERIFY`
 - `NOP count` - removes `count` values from the queue; dummy ops useful for soft
 fork updates
 

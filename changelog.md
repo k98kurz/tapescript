@@ -1,14 +1,30 @@
-## 0.4.0 (next)
+## 0.4.0
 
 - Changed `OP_CHECK_TRANSFER` to pull the `count` parameter from the queue.
-- Added `OP_LESS` (alias `LESS`): pulls value1 then value2 from the queue and
-puts `value1<value2` onto the queue.
-- Added `OP_LESS_OR_EQUAL` (aliases `LESS_OR_EQUAL`, `OP_LEQ`, and `LEQ`): pulls
-value1 then value 2 from the queue and puts `value1<=value2` onto the queue.
-- Added `OP_GET_VALUE s"key"` (aliases `GET_VALUE`, `OP_VAL`, and `VAL`): puts
-the read-only cache values at the string key onto the queue.
+- Added `OP_LESS`: pulls ints value1 and value2 from the queue and puts
+`value1<value2` onto the queue.
+- Added `OP_LESS_OR_EQUAL` (alias `OP_LEQ`): pulls ints value1 and value2 from
+the queue and puts `value1<=value2` onto the queue.
+- Added `OP_GET_VALUE s"key"` (alias `OP_VAL`): puts the read-only cache values
+at the string key onto the queue.
 - Added example txn protocol using a sequence number (held in a sigfield) and
 sequence number constraint. Included an e2e test implementing eltoo protocol.
+- Added `OP_FLOAT_LESS` (alias `OP_FLESS`): pulls floats value1 and value2 from
+the queue and puts `value1<value2` onto the queue.
+- Added `OP_FLOAT_LESS_OR_EQUAL` (alias `OP_FLEQ`): pulls floats value1 and
+value2 from the queue and puts `value1<=value2` onto the queue.
+- Added `OP_INT_TO_FLOAT` (alias `OP_I2F`): pulls an int from the queue,
+converts it to a float, then puts it back onto the queue.
+- Added `OP_FLOAT_TO_INT` (alias `OP_F2I`): pulls a float from the queue,
+converts it to an int, then puts its back onto the queue.
+- Added `OP_LOOP`: simple "while" loop that runs its code block until the top
+value of the queue is false; raises an error if loop runs more than
+`Tape.callstack_limit` times.
+- Added `OP_CHECK_MULTISIG flags m n` to do a Bitcoin-style m-of-n multisig:
+pulls `n` public keys from queue, then pulls `m` signatures from queue, then
+checks each signature against each public key; puts False onto queue if public
+key is used more than once or if any signature that does not validate to a
+public key, else puts True onto queue.
 
 ## 0.3.1
 
