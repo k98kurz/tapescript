@@ -157,9 +157,8 @@ class Txn:
 def eltoo_setup_lock(pubkeyA: bytes, pubkeyB: bytes) -> bytes:
     return parsing.compile_script(f'''
         PUSH x{bytes(pubkeyA).hex()}
-        CHECK_SIG_VERIFY x00
         PUSH x{bytes(pubkeyB).hex()}
-        CHECK_SIG x00
+        CHECK_MULTISIG x00 d2 d2
     ''')
 
 def eltoo_update_lock(pubkeyA: bytes, pubkeyB: bytes, state: int) -> bytes:
@@ -173,17 +172,15 @@ def eltoo_update_lock(pubkeyA: bytes, pubkeyB: bytes, state: int) -> bytes:
             val s"sigfield4"
             leq verify
             push x{bytes(pubkeyA).hex()}
-            check_sig_verify x00
             push x{bytes(pubkeyB).hex()}
-            check_sig x00
+            check_multisig x00 d2 d2
         {"}"} else {"{"}
             val s"sigfield3"
             push d{state}
             less verify
             push x{bytes(pubkeyA).hex()}
-            check_sig_verify x01
             push x{bytes(pubkeyB).hex()}
-            check_sig x01
+            check_multisig x01 d2 d2
         {"}"}
     ''')
 

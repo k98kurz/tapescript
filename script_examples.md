@@ -439,9 +439,8 @@ couple only to the state counter and outputs.
 Locking script:
 ```s
 PUSH x<pubkey A>
-CHECK_SIG_VERIFY x00
 PUSH x<pubkey B>
-CHECK_SIG x00
+CHECK_MULTISIG x00 d2 d2
 ```
 
 Txn entry:
@@ -468,17 +467,15 @@ IF (
     VAL s"sigfield4"
     LEQ VERIFY
     PUSH x<pubkey A>
-    CHECK_SIG_VERIFY x00
     PUSH x<pubkey B>
-    CHECK_SIG x00
+    CHECK_MULTISIG x00 d2 d2
 ) ELSE (
     VAL s"sigfield3"
     PUSH d0
     LESS VERIFY
     PUSH x<pubkey A>
-    CHECK_SIG_VERIFY x01
     PUSH x<pubkey B>
-    CHECK_SIG x01
+    CHECK_MULTISIG x01 d2 d2
 )
 ```
 
@@ -512,17 +509,15 @@ IF (
     VAL s"sigfield4"
     LEQ VERIFY
     PUSH x<pubkey A>
-    CHECK_SIG_VERIFY x00
     PUSH x<pubkey B>
-    CHECK_SIG x00
+    CHECK_MULTISIG x00 d2 d2
 ) ELSE (
     VAL s"sigfield3"
     PUSH d<i>
     LESS VERIFY
     PUSH x<pubkey A>
-    CHECK_SIG_VERIFY x01
     PUSH x<pubkey B>
-    CHECK_SIG x01
+    CHECK_MULTISIG x01 d2 d2
 )
 ```
 
