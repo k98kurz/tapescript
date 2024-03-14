@@ -34,6 +34,14 @@ blocks.
 to run before the `OP_IF`, e.g. `IF ( @var1 @var2 LEQ ) { ...` will now hoist
 to `@var1 @var2 LEQ IF {...`. Inclusion of parenthetic substatements is
 optional.
+- Added `OP_SIGN flags`: takes a signing key seed from the queue, signs a
+message constructed from sigfields not blanked by the flags, and puts that
+signature onto the queue.
+- Added `OP_SIGN_QUEUE`: takes a signing key seed and message from the queue,
+signs the message, and puts the signature onto the queue.
+- Added `OP_CHECK_SIG_QUEUE`: takes a verify key, signature, and message from
+the queue; puts True onto the queue if the signature was valid for the vkey and
+message, otherwise puts False onto the queue.
 
 ## 0.3.1
 

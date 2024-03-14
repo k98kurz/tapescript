@@ -1660,6 +1660,85 @@ class TestFunctions(unittest.TestCase):
             functions.OP_CHECK_MULTISIG_VERIFY(self.tape, self.queue, self.cache)
         assert self.queue.qsize() == 0
 
+    def test_OP_SIGN_creates_valid_signatures(self):
+        seed = token_bytes(32)
+        self.tape.data = b'\x02'
+        self.queue.put(seed)
+        self.cache['sigfield1'] = b'hello'
+        self.cache['sigfield2'] = b'excluded by sigflag'
+        self.cache['sigfield3'] = b'world'
+        functions.OP_SIGN(self.tape, self.queue, self.cache)
+        sig = self.queue.get(False)
+        assert self.queue.qsize() == 0
+        assert len(sig) == nacl.bindings.crypto_sign_BYTES + 1, 'invalid signature'
+
+        self.queue.put(sig)
+        self.queue.put(bytes(SigningKey(seed).verify_key))
+        self.tape.reset()
+        functions.OP_CHECK_SIG(self.tape, self.queue, self.cache)
+        result = self.queue.get(False)
+        assert self.queue.qsize() == 0
+        assert result == b'\x01'
+
+    def test_OP_SIGN_raises_error_for_invalid_key(self):
+        seed = b'not a valid key length'
+        self.tape.data = b'\x00'
+        self.queue.put(seed)
+        self.cache['sigfield1'] = b'test'
+        with self.assertRaises(ValueError) as e:
+            functions.OP_SIGN(self.tape, self.queue, self.cache)
+        assert 'invalid' in str(e.exception)
+
+    def test_OP_SIGN_QUEUE_signs_message_from_queue_using_skey_seed_from_queue(self):
+        seed = token_bytes(nacl.bindings.crypto_sign_SEEDBYTES)
+        msg = b'hello world'
+        self.queue.put(msg)
+        self.queue.put(seed)
+        functions.OP_SIGN_QUEUE(self.tape, self.queue, self.cache)
+        sig = self.queue.get(False)
+        assert len(sig) == nacl.bindings.crypto_sign_BYTES
+        SigningKey(seed).verify_key.verify(msg, sig)
+
+    def test_OP_CHECK_SIG_QUEUE_raises_correct_errors(self):
+        seed = token_bytes(nacl.bindings.crypto_sign_SEEDBYTES)
+        msg = b'hello world'
+        skey = SigningKey(seed)
+        sig = skey.sign(msg).signature
+
+        self.queue.put(msg)
+        self.queue.put(sig)
+        self.queue.put(bytes(skey.verify_key)[:-1])
+        with self.assertRaises(ValueError) as e:
+            functions.OP_CHECK_SIG_QUEUE(self.tape, self.queue, self.cache)
+        assert 'invalid vkey' in str(e.exception)
+
+        self.queue.put(msg)
+        self.queue.put(sig[:-1])
+        self.queue.put(bytes(skey.verify_key))
+        with self.assertRaises(ValueError) as e:
+            functions.OP_CHECK_SIG_QUEUE(self.tape, self.queue, self.cache)
+        assert 'invalid sig' in str(e.exception)
+
+    def test_OP_CHECK_SIG_QUEUE_puts_correct_bool_onto_queue(self):
+        seed = token_bytes(nacl.bindings.crypto_sign_SEEDBYTES)
+        msg = b'hello world'
+        skey = SigningKey(seed)
+        sig = skey.sign(msg).signature
+
+        self.queue.put(msg)
+        self.queue.put(sig)
+        self.queue.put(bytes(skey.verify_key))
+        functions.OP_CHECK_SIG_QUEUE(self.tape, self.queue, self.cache)
+        assert self.queue.qsize() == 1
+        assert self.queue.get(False) == b'\x01'
+
+        self.queue.put(msg)
+        self.queue.put(sig[1:] + sig[:1])
+        self.queue.put(bytes(skey.verify_key))
+        functions.OP_CHECK_SIG_QUEUE(self.tape, self.queue, self.cache)
+        assert self.queue.qsize() == 1
+        assert self.queue.get(False) == b'\x00'
+
     # values
     def test_opcodes_is_dict_mapping_ints_to_tuple_str_function(self):
         assert isinstance(functions.opcodes, dict)

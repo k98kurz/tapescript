@@ -5,7 +5,7 @@ from .interfaces import CanCheckTransfer
 from hashlib import sha256, shake_256
 from math import ceil, floor, isnan, log2
 from nacl.exceptions import BadSignatureError
-from nacl.signing import VerifyKey
+from nacl.signing import SigningKey, VerifyKey
 from queue import LifoQueue
 from secrets import token_bytes
 from time import time
@@ -1078,6 +1078,82 @@ def OP_CHECK_MULTISIG_VERIFY(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     OP_CHECK_MULTISIG(tape, queue, cache)
     OP_VERIFY(tape, queue, cache)
 
+def OP_SIGN(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+    """Reads 1 byte from the tape as the sig_flag; pulls a value from
+        the queue, interpreting as a SigningKey; creates a signature
+        using the correct sigfields; puts the signature onto the queue.
+        Raises ValueError for invalid key seed length.
+    """
+    sig_flag = tape.read(1)[0]
+    skey_seed = queue.get(False)
+    vert(len(skey_seed) == nacl.bindings.crypto_sign_SEEDBYTES,
+         'invalid signing key; must be ' +
+         f'{nacl.bindings.crypto_sign_SEEDBYTES} bytes')
+
+    sig_flag1 = sig_flag & 0b00000001
+    sig_flag2 = sig_flag & 0b00000010
+    sig_flag3 = sig_flag & 0b00000100
+    sig_flag4 = sig_flag & 0b00001000
+    sig_flag5 = sig_flag & 0b00010000
+    sig_flag6 = sig_flag & 0b00100000
+    sig_flag7 = sig_flag & 0b01000000
+    sig_flag8 = sig_flag & 0b10000000
+
+    message = b''
+
+    if 'sigfield1' in cache and not sig_flag1:
+        message += cache['sigfield1']
+    if 'sigfield2' in cache and not sig_flag2:
+        message += cache['sigfield2']
+    if 'sigfield3' in cache and not sig_flag3:
+        message += cache['sigfield3']
+    if 'sigfield4' in cache and not sig_flag4:
+        message += cache['sigfield4']
+    if 'sigfield5' in cache and not sig_flag5:
+        message += cache['sigfield5']
+    if 'sigfield6' in cache and not sig_flag6:
+        message += cache['sigfield6']
+    if 'sigfield7' in cache and not sig_flag7:
+        message += cache['sigfield7']
+    if 'sigfield8' in cache and not sig_flag8:
+        message += cache['sigfield8']
+
+    skey = SigningKey(skey_seed)
+    sig = skey.sign(message).signature
+    queue.put(sig + sig_flag.to_bytes(1, 'big') if sig_flag else sig)
+
+def OP_SIGN_QUEUE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+    """Pulls a value from the queue, interpreting as a SigningKey; pulls
+        a message from the queue; signs the message with the SigningKey;
+        puts the signature onto the queue. Raises ValueError for invalid
+        key seed length.
+    """
+    seed = queue.get(False)
+    msg = queue.get(False)
+    vert(len(seed) == nacl.bindings.crypto_sign_SEEDBYTES)
+    skey = SigningKey(seed)
+    sig = skey.sign(msg).signature
+    queue.put(sig)
+
+def OP_CHECK_SIG_QUEUE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+    """Pulls a value from the queue, interpreting as a VerifyKey; pulls
+        a value from the queue, interpreting as a signature; pulls a
+        message from the queue; puts True onto the queue if the
+        signature is valid for the message and the VerifyKey, otherwise
+        puts False onto the queue. Raises ValueError for invalid vkey or
+        signature.
+    """
+    vkey = queue.get(False)
+    vert(len(vkey) == nacl.bindings.crypto_core_ed25519_BYTES, 'invalid vkey')
+    sig = queue.get(False)
+    vert(len(sig) == nacl.bindings.crypto_sign_BYTES, 'invalid signature')
+    msg = queue.get(False)
+    try:
+        VerifyKey(vkey).verify(msg, sig)
+        OP_TRUE(tape, queue, cache)
+    except:
+        OP_FALSE(tape, queue, cache)
+
 def NOP(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int
         and pull that many values from the queue. Does nothing with the
@@ -1162,6 +1238,9 @@ opcodes = [
     ('OP_LOOP', OP_LOOP),
     ('OP_CHECK_MULTISIG', OP_CHECK_MULTISIG),
     ('OP_CHECK_MULTISIG_VERIFY', OP_CHECK_MULTISIG_VERIFY),
+    ('OP_SIGN', OP_SIGN),
+    ('OP_SIGN_QUEUE', OP_SIGN_QUEUE),
+    ('OP_CHECK_SIG_QUEUE', OP_CHECK_SIG_QUEUE),
 ]
 opcodes: dict[int, tuple[str, Callable]] = {x: opcodes[x] for x in range(len(opcodes))}
 

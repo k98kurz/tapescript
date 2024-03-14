@@ -414,10 +414,22 @@ onto the queue
 - `OP_FLOAT_TO_INT` - takes float from queue and puts it back as an int
 - `OP_LOOP length clause` - runs the clause in a loop as long as the top value
 on the queue is true; errors if the callstack limit is exceeded
-- `OP_CHECK_MULTISIG m n` - takes `n` vkeys and `m` signatures from queue; puts
-true onto the queue if each of the signatures is valid for one of the vkeys and
-if each vkey is used only once; otherwise, puts false onto the queue
-- `OP_CHECK_MULTISIG_VERIFY m n` - calls `OP_CHECK_MULTISIG` then `OP_VERIFY`
+- `OP_CHECK_MULTISIG allowed_flags m n` - takes `n` vkeys and `m` signatures
+from queue; puts true onto the queue if each of the signatures is valid for one
+of the vkeys and if each vkey is used only once; otherwise, puts false onto the
+queue
+- `OP_CHECK_MULTISIG_VERIFY allowed_flags m n` - calls `OP_CHECK_MULTISIG` then
+`OP_VERIFY`
+- `OP_SIGN allowed_flags` - pulls a signing key seed from the queue; generates a
+signature from the sigfields; puts the signature onto the queue
+- `OP_SIGN flags` - takes a signing key seed from the queue, signs a message
+constructed from sigfields not blanked by the flags, and puts that signature
+onto the queue.
+- `OP_SIGN_QUEUE` - takes a signing key seed and message from the queue, signs
+the message, and puts the signature onto the queue.
+- `OP_CHECK_SIG_QUEUE` - takes a verify key, signature, and message from the
+queue; puts `True` onto the queue if the signature was valid for the vkey and
+message, otherwise puts `False` onto the queue.
 - `NOP count` - removes `count` values from the queue; dummy ops useful for soft
 fork updates
 

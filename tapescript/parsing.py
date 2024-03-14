@@ -556,7 +556,8 @@ def get_args(
             'OP_NOT' | 'OP_RETURN' | 'OP_DEPTH' | 'OP_SWAP2' | \
             'OP_CONCAT' | 'OP_CONCAT_STR' | 'OP_CHECK_TRANSFER' | 'OP_LESS' | \
             'OP_LESS_OR_EQUAL' | 'OP_FLOAT_LESS' | 'OP_FLOAT_LESS_OR_EQUAL' | \
-            'OP_INT_TO_FLOAT' | 'OP_FLOAT_TO_INT':
+            'OP_INT_TO_FLOAT' | 'OP_FLOAT_TO_INT' | 'OP_SIGN_QUEUE' | \
+            'OP_CHECK_SIG_QUEUE':
             # ops that have no arguments on the tape
             # human-readable syntax of OP_[whatever]
             pass
@@ -575,7 +576,8 @@ def get_args(
             'OP_MULT_INTS' | 'OP_ADD_FLOATS' | \
             'OP_SUBTRACT_FLOATS' | 'OP_ADD_POINTS' | 'OP_CALL' | \
             'OP_COPY' | 'OP_SHAKE256' | 'OP_RANDOM' | 'OP_REVERSE' | \
-            'OP_SPLIT' | 'OP_SPLIT_STR' | 'OP_CHECK_SIG' | 'OP_CHECK_SIG_VERIFY':
+            'OP_SPLIT' | 'OP_SPLIT_STR' | 'OP_CHECK_SIG' | 'OP_CHECK_SIG_VERIFY' | \
+            'OP_SIGN':
             # ops that have tape argument of form [0-255]
             # human-readable syntax of OP_[whatever] [int]
             return _get_OP_PUSH0_type_args(opname, symbols, symbols_to_advance, symbol_index)
@@ -1097,7 +1099,8 @@ def decompile_script(script: bytes, indent: int = 0) -> list[str]:
                 'OP_NOT' | 'OP_RETURN' | 'OP_DEPTH' | 'OP_SWAP2' | \
                 'OP_CONCAT' | 'OP_CONCAT_STR' | 'OP_CHECK_TRANSFER' | \
                 'OP_LESS' | 'OP_LESS_OR_EQUAL' | 'OP_FLOAT_LESS' | \
-                'OP_FLOAT_LESS_OR_EQUAL' | 'OP_INT_TO_FLOAT' | 'OP_FLOAT_TO_INT':
+                'OP_FLOAT_LESS_OR_EQUAL' | 'OP_INT_TO_FLOAT' | \
+                'OP_FLOAT_TO_INT' | 'OP_SIGN_QUEUE' | 'OP_CHECK_SIG_QUEUE':
                 # ops that have no arguments on the tape
                 # human-readable syntax of OP_[whatever]
                 add_line(op_name)
@@ -1132,9 +1135,9 @@ def decompile_script(script: bytes, indent: int = 0) -> list[str]:
                 # human-readable syntax of OP_[whatever] [int]
                 val = tape.read(1)[0]
                 add_line(f'{op_name} d{val}')
-            case 'OP_CHECK_SIG' | 'OP_CHECK_SIG_VERIFY':
-                # ops that have tape argument of form [0-255]
-                # human-readable syntax of OP_[whatever] [int]
+            case 'OP_CHECK_SIG' | 'OP_CHECK_SIG_VERIFY' | 'OP_SIGN':
+                # ops that have tape argument of form x[00-ff]
+                # human-readable syntax of OP_[whatever] x[00-ff]
                 val = tape.read(1)
                 add_line(f'{op_name} x{val.hex()}')
             case 'OP_PUSH2':
