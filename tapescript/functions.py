@@ -1190,6 +1190,10 @@ opcode_aliases['OP_I2F'] = 'OP_INT_TO_FLOAT'
 opcode_aliases['I2F'] = 'OP_INT_TO_FLOAT'
 opcode_aliases['OP_F2I'] = 'OP_FLOAT_TO_INT'
 opcode_aliases['F2I'] = 'OP_FLOAT_TO_INT'
+opcode_aliases['OP_CMS'] = 'OP_CHECK_MULTISIG'
+opcode_aliases['CMS'] = 'OP_CHECK_MULTISIG'
+opcode_aliases['OP_CMSV'] = 'OP_CHECK_MULTISIG_VERIFY'
+opcode_aliases['CMSV'] = 'OP_CHECK_MULTISIG_VERIFY'
 
 nopcodes_inverse = {
     nopcodes[key][0]: (key, nopcodes[key][1]) for key in nopcodes

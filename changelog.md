@@ -20,11 +20,13 @@ converts it to an int, then puts its back onto the queue.
 - Added `OP_LOOP`: simple "while" loop that runs its code block until the top
 value of the queue is false; raises an error if loop runs more than
 `Tape.callstack_limit` times.
-- Added `OP_CHECK_MULTISIG flags m n` to do a Bitcoin-style m-of-n multisig:
-pulls `n` public keys from queue, then pulls `m` signatures from queue, then
-checks each signature against each public key; puts False onto queue if public
-key is used more than once or if any signature that does not validate to a
-public key, else puts True onto queue.
+- Added `OP_CHECK_MULTISIG flags m n` (alias `OP_CMS`) to do a Bitcoin-style
+m-of-n multisig: pulls `n` public keys from queue, then pulls `m` signatures
+from queue, then checks each signature against each public key; puts False onto
+queue if public key is used more than once or if any signature that does not
+validate to a public key, else puts True onto queue.
+- Added `OP_CHECK_MULTISIG_VERIFY flags m n` (alias `OP_CMSV`) to run
+`OP_CHECK_MULTISIG` followed by `OP_VERIFY`.
 - Changed `IF` syntax to use '{' and '}' instead of '(' and ')' to designate
 blocks.
 - Refactored compiler innards.
