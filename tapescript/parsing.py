@@ -493,6 +493,34 @@ def _get_OP_SWAP_type_args(
                 args.append(bytes.fromhex(val[1:]))
     return (symbols_to_advance, args)
 
+def _get_OP_CHECK_MULTISIG_args(
+        opname: str, symbols: list[str], symbols_to_advance: int,
+        symbol_index: int
+    ) -> tuple[int, tuple[bytes]]:
+    args = []
+    symbols_to_advance += 3
+    vals = symbols[:3]
+
+    for val in vals:
+        yert(val[0].lower() in ('d', 'x'),
+            f'{opname} - numeric args must be prefaced with d or x; {val} is invalid - symbol {symbol_index}')
+
+        match val[0].lower():
+            case 'd':
+                vert(val[1:].isnumeric(),
+                    f'{opname} - value prefaced by d must be decimal int; {val} is invalid - symbol {symbol_index}')
+                if '.' in val:
+                    val = int(val[1:].split('.')[0])
+                else:
+                    val = int(val[1:])
+                yert(0 <= val < 256, f'{opname} - index overflow - symbol {symbol_index}')
+                args.append(val.to_bytes(1, 'big'))
+            case 'x':
+                vert(len(val[1:]) == 2,
+                    f'{opname} - value prefaced by x must be 2 long (1 byte); {val} is invalid - symbol {symbol_index}')
+                args.append(bytes.fromhex(val[1:]))
+    return (symbols_to_advance, args)
+
 def _get_OP_MERKLEVAL_args(
         opname: str, symbols: list[str], symbols_to_advance: int,
         symbol_index: int
@@ -563,10 +591,12 @@ def get_args(
             # ops that have tape argument of form [4-byte float]
             # human-readable syntax of OP_[DIV|MOD]_FLOAT [val]
             return _get_OP_DIV_FLOAT_args(opname, symbols, symbols_to_advance, symbol_index)
-        case 'OP_SWAP' | 'OP_CHECK_MULTISIG' | 'OP_CHECK_MULTISIG_VERIFY':
+        case 'OP_SWAP':
             # ops that have tape arguments of form [0-255] [0-255]
             # human-readable syntax of OP_SWAP [idx1] [idx2]
             return _get_OP_SWAP_type_args(opname, symbols, symbols_to_advance, symbol_index)
+        case 'OP_CHECK_MULTISIG' | 'OP_CHECK_MULTISIG_VERIFY':
+            return _get_OP_CHECK_MULTISIG_args(opname, symbols, symbols_to_advance, symbol_index)
         case 'OP_MERKLEVAL':
             # op has tape argument of form [val]
             return _get_OP_MERKLEVAL_args(opname, symbols, symbols_to_advance, symbol_index)
@@ -1124,12 +1154,19 @@ def decompile_script(script: bytes, indent: int = 0) -> list[str]:
                 # human-readable syntax of OP_[DIV|MOD]_FLOAT [val]
                 val = tape.read(4)
                 add_line(f'{op_name} x{val.hex()}')
-            case 'OP_SWAP' | 'OP_CHECK_MULTISIG' | 'OP_CHECK_MULTISIG_VERIFY':
+            case 'OP_SWAP':
                 # ops that have tape arguments of form [0-255] [0-255]
                 # human-readable syntax of OP_SWAP [idx1] [idx2]
                 idx1 = tape.read(1)[0]
                 idx2 = tape.read(1)[0]
                 add_line(f'{op_name} d{idx1} d{idx2}')
+            case 'OP_CHECK_MULTISIG' | 'OP_CHECK_MULTISIG_VERIFY':
+                # ops that have tape arguments of form [0-255] [0-255]
+                # human-readable syntax of OP_SWAP [idx1] [idx2]
+                flag = tape.read(1).hex()
+                idx1 = tape.read(1)[0]
+                idx2 = tape.read(1)[0]
+                add_line(f'{op_name} x{flag} d{idx1} d{idx2}')
             case 'OP_MERKLEVAL':
                 # op has tape argument of form [32-byte val]
                 digest = tape.read(32)
