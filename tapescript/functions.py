@@ -1182,6 +1182,14 @@ opcode_aliases['OP_LEQ'] = 'OP_LESS_OR_EQUAL'
 opcode_aliases['LEQ'] = 'OP_LESS_OR_EQUAL'
 opcode_aliases['OP_VAL'] = 'OP_GET_VALUE'
 opcode_aliases['VAL'] = 'OP_GET_VALUE'
+opcode_aliases['OP_FLESS'] = 'OP_FLOAT_LESS'
+opcode_aliases['FLESS'] = 'OP_FLOAT_LESS'
+opcode_aliases['OP_FLEQ'] = 'OP_FLOAT_LESS_OR_EQUAL'
+opcode_aliases['FLEQ'] = 'OP_FLOAT_LESS_OR_EQUAL'
+opcode_aliases['OP_I2F'] = 'OP_INT_TO_FLOAT'
+opcode_aliases['I2F'] = 'OP_INT_TO_FLOAT'
+opcode_aliases['OP_F2I'] = 'OP_FLOAT_TO_INT'
+opcode_aliases['F2I'] = 'OP_FLOAT_TO_INT'
 
 nopcodes_inverse = {
     nopcodes[key][0]: (key, nopcodes[key][1]) for key in nopcodes
