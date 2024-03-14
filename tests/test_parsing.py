@@ -227,6 +227,7 @@ class TestParsing(unittest.TestCase):
             'trydef.src': 'trydef.hex',
             'try_in_if.src': 'try_in_if.hex',
             'macros_and_variables.src': 'macros_and_variables.hex',
+            'new_ops_4.0.0.src': 'new_ops_4.0.0.hex',
         }
         vectors = {}
         names = {}
@@ -322,6 +323,7 @@ class TestParsing(unittest.TestCase):
             'trydef.hex': 'trydef.src',
             'try_in_if.hex': 'try_in_if.src',
             'macros_and_variables.hex': 'macros_and_variables_decompiled.src',
+            'new_ops_4.0.0.hex': 'new_ops_4.0.0_decompiled.src',
         }
         vectors = {}
         names = {}
