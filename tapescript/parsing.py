@@ -465,7 +465,7 @@ def _get_OP_DIV_FLOAT_args(
             args.append(bytes.fromhex(val[1:]))
     return (symbols_to_advance, args)
 
-def _get_OP_SWAP_args(
+def _get_OP_SWAP_type_args(
         opname: str, symbols: list[str], symbols_to_advance: int,
         symbol_index: int
     ) -> tuple[int, tuple[bytes]]:
@@ -527,7 +527,8 @@ def get_args(
             'OP_CHECK_EPOCH' | 'OP_CHECK_EPOCH_VERIFY' | 'OP_EVAL' | \
             'OP_NOT' | 'OP_RETURN' | 'OP_DEPTH' | 'OP_SWAP2' | \
             'OP_CONCAT' | 'OP_CONCAT_STR' | 'OP_CHECK_TRANSFER' | 'OP_LESS' | \
-            'OP_LESS_OR_EQUAL':
+            'OP_LESS_OR_EQUAL' | 'OP_FLOAT_LESS' | 'OP_FLOAT_LESS_OR_EQUAL' | \
+            'OP_INT_TO_FLOAT' | 'OP_FLOAT_TO_INT':
             # ops that have no arguments on the tape
             # human-readable syntax of OP_[whatever]
             pass
@@ -562,10 +563,10 @@ def get_args(
             # ops that have tape argument of form [4-byte float]
             # human-readable syntax of OP_[DIV|MOD]_FLOAT [val]
             return _get_OP_DIV_FLOAT_args(opname, symbols, symbols_to_advance, symbol_index)
-        case 'OP_SWAP':
+        case 'OP_SWAP' | 'OP_CHECK_MULTISIG' | 'OP_CHECK_MULTISIG_VERIFY':
             # ops that have tape arguments of form [0-255] [0-255]
             # human-readable syntax of OP_SWAP [idx1] [idx2]
-            return _get_OP_SWAP_args(opname, symbols, symbols_to_advance, symbol_index)
+            return _get_OP_SWAP_type_args(opname, symbols, symbols_to_advance, symbol_index)
         case 'OP_MERKLEVAL':
             # op has tape argument of form [val]
             return _get_OP_MERKLEVAL_args(opname, symbols, symbols_to_advance, symbol_index)
@@ -653,6 +654,10 @@ def parse_def(symbols: list[str], symbol_index: int, macros: dict = {}) -> tuple
             advance, parts = parse_try(symbols[index:search_idx], index, macros)
             index += advance
             def_code += b''.join(parts)
+        elif current_symbol == 'OP_LOOP':
+            advance, parts = parse_loop(symbols[index:], symbol_index+index, macros)
+            index += advance
+            code.extend(parts)
         elif current_symbol in ('}', 'END_DEF'):
             index += 1
             break
@@ -769,6 +774,10 @@ def parse_if(symbols: list[str], symbol_index: int, macros: dict = {}) -> tuple[
             advance, parts = parse_try(symbols[index:], symbol_index+index, macros)
             index += advance
             code.extend(parts)
+        elif current_symbol == 'OP_LOOP':
+            advance, parts = parse_loop(symbols[index:], symbol_index+index, macros)
+            index += advance
+            code.extend(parts)
         else:
             vert(current_symbol in opcodes_inverse or current_symbol in nopcodes_inverse
                  or current_symbol == 'OP_PUSH',
@@ -862,6 +871,10 @@ def parse_else(symbols: list[str], symbol_index: int, macros: dict = {}) -> tupl
             code.extend(parts)
         elif current_symbol == 'OP_TRY':
             advance, parts = parse_try(symbols[index:], symbol_index+index, macros)
+            index += advance
+            code.extend(parts)
+        elif current_symbol == 'OP_LOOP':
+            advance, parts = parse_loop(symbols[index:], symbol_index+index, macros)
             index += advance
             code.extend(parts)
         else:
@@ -970,6 +983,10 @@ def parse_try(symbols: list[str], symbol_index: int, macros: dict = {}) -> tuple
             advance, parts = parse_try(symbols[index:], symbol_index+index, macros)
             index += advance
             code.extend(parts)
+        elif current_symbol == 'OP_LOOP':
+            advance, parts = parse_loop(symbols[index:], symbol_index+index, macros)
+            index += advance
+            code.extend(parts)
         else:
             vert(current_symbol in opcodes_inverse or current_symbol in nopcodes_inverse
                  or current_symbol == 'OP_PUSH',
@@ -1070,6 +1087,10 @@ def parse_except(symbols: list[str], symbol_index: int, macros: dict = {}) -> tu
             advance, parts = parse_try(symbols[index:], symbol_index+index, macros)
             index += advance
             code.extend(parts)
+        elif current_symbol == 'OP_LOOP':
+            advance, parts = parse_loop(symbols[index:], symbol_index+index, macros)
+            index += advance
+            code.extend(parts)
         else:
             vert(current_symbol in opcodes_inverse or current_symbol in nopcodes_inverse
                  or current_symbol == 'OP_PUSH',
@@ -1093,6 +1114,103 @@ def parse_except(symbols: list[str], symbol_index: int, macros: dict = {}) -> tu
     return (
         index,
         (
+            len(code).to_bytes(2, 'big'),
+            code
+        )
+    )
+
+
+def parse_loop(symbols: list[str], symbol_index: int, macros: dict = {}) -> tuple[int, tuple[bytes]]:
+    """Parses an OP_LOOP clause. Returns tuple (int advance, tuple[bytes]
+        parts). Recursively calls parse_* functions to handle nested
+        control flow clauses.
+    """
+    yert(len(symbols) > 0, f'missing OP_LOOP clause contents - symbol {symbol_index}')
+    vert(symbols[0] in ('OP_LOOP', 'LOOP'), f'malformed OP_LOOP clause: must begin OP_LOOP not {symbols[0]}' +
+         f' at symbol {symbol_index}')
+    code = []
+    index = 1
+
+    if symbols[1] == '{':
+        # case 1: LOOP { statements }
+        yert('}' in symbols[1:], f'unterminated LOOP: missing matching }} - symbol {symbol_index}')
+        index = 2
+    else:
+        yert('END_LOOP' in symbols[1:], f'missing END_LOOP - symbol {symbol_index}')
+
+    while index < len(symbols):
+        current_symbol = symbols[index]
+        if current_symbol in ('"', "'", '#'):
+            # skip forward past the matching symbol
+            try:
+                index = symbols.index(current_symbol, index+1) + 1
+            except ValueError:
+                raise SyntaxError(f'unterminated comment starting with {current_symbol}') from None
+            continue
+
+        if current_symbol in opcode_aliases:
+            current_symbol = opcode_aliases[current_symbol]
+        if current_symbol in ('PUSH', 'TRY', 'DEF', 'IF'):
+            current_symbol = 'OP_' + current_symbol
+
+        if current_symbol in ('}', 'END_LOOP'):
+            index += 1
+            break
+        elif current_symbol == '@=':
+            advance, parts = set_variable(symbols[index:])
+            index += advance
+            code.extend(parts)
+        elif current_symbol[0] == '@':
+            advance, parts = load_variable(symbols[index:])
+            index += advance
+            code.extend(parts)
+        elif current_symbol == '!=':
+            advance= define_macro(symbols[index:], macros=macros)
+            index += advance
+        elif current_symbol[0] == '!':
+            advance, parts = invoke_macro(symbols[index:], macros=macros)
+            index += advance
+            code.extend(parts)
+        elif current_symbol == 'OP_IF':
+            advance, parts = parse_if(symbols[index:], symbol_index+index, macros)
+            index += advance
+            code.extend(parts)
+        elif current_symbol == 'OP_DEF':
+            advance, parts = parse_def(symbols[index:], symbol_index+index, macros)
+            index += advance
+            code.extend(parts)
+        elif current_symbol == 'OP_TRY':
+            advance, parts = parse_try(symbols[index:], symbol_index+index, macros)
+            index += advance
+            code.extend(parts)
+        elif current_symbol == 'OP_LOOP':
+            advance, parts = parse_loop(symbols[index:], symbol_index+index, macros)
+            index += advance
+            code.extend(parts)
+        else:
+            vert(current_symbol in opcodes_inverse or current_symbol in nopcodes_inverse
+                 or current_symbol == 'OP_PUSH',
+                f'unrecognized opcode: {current_symbol} - symbol {symbol_index+index}')
+            advance, args = get_args(current_symbol, symbols[index+1:], symbol_index+index)
+            index += advance
+            if current_symbol in ('OP_PUSH', 'PUSH'):
+                if len(args) < 2:
+                    code.append(opcodes_inverse['OP_PUSH0'][0].to_bytes(1, 'big'))
+                elif len(args[0]) == 1:
+                    code.append(opcodes_inverse['OP_PUSH1'][0].to_bytes(1, 'big'))
+                elif len(args[0]) == 2:
+                    code.append(opcodes_inverse['OP_PUSH2'][0].to_bytes(1, 'big'))
+                elif len(args[0]) == 4:
+                    code.append(opcodes_inverse['OP_PUSH4'][0].to_bytes(1, 'big'))
+            else:
+                code.append(opcodes_inverse[current_symbol][0].to_bytes(1, 'big'))
+            code.append(b''.join(args))
+
+    code = b''.join(code)
+    return (
+        index,
+        (
+            opcodes_inverse['OP_LOOP'][0].to_bytes(1, 'big'),
             len(code).to_bytes(2, 'big'),
             code
         )
@@ -1177,6 +1295,10 @@ def assemble(symbols: list[str], macros: dict = {}) -> bytes:
             advance, parts = parse_try(symbols[index:], index, macros)
             index += advance
             code.append(b''.join(parts))
+        elif symbol == 'OP_LOOP':
+            advance, parts = parse_loop(symbols[index:], index, macros)
+            index += advance
+            code.append(b''.join(parts))
         else:
             advance, args = get_args(symbol, symbols[index+1:], index)
             index += advance
@@ -1257,6 +1379,13 @@ def decompile_script(script: bytes, indent: int = 0) -> list[str]:
                     add_line('} EXCEPT {')
                     code_lines.extend(except_lines)
                 add_line('}')
+            case 'OP_LOOP':
+                loop_len = int.from_bytes(tape.read(2), 'big')
+                lop_body = tape.read(loop_len)
+                loop_lines = decompile_script(lop_body, indent+1)
+                add_line('OP_LOOP {')
+                code_lines.extend(loop_lines)
+                add_line('}')
             case 'OP_FALSE' | 'OP_TRUE' | 'OP_POP0' | 'OP_SIZE' | \
                 'OP_READ_CACHE_Q' | 'OP_READ_CACHE_Q_SIZE' | 'OP_DIV_INTS' | \
                 'OP_MOD_INTS' | 'OP_DIV_FLOATS' | 'OP_MOD_FLOATS' | 'OP_DUP' | \
@@ -1265,7 +1394,8 @@ def decompile_script(script: bytes, indent: int = 0) -> list[str]:
                 'OP_CHECK_EPOCH' | 'OP_CHECK_EPOCH_VERIFY' | 'OP_EVAL' | \
                 'OP_NOT' | 'OP_RETURN' | 'OP_DEPTH' | 'OP_SWAP2' | \
                 'OP_CONCAT' | 'OP_CONCAT_STR' | 'OP_CHECK_TRANSFER' | \
-                'OP_LESS' | 'OP_LESS_OR_EQUAL':
+                'OP_LESS' | 'OP_LESS_OR_EQUAL' | 'OP_FLOAT_LESS' | \
+                'OP_FLOAT_LESS_OR_EQUAL' | 'OP_INT_TO_FLOAT' | 'OP_FLOAT_TO_INT':
                 # ops that have no arguments on the tape
                 # human-readable syntax of OP_[whatever]
                 add_line(op_name)
@@ -1322,12 +1452,12 @@ def decompile_script(script: bytes, indent: int = 0) -> list[str]:
                 # human-readable syntax of OP_[DIV|MOD]_FLOAT [val]
                 val = tape.read(4)
                 add_line(f'{op_name} x{val.hex()}')
-            case 'OP_SWAP':
+            case 'OP_SWAP' | 'OP_CHECK_MULTISIG' | 'OP_CHECK_MULTISIG_VERIFY':
                 # ops that have tape arguments of form [0-255] [0-255]
                 # human-readable syntax of OP_SWAP [idx1] [idx2]
                 idx1 = tape.read(1)[0]
                 idx2 = tape.read(1)[0]
-                add_line(f'OP_SWAP d{idx1} d{idx2}')
+                add_line(f'{op_name} d{idx1} d{idx2}')
             case 'OP_MERKLEVAL':
                 # op has tape argument of form [32-byte val]
                 digest = tape.read(32)
