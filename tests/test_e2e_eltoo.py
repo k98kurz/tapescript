@@ -164,7 +164,7 @@ def eltoo_setup_lock(pubkeyA: bytes, pubkeyB: bytes) -> bytes:
 
 def eltoo_update_lock(pubkeyA: bytes, pubkeyB: bytes, state: int) -> bytes:
     return parsing.compile_script(f'''
-        if (
+        if {"{"}
             val s"sigfield4"
             # 2 second delay is all I'm willing to wait in a test #
             val s"input_ts" push d2 add_ints d2
@@ -176,7 +176,7 @@ def eltoo_update_lock(pubkeyA: bytes, pubkeyB: bytes, state: int) -> bytes:
             check_sig_verify x00
             push x{bytes(pubkeyB).hex()}
             check_sig x00
-        ) else (
+        {"}"} else {"{"}
             val s"sigfield3"
             push d{state}
             less verify
@@ -184,7 +184,7 @@ def eltoo_update_lock(pubkeyA: bytes, pubkeyB: bytes, state: int) -> bytes:
             check_sig_verify x01
             push x{bytes(pubkeyB).hex()}
             check_sig x01
-        )
+        {"}"}
     ''')
 
 def eltoo_witness(

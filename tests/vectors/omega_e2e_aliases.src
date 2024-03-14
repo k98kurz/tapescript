@@ -1,58 +1,58 @@
 # omega e2e parsing test #
 
 DEF 0 {
-    IF (
+    IF {
         POP0
-    )
+    }
 }
 
 
 DEF 1 {
     # comment within def #
-    IF (
+    IF {
         # comment within if #
         PUSH0 d0
         PUSH1 x22
-    ) ELSE (
+    } ELSE {
         # comment within else #
         PUSH2 xfeedbeef
         PUSH4 s"yellow submarine"
-    )
+    }
 }
 
 
 DEF 2 {
-    IF (
-        IF (
+    IF {
+        IF {
             CALL d0
-        ) ELSE (
+        } ELSE {
             CALL d1
-        )
-    ) ELSE (
-        IF (
+        }
+    } ELSE {
+        IF {
             CALL d0
-        ) ELSE (
+        } ELSE {
             CALL d1
-        )
-    )
+        }
+    }
 }
 
 
-IF (
+IF {
     DEF 3 {
         FALSE
     }
-) ELSE (
+} ELSE {
     DEF 3 {
         TRUE
     }
-)
+}
 
 
 TRY {
-    IF (
+    IF {
         TRUE
-    )
+    }
     DEF 4 {
         CALL d0
     }

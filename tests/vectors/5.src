@@ -7,9 +7,9 @@ OP_DEF 0 {
     OP_EQUAL
 }
 OP_CALL d0
-OP_IF (
+OP_IF {
     OP_PUSH s"success"
-) else (
+ } else {
     OP_FALSE
     OP_VERIFY
-)
+}

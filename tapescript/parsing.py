@@ -708,9 +708,9 @@ def parse_if(symbols: list[str], symbol_index: int, macros: dict = {}) -> tuple[
     index = 1
     else_len = 0
 
-    if symbols[1] == '(':
-        # case 1: OP_IF ( statements )
-        yert(')' in symbols[1:], f'unterminated OP_IF: missing matching ) - symbol {symbol_index}')
+    if symbols[1] == '{':
+        # case 1: OP_IF { statements }
+        yert('}' in symbols[1:], f'unterminated OP_IF: missing matching {"}"} - symbol {symbol_index}')
         index += 1
     else:
         # case 2: OP_IF statements END_IF
@@ -731,7 +731,7 @@ def parse_if(symbols: list[str], symbol_index: int, macros: dict = {}) -> tuple[
         if current_symbol in ('PUSH', 'TRY'):
             current_symbol = 'OP_' + current_symbol
 
-        if current_symbol == ')':
+        if current_symbol == '}':
             if len(symbols) < index+2 or symbols[index+1] != 'ELSE':
                 index += 1
                 break
@@ -820,10 +820,10 @@ def parse_else(symbols: list[str], symbol_index: int, macros: dict = {}) -> tupl
     code = []
     index = 1
 
-    if symbols[1] == '(':
-        # case 1: ELSE ( statements )
-        yert(')' in symbols[1:],
-             f'unterminated ELSE: missing matching ) - starting symbol {symbol_index}')
+    if symbols[1] == '{':
+        # case 1: ELSE { statements }
+        yert('}' in symbols[1:],
+             f'unterminated ELSE: missing matching {"}"} - starting symbol {symbol_index}')
         index = 2
     else:
         yert('END_IF' in symbols[1:], f'missing END_IF - starting symbol {symbol_index}')
@@ -843,7 +843,7 @@ def parse_else(symbols: list[str], symbol_index: int, macros: dict = {}) -> tupl
         if current_symbol in ('PUSH', 'TRY'):
             current_symbol = 'OP_' + current_symbol
 
-        if current_symbol in (')', 'END_IF'):
+        if current_symbol in ('}', 'END_IF'):
             index += 1
             break
         elif current_symbol == '@=':
@@ -1351,9 +1351,9 @@ def decompile_script(script: bytes, indent: int = 0) -> list[str]:
                 if_len = int.from_bytes(tape.read(2), 'big')
                 if_body = tape.read(if_len)
                 if_lines = decompile_script(if_body, indent+1)
-                add_line('OP_IF (')
+                add_line('OP_IF {')
                 code_lines.extend(if_lines)
-                add_line(')')
+                add_line('}')
             case 'OP_IF_ELSE':
                 if_len = int.from_bytes(tape.read(2), 'big')
                 if_body = tape.read(if_len)
@@ -1361,11 +1361,11 @@ def decompile_script(script: bytes, indent: int = 0) -> list[str]:
                 else_len = int.from_bytes(tape.read(2), 'big')
                 else_body = tape.read(else_len)
                 else_lines = decompile_script(else_body, indent+1)
-                add_line('OP_IF (')
+                add_line('OP_IF {')
                 code_lines.extend(if_lines)
-                add_line(') ELSE (')
+                add_line('} ELSE {')
                 code_lines.extend(else_lines)
-                add_line(')')
+                add_line('}')
             case 'OP_TRY_EXCEPT':
                 try_len = int.from_bytes(tape.read(2), 'big')
                 try_body = tape.read(try_len)

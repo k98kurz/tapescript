@@ -18,19 +18,19 @@ OP_DEF 0 {
     OP_WRITE_CACHE x7665 d1
 }
 
-OP_IF (
+OP_IF {
     OP_TRUE
     OP_PUSH0 d1
     OP_WRITE_CACHE x7676 d1
     OP_READ_CACHE x7676
     OP_WRITE_CACHE x7676 d0
-) ELSE (
+} ELSE {
     NOP255 d0
     OP_PUSH1 d4 xfeedbeef
     OP_WRITE_CACHE x6131 d1
     OP_READ_CACHE x6131
     OP_WRITE_CACHE x6131 d0
-)
+}
 
 OP_TRY {
     NOP255 d0

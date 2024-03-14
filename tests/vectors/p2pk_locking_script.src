@@ -14,8 +14,8 @@ OP_DEF 1 {
     OP_TRUE
 }
 
-OP_IF (
+OP_IF {
     OP_CALL d0
-) ELSE (
+ } ELSE {
     OP_CALL d1
-)
+}

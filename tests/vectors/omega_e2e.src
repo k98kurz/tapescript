@@ -1,58 +1,58 @@
 # omega e2e parsing test #
 
 OP_DEF 0 {
-    OP_IF (
+    OP_IF {
         OP_POP0
-    )
+    }
 }
 
 
 OP_DEF 1 {
     # comment within def #
-    OP_IF (
+    OP_IF {
         # comment within if #
         OP_PUSH0 d0
         OP_PUSH1 x22
-    ) ELSE (
+    } ELSE {
         # comment within else #
         OP_PUSH2 xfeedbeef
         OP_PUSH4 s"yellow submarine"
-    )
+    }
 }
 
 
 OP_DEF 2 {
-    OP_IF (
-        OP_IF (
+    OP_IF {
+        OP_IF {
             OP_CALL d0
-        ) ELSE (
+        } ELSE {
             OP_CALL d1
-        )
-    ) ELSE (
-        OP_IF (
+        }
+    } ELSE {
+        OP_IF {
             OP_CALL d0
-        ) ELSE (
+        } ELSE {
             OP_CALL d1
-        )
-    )
+        }
+    }
 }
 
 
-OP_IF (
+OP_IF {
     OP_DEF 3 {
         OP_FALSE
     }
-) ELSE (
+} ELSE {
     OP_DEF 3 {
         OP_TRUE
     }
-)
+}
 
 
 OP_TRY {
-    OP_IF (
+    OP_IF {
         OP_TRUE
-    )
+    }
     OP_DEF 4 {
         OP_CALL d0
     }

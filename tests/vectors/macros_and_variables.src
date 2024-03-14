@@ -22,19 +22,19 @@ DEF 0 {
     @= ve 1
 }
 
-IF (
+IF {
     != vv [ ] { TRUE }
     !vv [ ]
     @= vv [ d1 ]
     @vv
     @= vv 0
-) ELSE (
+} ELSE {
     != a1 [ ] { NOP255 d0 }
     !a1 [ ]
     @= a1 [ xfeedbeef ]
     @a1
     @= a1 0
-)
+}
 
 TRY {
     != a2 [ ] { NOP255 d0 }

@@ -48,8 +48,8 @@ class TestParsing(unittest.TestCase):
 
     def test_parse_if_errors_on_incomplete_OP_IF(self):
         with self.assertRaises(errors.SyntaxError) as e:
-            parsing.parse_if(['OP_IF', '(', 'OP_POP0'], 0)
-        assert str(e.exception) == 'unterminated OP_IF: missing matching ) - symbol 0'
+            parsing.parse_if(['OP_IF', '{', 'OP_POP0'], 0)
+        assert str(e.exception) == 'unterminated OP_IF: missing matching } - symbol 0'
 
         with self.assertRaises(errors.SyntaxError) as e:
             parsing.parse_if(['OP_IF', 'OP_POP0'], 0)
@@ -178,8 +178,8 @@ class TestParsing(unittest.TestCase):
 
     def test_compile_script_errors_on_incomplete_OP_IF(self):
         with self.assertRaises(errors.SyntaxError) as e:
-            parsing.compile_script('OP_IF ( OP_POP0')
-        assert 'unterminated OP_IF: missing matching )' in str(e.exception)
+            parsing.compile_script('OP_IF { OP_POP0')
+        assert 'unterminated OP_IF: missing matching }' in str(e.exception)
 
         with self.assertRaises(errors.SyntaxError) as e:
             parsing.compile_script('OP_IF OP_POP0')

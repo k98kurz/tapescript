@@ -25,6 +25,8 @@ pulls `n` public keys from queue, then pulls `m` signatures from queue, then
 checks each signature against each public key; puts False onto queue if public
 key is used more than once or if any signature that does not validate to a
 public key, else puts True onto queue.
+- Changed `IF` syntax to use '{' and '}' instead of '(' and ')' to designate
+blocks.
 
 ## 0.3.1
 

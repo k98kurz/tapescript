@@ -1,11 +1,11 @@
-OP_IF (
+OP_IF {
     OP_TRY {
         OP_EQUAL_VERIFY
     } EXCEPT {
         OP_RETURN
     }
-) ELSE (
+} ELSE {
     OP_TRY {
         OP_EQUAL_VERIFY
     }
-)
+}
