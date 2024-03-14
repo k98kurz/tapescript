@@ -623,62 +623,15 @@ def parse_def(symbols: list[str], symbol_index: int, macros: dict = {}) -> tuple
             continue
         if current_symbol in opcode_aliases:
             current_symbol = 'OP_' + current_symbol
-        yert(current_symbol in opcodes_inverse or
-             current_symbol in ('}', 'END_DEF', 'OP_PUSH', 'PUSH', 'OP_TRY',
-                                'TRY', '@=', '!=') or
-             (current_symbol[0] in ('!', '@') and current_symbol[1:].isalnum()),
-                f'statements must begin with valid op code, not {current_symbol} - symbol {index}')
         yert(current_symbol != 'OP_DEF',
             f'cannot use OP_DEF within OP_DEF body - symbol {index}')
-
-        if current_symbol == 'OP_IF':
-            advance, parts = parse_if(symbols[index:search_idx], symbol_index+index, macros)
-            index += advance
-            def_code += b''.join(parts)
-        elif current_symbol == '@=':
-            advance, parts = set_variable(symbols[index:])
-            index += advance
-            def_code += b''.join(parts)
-        elif current_symbol[0] == '@':
-            advance, parts = load_variable(symbols[index:])
-            index += advance
-            def_code += b''.join(parts)
-        elif current_symbol == '!=':
-            advance = define_macro(symbols[index:], macros=macros)
-            index += advance
-        elif current_symbol[0] == '!':
-            advance, parts = invoke_macro(symbols[index:], macros=macros)
-            index += advance
-            def_code += b''.join(parts)
-        elif current_symbol == 'OP_TRY':
-            advance, parts = parse_try(symbols[index:search_idx], index, macros)
-            index += advance
-            def_code += b''.join(parts)
-        elif current_symbol == 'OP_LOOP':
-            advance, parts = parse_loop(symbols[index:], symbol_index+index, macros)
-            index += advance
-            code.extend(parts)
-        elif current_symbol in ('}', 'END_DEF'):
+        if current_symbol in ('}', 'END_DEF'):
             index += 1
             break
         else:
-            vert(current_symbol in opcodes_inverse or current_symbol in nopcodes_inverse
-                 or current_symbol == 'OP_PUSH',
-                 f'unrecognized opcode: {current_symbol} - symbol {symbol_index+index}')
-            advance, args = get_args(current_symbol, symbols[index+1:], index)
+            advance, parts = parse_next(current_symbol, symbols, symbol_index, index, macros)
             index += advance
-            if current_symbol in ('OP_PUSH', 'PUSH'):
-                if len(args) < 2:
-                    def_code += opcodes_inverse['OP_PUSH0'][0].to_bytes(1, 'big')
-                elif len(args[0]) == 1:
-                    def_code += opcodes_inverse['OP_PUSH1'][0].to_bytes(1, 'big')
-                elif len(args[0]) == 2:
-                    def_code += opcodes_inverse['OP_PUSH2'][0].to_bytes(1, 'big')
-                elif len(args[0]) == 4:
-                    def_code += opcodes_inverse['OP_PUSH4'][0].to_bytes(1, 'big')
-            else:
-                def_code += opcodes_inverse[current_symbol][0].to_bytes(1, 'big')
-            def_code += b''.join(args)
+            def_code += b''.join(parts)
 
     # add def handle to code
     code.append(name.to_bytes(1, 'big'))
@@ -718,18 +671,6 @@ def parse_if(symbols: list[str], symbol_index: int, macros: dict = {}) -> tuple[
 
     while index < len(symbols):
         current_symbol = symbols[index]
-        if current_symbol in ('"', "'", '#'):
-            # skip forward past the matching symbol
-            try:
-                index = symbols.index(current_symbol, index+1) + 1
-            except ValueError:
-                raise SyntaxError(f'unterminated comment starting with {current_symbol}') from None
-            continue
-
-        if current_symbol in opcode_aliases:
-            current_symbol = opcode_aliases[current_symbol]
-        if current_symbol in ('PUSH', 'TRY'):
-            current_symbol = 'OP_' + current_symbol
 
         if current_symbol == '}':
             if len(symbols) < index+2 or symbols[index+1] != 'ELSE':
@@ -737,28 +678,9 @@ def parse_if(symbols: list[str], symbol_index: int, macros: dict = {}) -> tuple[
                 break
             index += 1
             continue
-        elif current_symbol == '@=':
-            advance, parts = set_variable(symbols[index:])
-            index += advance
-            code.extend(parts)
-        elif current_symbol[0] == '@':
-            advance, parts = load_variable(symbols[index:])
-            index += advance
-            code.extend(parts)
-        elif current_symbol == '!=':
-            advance = define_macro(symbols[index:], macros=macros)
-            index += advance
-        elif current_symbol[0] == '!':
-            advance, parts = invoke_macro(symbols[index:], macros=macros)
-            index += advance
-            code.extend(parts)
         elif current_symbol == 'END_IF':
             index += 2
             break
-        elif current_symbol == 'OP_DEF':
-            advance, parts = parse_def(symbols[index:], symbol_index+index, macros)
-            index += advance
-            code.extend(parts)
         elif current_symbol == 'ELSE':
             opcode = 'OP_IF_ELSE'
             advance, parts = parse_else(symbols[index:], symbol_index+index, macros)
@@ -766,36 +688,10 @@ def parse_if(symbols: list[str], symbol_index: int, macros: dict = {}) -> tuple[
             code.extend(parts)
             else_len = len(b''.join(parts))
             break
-        elif current_symbol == 'OP_IF':
-            advance, parts = parse_if(symbols[index:], symbol_index+index, macros)
-            index += advance
-            code.extend(parts)
-        elif current_symbol == 'OP_TRY':
-            advance, parts = parse_try(symbols[index:], symbol_index+index, macros)
-            index += advance
-            code.extend(parts)
-        elif current_symbol == 'OP_LOOP':
-            advance, parts = parse_loop(symbols[index:], symbol_index+index, macros)
-            index += advance
-            code.extend(parts)
         else:
-            vert(current_symbol in opcodes_inverse or current_symbol in nopcodes_inverse
-                 or current_symbol == 'OP_PUSH',
-                f'unrecognized opcode: {current_symbol} - symbol {symbol_index+index}')
-            advance, args = get_args(current_symbol, symbols[index+1:], symbol_index+index)
-            if current_symbol in ('OP_PUSH', 'PUSH'):
-                if len(args) < 2:
-                    code.append(opcodes_inverse['OP_PUSH0'][0].to_bytes(1, 'big'))
-                elif len(args[0]) == 1:
-                    code.append(opcodes_inverse['OP_PUSH1'][0].to_bytes(1, 'big'))
-                elif len(args[0]) == 2:
-                    code.append(opcodes_inverse['OP_PUSH2'][0].to_bytes(1, 'big'))
-                elif len(args[0]) == 4:
-                    code.append(opcodes_inverse['OP_PUSH4'][0].to_bytes(1, 'big'))
-            else:
-                code.append(opcodes_inverse[current_symbol][0].to_bytes(1, 'big'))
-            code.append(b''.join(args))
+            advance, parts = parse_next(current_symbol, symbols, symbol_index, index, macros)
             index += advance
+            code.extend(parts)
 
     code = b''.join(code)
 
@@ -830,71 +726,14 @@ def parse_else(symbols: list[str], symbol_index: int, macros: dict = {}) -> tupl
 
     while index < len(symbols):
         current_symbol = symbols[index]
-        if current_symbol in ('"', "'", '#'):
-            # skip forward past the matching symbol
-            try:
-                index = symbols.index(current_symbol, index+1) + 1
-            except ValueError:
-                raise SyntaxError(f'unterminated comment starting with {current_symbol}') from None
-            continue
-
-        if current_symbol in opcode_aliases:
-            current_symbol = opcode_aliases[current_symbol]
-        if current_symbol in ('PUSH', 'TRY'):
-            current_symbol = 'OP_' + current_symbol
 
         if current_symbol in ('}', 'END_IF'):
             index += 1
             break
-        elif current_symbol == '@=':
-            advance, parts = set_variable(symbols[index:])
-            index += advance
-            code.extend(parts)
-        elif current_symbol[0] == '@':
-            advance, parts = load_variable(symbols[index:])
-            index += advance
-            code.extend(parts)
-        elif current_symbol == '!=':
-            advance= define_macro(symbols[index:], macros=macros)
-            index += advance
-        elif current_symbol[0] == '!':
-            advance, parts = invoke_macro(symbols[index:], macros=macros)
-            index += advance
-            code.extend(parts)
-        elif current_symbol == 'OP_IF':
-            advance, parts = parse_if(symbols[index:], symbol_index+index, macros)
-            index += advance
-            code.extend(parts)
-        elif current_symbol == 'OP_DEF':
-            advance, parts = parse_def(symbols[index:], symbol_index+index, macros)
-            index += advance
-            code.extend(parts)
-        elif current_symbol == 'OP_TRY':
-            advance, parts = parse_try(symbols[index:], symbol_index+index, macros)
-            index += advance
-            code.extend(parts)
-        elif current_symbol == 'OP_LOOP':
-            advance, parts = parse_loop(symbols[index:], symbol_index+index, macros)
-            index += advance
-            code.extend(parts)
         else:
-            vert(current_symbol in opcodes_inverse or current_symbol in nopcodes_inverse
-                 or current_symbol == 'OP_PUSH',
-                f'unrecognized opcode: {current_symbol} - symbol {symbol_index+index}')
-            advance, args = get_args(current_symbol, symbols[index+1:], symbol_index+index)
+            advance, parts = parse_next(current_symbol, symbols, symbol_index, index, macros)
             index += advance
-            if current_symbol == 'OP_PUSH':
-                if len(args) < 2:
-                    code.append(opcodes_inverse['OP_PUSH0'][0].to_bytes(1, 'big'))
-                elif len(args[0]) == 1:
-                    code.append(opcodes_inverse['OP_PUSH1'][0].to_bytes(1, 'big'))
-                elif len(args[0]) == 2:
-                    code.append(opcodes_inverse['OP_PUSH2'][0].to_bytes(1, 'big'))
-                elif len(args[0]) == 4:
-                    code.append(opcodes_inverse['OP_PUSH4'][0].to_bytes(1, 'big'))
-            else:
-                code.append(opcodes_inverse[current_symbol][0].to_bytes(1, 'big'))
-            code.append(b''.join(args))
+            code.extend(parts)
 
     code = b''.join(code)
     return (
@@ -930,81 +769,21 @@ def parse_try(symbols: list[str], symbol_index: int, macros: dict = {}) -> tuple
 
     while index < len(symbols):
         current_symbol = symbols[index]
-        if current_symbol in ('"', "'", '#'):
-            # skip forward past the matching symbol
-            try:
-                index = symbols.index(current_symbol, index+1) + 1
-            except ValueError:
-                raise SyntaxError(f'unterminated comment starting with {current_symbol}') from None
-            continue
-
-        if current_symbol in opcode_aliases:
-            current_symbol = opcode_aliases[current_symbol]
-        if current_symbol in ('PUSH', 'TRY'):
-            current_symbol = 'OP_' + current_symbol
 
         if current_symbol == '}':
             index += 1
             if len(symbols) < index+2 or symbols[index] != 'EXCEPT':
                 break
-        elif current_symbol == '@=':
-            advance, parts = set_variable(symbols[index:])
-            index += advance
-            code.extend(parts)
-        elif current_symbol[0] == '@':
-            advance, parts = load_variable(symbols[index:])
-            index += advance
-            code.extend(parts)
-        elif current_symbol == '!=':
-            advance= define_macro(symbols[index:], macros=macros)
-            index += advance
-        elif current_symbol[0] == '!':
-            advance, parts = invoke_macro(symbols[index:], macros=macros)
-            index += advance
-            code.extend(parts)
-        elif current_symbol == 'OP_IF':
-            advance, parts = parse_if(symbols[index:], symbol_index+index, macros)
-            index += advance
-            code.extend(parts)
-        elif current_symbol == 'OP_DEF':
-            advance, parts = parse_def(symbols[index:], symbol_index+index, macros)
-            index += advance
-            code.extend(parts)
-        elif current_symbol == 'END_TRY':
-            index += 2
-            break
         elif current_symbol == 'EXCEPT':
             advance, parts = parse_except(symbols[index:], symbol_index+index, macros)
             index += advance
             code.extend(parts)
             except_len = len(b''.join(parts))
             break
-        elif current_symbol == 'OP_TRY':
-            advance, parts = parse_try(symbols[index:], symbol_index+index, macros)
-            index += advance
-            code.extend(parts)
-        elif current_symbol == 'OP_LOOP':
-            advance, parts = parse_loop(symbols[index:], symbol_index+index, macros)
-            index += advance
-            code.extend(parts)
         else:
-            vert(current_symbol in opcodes_inverse or current_symbol in nopcodes_inverse
-                 or current_symbol == 'OP_PUSH',
-                f'unrecognized opcode: {current_symbol} - symbol {symbol_index+index}')
-            advance, args = get_args(current_symbol, symbols[index+1:], symbol_index+index)
-            if current_symbol == 'OP_PUSH':
-                if len(args) < 2:
-                    code.append(opcodes_inverse['OP_PUSH0'][0].to_bytes(1, 'big'))
-                elif len(args[0]) == 1:
-                    code.append(opcodes_inverse['OP_PUSH1'][0].to_bytes(1, 'big'))
-                elif len(args[0]) == 2:
-                    code.append(opcodes_inverse['OP_PUSH2'][0].to_bytes(1, 'big'))
-                elif len(args[0]) == 4:
-                    code.append(opcodes_inverse['OP_PUSH4'][0].to_bytes(1, 'big'))
-            else:
-                code.append(opcodes_inverse[current_symbol][0].to_bytes(1, 'big'))
-            code.append(b''.join(args))
+            advance, parts = parse_next(current_symbol, symbols, symbol_index, index, macros)
             index += advance
+            code.extend(parts)
 
     code = b''.join(code)
 
@@ -1035,80 +814,21 @@ def parse_except(symbols: list[str], symbol_index: int, macros: dict = {}) -> tu
 
     if symbols[1] == '{':
         # case 1: EXCEPT { statements }
-        yert('}' in symbols[1:], f'unterminated EXCEPT: missing matching }} - symbol {symbol_index}')
+        yert('}' in symbols[1:], f'unterminated EXCEPT: missing matching {"}"} - symbol {symbol_index}')
         index = 2
     else:
         yert('END_EXCEPT' in symbols[1:], f'missing END_EXCEPT - symbol {symbol_index}')
 
     while index < len(symbols):
         current_symbol = symbols[index]
-        if current_symbol in ('"', "'", '#'):
-            # skip forward past the matching symbol
-            try:
-                index = symbols.index(current_symbol, index+1) + 1
-            except ValueError:
-                raise SyntaxError(f'unterminated comment starting with {current_symbol}') from None
-            continue
-
-        if current_symbol in opcode_aliases:
-            current_symbol = opcode_aliases[current_symbol]
-        if current_symbol in ('PUSH', 'TRY', 'DEF', 'IF'):
-            current_symbol = 'OP_' + current_symbol
-
         if current_symbol in ('}', 'END_EXCEPT'):
             index += 1
             break
-        elif current_symbol == '@=':
-            advance, parts = set_variable(symbols[index:])
-            index += advance
-            code.extend(parts)
-        elif current_symbol[0] == '@':
-            advance, parts = load_variable(symbols[index:])
-            index += advance
-            code.extend(parts)
-        elif current_symbol == '!=':
-            advance= define_macro(symbols[index:], macros=macros)
-            index += advance
-        elif current_symbol[0] == '!':
-            advance, parts = invoke_macro(symbols[index:], macros=macros)
-            index += advance
-            code.extend(parts)
         elif current_symbol == 'EXCEPT':
             raise SyntaxError('cannot have multiple EXCEPT clauses')
-        elif current_symbol == 'OP_IF':
-            advance, parts = parse_if(symbols[index:], symbol_index+index, macros)
-            index += advance
-            code.extend(parts)
-        elif current_symbol == 'OP_DEF':
-            advance, parts = parse_def(symbols[index:], symbol_index+index, macros)
-            index += advance
-            code.extend(parts)
-        elif current_symbol == 'OP_TRY':
-            advance, parts = parse_try(symbols[index:], symbol_index+index, macros)
-            index += advance
-            code.extend(parts)
-        elif current_symbol == 'OP_LOOP':
-            advance, parts = parse_loop(symbols[index:], symbol_index+index, macros)
-            index += advance
-            code.extend(parts)
-        else:
-            vert(current_symbol in opcodes_inverse or current_symbol in nopcodes_inverse
-                 or current_symbol == 'OP_PUSH',
-                f'unrecognized opcode: {current_symbol} - symbol {symbol_index+index}')
-            advance, args = get_args(current_symbol, symbols[index+1:], symbol_index+index)
-            index += advance
-            if current_symbol in ('OP_PUSH', 'PUSH'):
-                if len(args) < 2:
-                    code.append(opcodes_inverse['OP_PUSH0'][0].to_bytes(1, 'big'))
-                elif len(args[0]) == 1:
-                    code.append(opcodes_inverse['OP_PUSH1'][0].to_bytes(1, 'big'))
-                elif len(args[0]) == 2:
-                    code.append(opcodes_inverse['OP_PUSH2'][0].to_bytes(1, 'big'))
-                elif len(args[0]) == 4:
-                    code.append(opcodes_inverse['OP_PUSH4'][0].to_bytes(1, 'big'))
-            else:
-                code.append(opcodes_inverse[current_symbol][0].to_bytes(1, 'big'))
-            code.append(b''.join(args))
+        advance, parts = parse_next(current_symbol, symbols, symbol_index, index, macros)
+        index += advance
+        code.extend(parts)
 
     code = b''.join(code)
     return (
@@ -1133,78 +853,21 @@ def parse_loop(symbols: list[str], symbol_index: int, macros: dict = {}) -> tupl
 
     if symbols[1] == '{':
         # case 1: LOOP { statements }
-        yert('}' in symbols[1:], f'unterminated LOOP: missing matching }} - symbol {symbol_index}')
+        yert('}' in symbols[1:], f'unterminated LOOP: missing matching {"}"} - symbol {symbol_index}')
         index = 2
     else:
         yert('END_LOOP' in symbols[1:], f'missing END_LOOP - symbol {symbol_index}')
 
     while index < len(symbols):
         current_symbol = symbols[index]
-        if current_symbol in ('"', "'", '#'):
-            # skip forward past the matching symbol
-            try:
-                index = symbols.index(current_symbol, index+1) + 1
-            except ValueError:
-                raise SyntaxError(f'unterminated comment starting with {current_symbol}') from None
-            continue
-
-        if current_symbol in opcode_aliases:
-            current_symbol = opcode_aliases[current_symbol]
-        if current_symbol in ('PUSH', 'TRY', 'DEF', 'IF'):
-            current_symbol = 'OP_' + current_symbol
 
         if current_symbol in ('}', 'END_LOOP'):
             index += 1
             break
-        elif current_symbol == '@=':
-            advance, parts = set_variable(symbols[index:])
-            index += advance
-            code.extend(parts)
-        elif current_symbol[0] == '@':
-            advance, parts = load_variable(symbols[index:])
-            index += advance
-            code.extend(parts)
-        elif current_symbol == '!=':
-            advance= define_macro(symbols[index:], macros=macros)
-            index += advance
-        elif current_symbol[0] == '!':
-            advance, parts = invoke_macro(symbols[index:], macros=macros)
-            index += advance
-            code.extend(parts)
-        elif current_symbol == 'OP_IF':
-            advance, parts = parse_if(symbols[index:], symbol_index+index, macros)
-            index += advance
-            code.extend(parts)
-        elif current_symbol == 'OP_DEF':
-            advance, parts = parse_def(symbols[index:], symbol_index+index, macros)
-            index += advance
-            code.extend(parts)
-        elif current_symbol == 'OP_TRY':
-            advance, parts = parse_try(symbols[index:], symbol_index+index, macros)
-            index += advance
-            code.extend(parts)
-        elif current_symbol == 'OP_LOOP':
-            advance, parts = parse_loop(symbols[index:], symbol_index+index, macros)
-            index += advance
-            code.extend(parts)
-        else:
-            vert(current_symbol in opcodes_inverse or current_symbol in nopcodes_inverse
-                 or current_symbol == 'OP_PUSH',
-                f'unrecognized opcode: {current_symbol} - symbol {symbol_index+index}')
-            advance, args = get_args(current_symbol, symbols[index+1:], symbol_index+index)
-            index += advance
-            if current_symbol in ('OP_PUSH', 'PUSH'):
-                if len(args) < 2:
-                    code.append(opcodes_inverse['OP_PUSH0'][0].to_bytes(1, 'big'))
-                elif len(args[0]) == 1:
-                    code.append(opcodes_inverse['OP_PUSH1'][0].to_bytes(1, 'big'))
-                elif len(args[0]) == 2:
-                    code.append(opcodes_inverse['OP_PUSH2'][0].to_bytes(1, 'big'))
-                elif len(args[0]) == 4:
-                    code.append(opcodes_inverse['OP_PUSH4'][0].to_bytes(1, 'big'))
-            else:
-                code.append(opcodes_inverse[current_symbol][0].to_bytes(1, 'big'))
-            code.append(b''.join(args))
+
+        advance, parts = parse_next(current_symbol, symbols, symbol_index, index, macros)
+        index += advance
+        code.extend(parts)
 
     code = b''.join(code)
     return (
@@ -1215,6 +878,72 @@ def parse_loop(symbols: list[str], symbol_index: int, macros: dict = {}) -> tupl
             code
         )
     )
+
+
+def parse_next(
+        current_symbol: str, symbols: list[str], symbol_index: int, index: int,
+        macros: dict = {}) -> tuple[int, tuple[bytes]]:
+    """Parse the next statement. Return the number by which to advance
+        the index and a tuple of code bytes.
+    """
+    advance, parts = 0, []
+
+    if current_symbol in ('"', "'", '#'):
+        # skip forward past the matching symbol
+        try:
+            advance = symbols.index(current_symbol, index+1) + 1 - index
+            return (advance, parts)
+        except ValueError:
+            raise SyntaxError(f'unterminated comment starting with {current_symbol}') from None
+
+    if current_symbol in opcode_aliases:
+        current_symbol = opcode_aliases[current_symbol]
+    if current_symbol in ('PUSH', 'TRY', 'DEF', 'IF'):
+        current_symbol = 'OP_' + current_symbol
+
+    yert(current_symbol in opcodes_inverse or current_symbol in nopcodes_inverse
+            or current_symbol in ('OP_PUSH', 'OP_TRY', '@=', '!=') or
+            (current_symbol[0] in ('!', '@') and current_symbol[1:].isalnum()),
+            f'unrecognized symbol: {current_symbol} at symbol {index}' +
+            (f' (after {symbols[index-1]})' if index > 0 else '') +
+            (f' (before {symbols[index+1]})' if index < len(symbols)-1 else ''))
+
+    if current_symbol == '@=':
+        advance, parts = set_variable(symbols[index:])
+    elif current_symbol[0] == '@':
+        advance, parts = load_variable(symbols[index:])
+    elif current_symbol == '!=':
+        advance = define_macro(symbols[index:], macros=macros)
+    elif current_symbol[0] == '!':
+        advance, parts = invoke_macro(symbols[index:], macros=macros)
+    elif current_symbol == 'OP_IF':
+        advance, parts = parse_if(symbols[index:], symbol_index+index, macros)
+    elif current_symbol == 'OP_DEF':
+        advance, parts = parse_def(symbols[index:], symbol_index+index, macros)
+    elif current_symbol == 'OP_TRY':
+        advance, parts = parse_try(symbols[index:], symbol_index+index, macros)
+    elif current_symbol == 'OP_LOOP':
+        advance, parts = parse_loop(symbols[index:], symbol_index+index, macros)
+    else:
+        vert(current_symbol in opcodes_inverse or current_symbol in nopcodes_inverse
+                or current_symbol == 'OP_PUSH',
+            f'unrecognized opcode: {current_symbol} - symbol {symbol_index+index}')
+        advance, args = get_args(current_symbol, symbols[index+1:], symbol_index+index)
+        if current_symbol in ('OP_PUSH', 'PUSH'):
+            if len(args) < 2:
+                parts.append(opcodes_inverse['OP_PUSH0'][0].to_bytes(1, 'big'))
+            elif len(args[0]) == 1:
+                parts.append(opcodes_inverse['OP_PUSH1'][0].to_bytes(1, 'big'))
+            elif len(args[0]) == 2:
+                parts.append(opcodes_inverse['OP_PUSH2'][0].to_bytes(1, 'big'))
+            elif len(args[0]) == 4:
+                parts.append(opcodes_inverse['OP_PUSH4'][0].to_bytes(1, 'big'))
+        elif current_symbol[:3] == 'NOP':
+            parts.append(nopcodes_inverse[current_symbol][0].to_bytes(1, 'big'))
+        else:
+            parts.append(opcodes_inverse[current_symbol][0].to_bytes(1, 'big'))
+        parts.append(b''.join(args))
+    return (advance, parts)
 
 
 def _find_matching_brace(symbols: list[str], open_brace: str, close_brace: str) -> int:
@@ -1247,75 +976,9 @@ def assemble(symbols: list[str], macros: dict = {}) -> bytes:
 
     while index < len(symbols):
         symbol = symbols[index]
-
-        # ignore comments (symbols between matching #, ', or ")
-        if symbol in ('"', "'", '#'):
-            # skip forward past the matching symbol
-            try:
-                index = symbols.index(symbol, index+1) + 1
-            except ValueError:
-                raise SyntaxError(f'unterminated comment starting with {symbol}') from None
-            continue
-
-        if symbol in opcode_aliases:
-            symbol = opcode_aliases[symbol]
-        if symbol in ('PUSH', 'TRY'):
-            symbol = 'OP_' + symbol
-
-        vert(symbol in opcodes_inverse or symbol in nopcodes_inverse
-             or symbol in ('OP_PUSH', 'OP_TRY', '@=', '!=') or
-             (symbol[0] in ('!', '@') and symbol[1:].isalnum()),
-             f'unrecognized symbol: {symbol} at symbol {index}' +
-              (f' (after {symbols[index-1]})' if index > 0 else '') +
-              (f' (before {symbols[index+1]})' if index < len(symbols)-1 else ''))
-
-        if symbol == '!=':
-            index += define_macro(symbols[index:], macros)
-        elif symbol[0] == '!':
-            advance, parts = invoke_macro(symbols[index:], macros)
-            index += advance
-            code.append(b''.join(parts))
-        elif symbol == '@=':
-            advance, parts = set_variable(symbols[index:])
-            index += advance
-            code.append(b''.join(parts))
-        elif symbol[0] == '@':
-            advance, parts = load_variable(symbols[index:])
-            index += advance
-            code.append(b''.join(parts))
-        elif symbol == 'OP_DEF':
-            advance, parts = parse_def(symbols[index:], index, macros)
-            index += advance
-            code.append(b''.join(parts))
-        elif symbol == 'OP_IF':
-            advance, parts = parse_if(symbols[index:], index, macros)
-            index += advance
-            code.append(b''.join(parts))
-        elif symbol == 'OP_TRY':
-            advance, parts = parse_try(symbols[index:], index, macros)
-            index += advance
-            code.append(b''.join(parts))
-        elif symbol == 'OP_LOOP':
-            advance, parts = parse_loop(symbols[index:], index, macros)
-            index += advance
-            code.append(b''.join(parts))
-        else:
-            advance, args = get_args(symbol, symbols[index+1:], index)
-            index += advance
-            if symbol == 'OP_PUSH':
-                if len(args) < 2:
-                    code.append(opcodes_inverse['OP_PUSH0'][0].to_bytes(1, 'big'))
-                elif len(args[0]) == 1:
-                    code.append(opcodes_inverse['OP_PUSH1'][0].to_bytes(1, 'big'))
-                elif len(args[0]) == 2:
-                    code.append(opcodes_inverse['OP_PUSH2'][0].to_bytes(1, 'big'))
-                elif len(args[0]) == 4:
-                    code.append(opcodes_inverse['OP_PUSH4'][0].to_bytes(1, 'big'))
-            elif symbol[:3] == 'NOP':
-                code.append(nopcodes_inverse[symbol][0].to_bytes(1, 'big'))
-            else:
-                code.append(opcodes_inverse[symbol][0].to_bytes(1, 'big'))
-            code.append(b''.join(args))
+        advance, parts = parse_next(symbol, symbols, 0, index, macros)
+        index += advance
+        code.extend(parts)
 
     return b''.join(code)
 

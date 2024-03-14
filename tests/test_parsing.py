@@ -61,7 +61,7 @@ class TestParsing(unittest.TestCase):
         assert str(e.exception) == 'input script must be str'
 
     def test_compile_script_errors_on_invalid_opcode(self):
-        with self.assertRaises(ValueError) as e:
+        with self.assertRaises(errors.SyntaxError) as e:
             parsing.compile_script('OP_WTF d1')
         assert 'unrecognized symbol: OP_WTF' in str(e.exception)
 
@@ -96,7 +96,7 @@ class TestParsing(unittest.TestCase):
 
         with self.assertRaises(errors.SyntaxError) as e:
             parsing.compile_script('OP_DEF 0 { d123 }')
-        assert 'statements must begin with valid op code, not d123' in str(e.exception)
+        assert 'unrecognized symbol' in str(e.exception)
 
         with self.assertRaises(errors.SyntaxError) as e:
             parsing.compile_script('OP_DEF 0 { OP_PUSH 123 }')
