@@ -660,6 +660,14 @@ def parse_if(symbols: list[str], symbol_index: int, macros: dict = {}) -> tuple[
     code = []
     index = 1
     else_len = 0
+    hoist_advance, hoist_code = 0, b''
+
+    if symbols[1] == '(':
+        # handle hoisting
+        hoist_advance = _find_matching_brace(symbols, '(', ')')
+        condition = symbols[2:hoist_advance]
+        hoist_code = assemble(condition, macros)
+        symbols = [symbols[0], *symbols[hoist_advance+1:]]
 
     if symbols[1] == '{':
         # case 1: OP_IF { statements }
@@ -696,8 +704,9 @@ def parse_if(symbols: list[str], symbol_index: int, macros: dict = {}) -> tuple[
     code = b''.join(code)
 
     return (
-        index,
+        index + hoist_advance,
         (
+            hoist_code,
             opcodes_inverse[opcode][0].to_bytes(1, 'big'),
             (len(code) - else_len).to_bytes(2, 'big'),
             code

@@ -27,6 +27,11 @@ key is used more than once or if any signature that does not validate to a
 public key, else puts True onto queue.
 - Changed `IF` syntax to use '{' and '}' instead of '(' and ')' to designate
 blocks.
+- Refactored compiler innards.
+- Added compiler ability to hoist statements between parentheses following `IF`
+to run before the `OP_IF`, e.g. `IF ( @var1 @var2 LEQ ) { ...` will now hoist
+to `@var1 @var2 LEQ IF {...`. Inclusion of parenthetic substatements is
+optional.
 
 ## 0.3.1
 

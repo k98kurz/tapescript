@@ -1,0 +1,10 @@
+@= v1 [ d1 ]
+@= v2 [ d2 ]
+
+if ( push d1 push d2 less ) {
+    push d3
+} else
+    if ( @v2 @v1 leq ) {
+        push d4
+    }
+end_if
