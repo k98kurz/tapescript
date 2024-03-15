@@ -42,6 +42,7 @@ signs the message, and puts the signature onto the queue.
 - Added `OP_CHECK_SIG_QUEUE`: takes a verify key, signature, and message from
 the queue; puts True onto the queue if the signature was valid for the vkey and
 message, otherwise puts False onto the queue.
+- Reversed order of items placed onto queue after `OP_SPLIT` and `OP_SPLIT_STR`.
 
 ## 0.3.1
 

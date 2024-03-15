@@ -814,15 +814,16 @@ def OP_CONCAT(tape: Tape, queue: LifoQueue, cache: dict) -> None:
 def OP_SPLIT(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int
         index; pull an item from the queue; split the item bytes at the
-        index; put the results onto the queue; advance pointer.
+        index; put the second byte sequence onto the queue, then put the
+        first byte sequence onto the queue; advance pointer.
     """
     index = int.from_bytes(tape.read(1), 'big')
     item = queue.get(False)
     sert(index < len(item), 'OP_SPLIT item len exceeded by index')
     part0 = item[:index]
     part1 = item[index:]
-    queue.put(part1)
     queue.put(part0)
+    queue.put(part1)
 
 def OP_CONCAT_STR(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Pull two items from the queue, interpreting as UTF-8 strings;
@@ -835,16 +836,16 @@ def OP_CONCAT_STR(tape: Tape, queue: LifoQueue, cache: dict) -> None:
 def OP_SPLIT_STR(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int
         index; pull an item from the queue, interpreting as a UTF-8 str;
-        split the item str at the index; put the results onto the queue;
-        advance the pointer.
+        split the item str at the index, then put the first str onto
+        the queue; put the second str onto the queue; advance the pointer.
     """
     index = int.from_bytes(tape.read(1), 'big')
     item = str(queue.get(False), 'utf-8')
     sert(index < len(item), 'OP_SPLIT_STR item len exceeded by index')
     part0 = item[:index]
     part1 = item[index:]
-    queue.put(bytes(part1, 'utf-8'))
     queue.put(bytes(part0, 'utf-8'))
+    queue.put(bytes(part1, 'utf-8'))
 
 def OP_CHECK_TRANSFER(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Take an item from the queue as a contract ID; take an item from
