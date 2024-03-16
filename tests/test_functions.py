@@ -1739,6 +1739,210 @@ class TestFunctions(unittest.TestCase):
         assert self.queue.qsize() == 1
         assert self.queue.get(False) == b'\x00'
 
+    def test_OP_XOR_takes_two_values_and_puts_XOR_of_them_onto_queue(self):
+        item1 = b'hello'
+        item2 = b'world'
+        expected = []
+        for i in range(len(item1)):
+            expected.append(item1[i] ^ item2[i])
+        expected = bytes(expected)
+        self.queue.put(item1)
+        self.queue.put(item2)
+        functions.OP_XOR(self.tape, self.queue, self.cache)
+        assert self.queue.qsize() == 1
+        observed = self.queue.get(False)
+        assert expected == observed, \
+            f'expected {expected.hex()}, observed {observed.hex()}'
+
+    def test_OP_OR_takes_two_values_and_puts_OR_of_them_onto_queue(self):
+        item1 = b'\xf0'
+        item2 = b'\x01'
+        expected = b'\xf1'
+        self.queue.put(item1)
+        self.queue.put(item2)
+        functions.OP_OR(self.tape, self.queue, self.cache)
+        assert self.queue.qsize() == 1
+        observed = self.queue.get(False)
+        assert expected == observed, \
+            f'expected {expected.hex()}, observed {observed.hex()}'
+
+    def test_OP_AND_takes_two_values_and_puts_AND_of_them_onto_queue(self):
+        item1 = b'\xf0'
+        item2 = b'\x01'
+        expected = b'\x00'
+        self.queue.put(item1)
+        self.queue.put(item2)
+        functions.OP_AND(self.tape, self.queue, self.cache)
+        assert self.queue.qsize() == 1
+        observed = self.queue.get(False)
+        assert expected == observed, \
+            f'expected {expected.hex()}, observed {observed.hex()}'
+
+    def test_OP_DERIVE_SCALAR_creates_32_byte_value_from_seed(self):
+        self.queue.put(b'yellow submarine')
+        functions.OP_DERIVE_SCALAR(self.tape, self.queue, self.cache)
+        assert self.queue.qsize() == 1
+        result = self.queue.get(False)
+        assert len(result) == 32
+
+    def test_OP_CLAMP_SCALAR_clamps_32_bytes_to_ed25519_scalar(self):
+        seed = token_bytes(32)
+        self.queue.put(seed)
+        self.tape.data = b'\x00'
+        functions.OP_CLAMP_SCALAR(self.tape, self.queue, self.cache)
+        assert self.queue.qsize() == 1
+        x1 = self.queue.get(False)
+        assert len(x1) == 32
+        assert not (x1[31] & 0b10000000)
+
+        self.tape = classes.Tape(b'\x01')
+        self.queue.put(seed)
+        functions.OP_CLAMP_SCALAR(self.tape, self.queue, self.cache)
+        assert self.queue.qsize() == 1
+        x2 = self.queue.get(False)
+        assert len(x2) == 32
+        assert not (x2[31] & 0b10000000)
+        assert not (x2[0] & 0b00000111)
+        assert (x2[31] & 0b01000000)
+
+    def test_OP_CLAMP_SCALAR_raises_ValueError_for_invalid_seed_size(self):
+        seed = token_bytes(token_bytes(1)[0] % 32) # 31 random bytes
+        self.queue.put(seed)
+        self.tape.data = b'\x00'
+        with self.assertRaises(ValueError) as e:
+            functions.OP_CLAMP_SCALAR(self.tape, self.queue, self.cache)
+
+    def test_OP_MAKE_ADAPTER_SIG_PUBLIC_takes_3_from_and_puts_2_on_queue(self):
+        seed = token_bytes(32)
+        T = functions.derive_point_from_scalar(
+            functions.derive_key_from_seed(token_bytes(32))
+        )
+        m = b'hello world'
+        self.queue.put(m)
+        self.queue.put(T)
+        self.queue.put(seed)
+        functions.OP_MAKE_ADAPTER_SIG_PUBLIC(self.tape, self.queue, self.cache)
+        assert b'T' in self.cache
+        assert b'R' in self.cache
+        assert b'sa' in self.cache
+        assert self.queue.qsize() == 2
+        sa = self.queue.get(False)
+        R = self.queue.get(False)
+        assert len(sa) == 32 and sa not in (seed, T, m)
+        assert len(R) == 32 and R not in (seed, T, m)
+
+    def test_OP_MAKE_ADAPTER_SIG_PRIVATE_takes_3_from_and_puts_3_on_queue(self):
+        seed1 = token_bytes(32)
+        seed2 = token_bytes(32)
+        m = b'hello world'
+        self.queue.put(m)
+        self.queue.put(seed2)
+        self.queue.put(seed1)
+        functions.OP_MAKE_ADAPTER_SIG_PRIVATE(self.tape, self.queue, self.cache)
+        assert b't' in self.cache
+        assert b'T' in self.cache
+        assert b'R' in self.cache
+        assert b'sa' in self.cache
+        assert self.queue.qsize() == 3
+        sa = self.queue.get(False)
+        R = self.queue.get(False)
+        T = self.queue.get(False)
+        assert len(sa) == 32 and sa not in (seed1, seed2, m)
+        assert len(T) == 32 and T not in (seed1, seed2, m)
+        assert len(R) == 32 and R not in (seed1, seed2, m)
+
+    def test_OP_CHECK_ADAPTER_SIG_takes_5_from_and_puts_1_on_queue(self):
+        R = functions.derive_point_from_scalar(
+            functions.derive_key_from_seed(token_bytes(32))
+        )
+        T = functions.derive_point_from_scalar(
+            functions.derive_key_from_seed(token_bytes(32))
+        )
+        # sa = functions.clamp_scalar(token_bytes(32))
+        sa = token_bytes(32)
+        m = b'hello world'
+        X = functions.derive_point_from_scalar(
+            functions.derive_key_from_seed(token_bytes(32))
+        )
+        self.queue.put(m)
+        self.queue.put(sa)
+        self.queue.put(R)
+        self.queue.put(T)
+        self.queue.put(X)
+        functions.OP_CHECK_ADAPTER_SIG(self.tape, self.queue, self.cache)
+        assert self.queue.qsize() == 1
+        assert self.queue.get(False) == b'\x00'
+
+    def test_OP_MAKE_ADAPTER_SIG_and_OP_VALIDATE_ADAPTER_SIG_e2e(self):
+        seed = token_bytes(32)
+        T = functions.derive_point_from_scalar(
+            functions.derive_key_from_seed(token_bytes(32))
+        )
+        X = bytes(SigningKey(seed).verify_key)
+        m = b'hello world'
+        self.queue.put(m)
+        self.queue.put(T)
+        self.queue.put(seed)
+        functions.OP_MAKE_ADAPTER_SIG_PUBLIC(self.tape, self.queue, self.cache)
+        assert self.queue.qsize() == 2
+        sa = self.queue.get(False)
+        R = self.queue.get(False)
+
+        # positive case
+        self.queue.put(m)
+        self.queue.put(sa)
+        self.queue.put(R)
+        self.queue.put(T)
+        self.queue.put(X)
+        functions.OP_CHECK_ADAPTER_SIG(self.tape, self.queue, self.cache)
+        assert self.queue.qsize() == 1
+        assert self.queue.get(False) == b'\x01'
+
+        # negative case
+        self.queue.put(m + b'qws')
+        self.queue.put(sa)
+        self.queue.put(R)
+        self.queue.put(T)
+        self.queue.put(X)
+        functions.OP_CHECK_ADAPTER_SIG(self.tape, self.queue, self.cache)
+        assert self.queue.qsize() == 1
+        assert self.queue.get(False) == b'\x00'
+
+    def test_OP_MAKE_ADAPTER_SIG_and_OP_DECRYPT_ADAPTER_SIG_e2e(self):
+        seed1 = token_bytes(32)
+        seed2 = token_bytes(32)
+        t = functions.derive_key_from_seed(seed2)
+        T = functions.derive_point_from_scalar(t)
+        X = bytes(SigningKey(seed1).verify_key)
+        m = b'hello world'
+        self.queue.put(m)
+        self.queue.put(T)
+        self.queue.put(seed1)
+        functions.OP_MAKE_ADAPTER_SIG_PUBLIC(self.tape, self.queue, self.cache)
+        assert self.queue.qsize() == 2
+        sa = self.queue.get(False)
+        R = self.queue.get(False)
+
+        self.queue.put(seed2)
+        self.queue.put(sa)
+        self.queue.put(T)
+        self.queue.put(R)
+        functions.OP_DECRYPT_ADAPTER_SIG(self.tape, self.queue, self.cache)
+        assert self.queue.qsize() == 2
+        assert b's' in self.cache
+        assert b'RT' in self.cache
+        s = self.queue.get(False)
+        RT = self.queue.get(False)
+
+        # check signature
+        self.cache['sigfield1'] = m
+        self.tape = classes.Tape(b'\x00')
+        self.queue.put(RT + s)
+        self.queue.put(X)
+        functions.OP_CHECK_SIG(self.tape, self.queue, self.cache)
+        assert self.queue.qsize() == 1
+        assert self.queue.get(False) == b'\x01'
+
     # values
     def test_opcodes_is_dict_mapping_ints_to_tuple_str_function(self):
         assert isinstance(functions.opcodes, dict)

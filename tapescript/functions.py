@@ -2,7 +2,7 @@ from __future__ import annotations
 from .classes import Tape
 from .errors import tert, vert, sert
 from .interfaces import CanCheckTransfer
-from hashlib import sha256, shake_256
+from hashlib import sha256, shake_256, sha512
 from math import ceil, floor, isnan, log2
 from nacl.exceptions import BadSignatureError
 from nacl.signing import SigningKey, VerifyKey
@@ -53,6 +53,94 @@ def bytes_to_float(number: bytes) -> float:
 def float_to_bytes(number: float) -> bytes:
     tert(type(number) is float, 'number must be float')
     return struct.pack('!f', number)
+
+def clamp_scalar(scalar: bytes, from_private_key: bool = False) -> bytes:
+    """Make a clamped scalar."""
+    if type(scalar) is bytes and len(scalar) >= 32:
+        x_i = bytearray(scalar[:32])
+    elif type(scalar) is SigningKey:
+        x_i = bytearray(sha512(bytes(scalar)).digest()[:32])
+        from_private_key = True
+    else:
+        raise ValueError('not a SigningKey and not 32+ bytes scalar')
+
+    if from_private_key:
+        # set bits 0, 1, and 2 to 0
+        # nb: lsb is right-indexed
+        x_i[0] &= 0b11111000
+        # set bit 254 to 1
+        x_i[31] |= 0b01000000
+
+    # set bit 255 to 0
+    x_i[31] &= 0b01111111
+
+    return bytes(x_i)
+
+def H_big(*parts) -> bytes:
+    """The big, 64-byte hash function."""
+    return sha512(b''.join(parts)).digest()
+
+def H_small(*parts) -> bytes:
+    """The small, 32-byte hash function."""
+    return nacl.bindings.crypto_core_ed25519_scalar_reduce(H_big(*parts))
+
+def derive_key_from_seed(seed: bytes) -> bytes:
+    """Derive the scalar used for signing from a seed."""
+    return clamp_scalar(H_big(seed)[:32], True)
+
+def derive_point_from_scalar(point: bytes) -> bytes:
+    """Derives an ed25519 point from a scalar."""
+    return nacl.bindings.crypto_scalarmult_ed25519_base_noclamp(point)
+
+def aggregate_points(points: list) -> bytes:
+    """Aggregate points on the Ed25519 curve."""
+    # type checking inputs
+    for pt in points:
+        if type(pt) is not bytes and type(pt) is not VerifyKey:
+            raise TypeError('each point must be bytes or VerifyKey')
+
+    # normalize points to bytes
+    points = [pt if type(pt) is bytes else bytes(pt) for pt in points]
+
+    # raise an error for invalid points
+    for pt in points:
+        if not nacl.bindings.crypto_core_ed25519_is_valid_point(pt):
+            raise ValueError('each point must be a valid ed25519 point')
+
+    # compute the sum
+    sum = points[0]
+    for i in range(1, len(points)):
+        sum = nacl.bindings.crypto_core_ed25519_add(sum, points[i])
+
+    return sum
+
+def xor(b1: bytes, b2: bytes) -> bytes:
+    """XOR two equal-length byte strings together."""
+    b3 = bytearray()
+    for i in range(len(b1)):
+        b3.append(b1[i] ^ b2[i])
+
+    return bytes(b3)
+
+def or_bytes(b1: bytes, b2: bytes) -> bytes:
+    """OR two equal-length byte strings together."""
+    b3 = bytearray()
+    for i in range(len(b1)):
+        b3.append(b1[i] | b2[i])
+
+    return bytes(b3)
+
+def and_bytes(b1: bytes, b2: bytes) -> bytes:
+    """AND two equal-length byte strings together."""
+    b3 = bytearray()
+    for i in range(len(b1)):
+        b3.append(b1[i] & b2[i])
+
+    return bytes(b3)
+
+def bytes_are_same(b1: bytes, b2: bytes) -> bool:
+    """Timing-attack safe bytes comparison."""
+    return len(b1) == len(b2) and int.from_bytes(xor(b1, b2), 'little') == 0
 
 
 def OP_FALSE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
@@ -387,18 +475,13 @@ def OP_ADD_POINTS(tape: Tape, queue: LifoQueue, cache: dict) -> None:
         tert(type(points[-1]) in (bytes, VerifyKey),
             'OP_ADD_POINTS non-point value encountered')
 
-    # normalize points to bytes
-    points = [pt if type(pt) is bytes else bytes(pt) for pt in points]
-
     # raise an error for invalid points
     for pt in points:
         vert(nacl.bindings.crypto_core_ed25519_is_valid_point(pt),
             'OP_ADD_POINTS invalid point encountered')
 
     # compute the sum
-    sum = points[0]
-    for i in range(1, len(points)):
-        sum = nacl.bindings.crypto_core_ed25519_add(sum, points[i])
+    sum = aggregate_points(points)
 
     # put the sum onto the queue
     queue.put(sum)
@@ -450,7 +533,7 @@ def OP_EQUAL(tape: Tape, queue: LifoQueue, cache: dict) -> None:
         onto the queue.
     """
     item1, item2 = queue.get(False), queue.get(False)
-    queue.put(b'\x01' if item1 == item2 else b'\x00')
+    queue.put(b'\x01' if bytes_are_same(item1, item2) else b'\x00')
 
 def OP_EQUAL_VERIFY(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Runs OP_EQUAL then OP_VERIFY."""
@@ -1154,6 +1237,160 @@ def OP_CHECK_SIG_QUEUE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
         OP_TRUE(tape, queue, cache)
     except:
         OP_FALSE(tape, queue, cache)
+
+def OP_XOR(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+    """Takes two values from the queue; XORs them together; puts result
+        onto the queue. Pads the shorter length value with x00.
+    """
+    item1 = queue.get(False)
+    item2 = queue.get(False)
+    while len(item1) < len(item2):
+        item1 += b'\x00'
+    while len(item1) > len(item2):
+        item2 += b'\x00'
+    result = xor(item1, item2)
+    queue.put(result)
+
+def OP_OR(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+    """Takes two values from the queue; ORs them together; puts result
+        onto the queue. Pads the shorter length value with x00.
+    """
+    item1 = queue.get(False)
+    item2 = queue.get(False)
+    while len(item1) < len(item2):
+        item1 += b'\x00'
+    while len(item1) > len(item2):
+        item2 += b'\x00'
+    result = or_bytes(item1, item2)
+    queue.put(result)
+
+def OP_AND(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+    """Takes two values from the queue; ANDs them together; puts result
+        onto the queue. Pads the shorter length value with x00.
+    """
+    item1 = queue.get(False)
+    item2 = queue.get(False)
+    while len(item1) < len(item2):
+        item1 += b'\x00'
+    while len(item1) > len(item2):
+        item2 += b'\x00'
+    result = and_bytes(item1, item2)
+    queue.put(result)
+
+def OP_DERIVE_SCALAR(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+    """Takes a value seed from queue; derives an ed25519 key scalar from
+        the seed; puts the key scalar onto the queue.
+    """
+    seed = queue.get(False)
+    x = derive_key_from_seed(seed)
+    queue.put(x)
+
+def OP_CLAMP_SCALAR(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+    """Reads a byte from the tape, interpreting as a bool is_key; takes
+        a value from the queue; clamps it to an ed25519 scalar; puts the
+        clamped ed25519 scalar onto the queue. Raises ValueError for
+        invalid value.
+    """
+    is_key = bytes_to_bool(tape.read(1))
+    value = queue.get(False)
+    queue.put(clamp_scalar(value, is_key))
+
+def OP_MAKE_ADAPTER_SIG_PUBLIC(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+    """Takes three items from queue: prvkey seed, public tweak point T,
+        and message m; creates a signature adapter sa; puts nonce point
+        R onto queue; puts signature adapter sa onto queue; sets cache
+        keys b'R' to R, b'T' to T, and b'sa' to sa (can be used in code
+        with @R, @T, and @sa).
+    """
+    seed = queue.get(False)
+    T = queue.get(False)
+    m = queue.get(False)
+    x = derive_key_from_seed(seed)
+    X = nacl.bindings.crypto_scalarmult_ed25519_base_noclamp(x) # G^x
+    nonce = H_big(seed)[32:]
+    r = clamp_scalar(H_small(H_big(nonce, m))) # H(nonce || m)
+    R = nacl.bindings.crypto_scalarmult_ed25519_base_noclamp(r) # G^r
+    RT = aggregate_points((R, T)) # R + t
+    ca = clamp_scalar(H_small(RT, X, m)) # H(R + T || X || m)
+    sa = nacl.bindings.crypto_core_ed25519_scalar_add(
+        r, nacl.bindings.crypto_core_ed25519_scalar_mul(ca, x)
+    ) # r + H(R + T || X || m) * x
+    cache[b'R'] = R
+    cache[b'T'] = T
+    cache[b'sa'] = sa
+    queue.put(R)
+    queue.put(sa)
+
+def OP_MAKE_ADAPTER_SIG_PRIVATE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+    """Takes three values, seed1, seed2, and message m from the queue;
+        derives prvkey x from seed1; derives tweak value from seed2;
+        derives pubkey X from x; derives private nonce r from seed1 and
+        m; derives public nonce point R from r; derives public tweak
+        point T from t; creates signature adapter sa; puts T, R, and sa
+        onto queue; sets cache keys b't' to t, b'T' to T, b'R' to R, and
+        b'sa' to sa (can be used in code with @t, @T, @R, and @sa).
+        Values seed1 and seed2 should be 32 bytes each. Values T, R, and
+        sa are all public 32 byte values and necessary for verification;
+        t is used to decrypt the signature.
+    """
+    seed1 = queue.get(False)
+    seed2 = queue.get(False)
+    m = queue.get(False)
+    x = derive_key_from_seed(seed1)
+    X = nacl.bindings.crypto_scalarmult_ed25519_base_noclamp(x) # G^x
+    t = derive_key_from_seed(seed2)
+    T = nacl.bindings.crypto_scalarmult_ed25519_base_noclamp(t) # G^x
+    nonce = H_big(seed1)[32:]
+    r = clamp_scalar(H_small(nonce, m))
+    R = nacl.bindings.crypto_scalarmult_ed25519_base_noclamp(r) # G^r
+    c = clamp_scalar(H_small(R, X, m)) # clamp(H(R || X || m))
+    tr = nacl.bindings.crypto_core_ed25519_scalar_add(t, r)
+    sa = nacl.bindings.crypto_core_ed25519_scalar_add(
+        tr, nacl.bindings.crypto_core_ed25519_scalar_mul(c, x)
+    ) # t + r + c*x
+    cache[b't'] = t
+    cache[b'T'] = T
+    cache[b'R'] = R
+    cache[b'sa'] = sa
+    queue.put(T)
+    queue.put(R)
+    queue.put(sa)
+
+def OP_CHECK_ADAPTER_SIG(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+    """Takes tweak point T, nonce point R, signature adapter sa, public
+        key X, and message m from the queue; puts True onto queue if the
+        signature adapter is valid and False otherwise.
+    """
+    X = queue.get(False)
+    T = queue.get(False)
+    R = queue.get(False)
+    sa = queue.get(False)
+    m = queue.get(False)
+    sa_G = nacl.bindings.crypto_scalarmult_ed25519_base_noclamp(sa) # sa_G = G^sa
+    RT = aggregate_points((R, T)) # R + T
+    ca = clamp_scalar(H_small(RT, X, m)) # H(R + T || X || m)
+    caX = nacl.bindings.crypto_scalarmult_ed25519_noclamp(ca, X) # X^H(R + T || X || m)
+    RcaX = aggregate_points((R, caX)) # R + X^H(R + T || X || m)
+    queue.put(b'\x01' if bytes_are_same(sa_G, RcaX) else b'\x00')
+
+def OP_DECRYPT_ADAPTER_SIG(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+    """Takes tweak point T, nonce point R, signature adapter sa, and
+        tweak scalar seed from queue; calculates nonce RT; decrypts
+        signature s from sa; puts RT onto the queue; puts s onto queue;
+        sets cache keys b's' to s and b'RT' to RT (can be used in code
+        with @s and @RT).
+    """
+    T = queue.get(False)
+    R = queue.get(False)
+    sa = queue.get(False)
+    seed = queue.get(False)
+    t = derive_key_from_seed(seed)
+    RT = aggregate_points((R, T)) # R + T
+    s = nacl.bindings.crypto_core_ed25519_scalar_add(sa, t) # s = sa + t
+    cache[b's'] = s
+    cache[b'RT'] = RT
+    queue.put(RT)
+    queue.put(s)
 
 def NOP(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int
