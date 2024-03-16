@@ -92,7 +92,7 @@ def derive_point_from_scalar(point: bytes) -> bytes:
     """Derives an ed25519 point from a scalar."""
     return nacl.bindings.crypto_scalarmult_ed25519_base_noclamp(point)
 
-def aggregate_points(points: list) -> bytes:
+def aggregate_points(points: list[bytes|VerifyKey]) -> bytes:
     """Aggregate points on the Ed25519 curve."""
     # type checking inputs
     for pt in points:
@@ -111,6 +111,19 @@ def aggregate_points(points: list) -> bytes:
     sum = points[0]
     for i in range(1, len(points)):
         sum = nacl.bindings.crypto_core_ed25519_add(sum, points[i])
+
+    return sum
+
+def aggregate_scalars(scalars: list[bytes]) -> bytes:
+    """Aggregate scalars on the Ed25519 curve."""
+    # type checking inputs
+    for x in scalars:
+        tert(type(x) is bytes, 'each scalar must be bytes')
+
+    # compute the sum
+    sum = scalars[0]
+    for i in range(1, len(scalars)):
+        sum = nacl.bindings.crypto_core_ed25519_scalar_add(sum, scalars[i])
 
     return sum
 
@@ -1294,6 +1307,63 @@ def OP_CLAMP_SCALAR(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     is_key = bytes_to_bool(tape.read(1))
     value = queue.get(False)
     queue.put(clamp_scalar(value, is_key))
+
+def OP_ADD_SCALARS(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+    """Read the next byte from the tape, interpreting as an unsigned int;
+        pull that many values from the queue; add them together using
+        ed25519 scalar addition; put the result onto the queue.
+    """
+    count = int.from_bytes(tape.read(1), 'big')
+    scalars = []
+
+    for _ in range(count):
+        scalars.append(queue.get(False))
+
+    # compute the sum
+    sum = aggregate_scalars(scalars)
+
+    # put the sum onto the queue
+    queue.put(sum)
+
+def OP_SUBTRACT_SCALARS(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+    """Read the next byte from the tape, interpreting as an unsigned int;
+        pull that many values from the queue, interpreting them as
+        ed25519 scalars; subtract them from the first one; put the
+        result onto the queue.
+    """
+    size = int.from_bytes(tape.read(1), 'big')
+    total = queue.get(False)
+
+    for _ in range(size-1):
+        item = queue.get(False)
+        total = nacl.bindings.crypto_core_ed25519_scalar_sub(total, item)
+
+    queue.put(total)
+
+def OP_DERIVE_POINT(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+    """Takes an an ed25519 scalar value x from the queue; derives a
+        curve point X from scalar value x; puts X onto queue; sets cache
+        key b'X' to X (can be used in code with @X).
+    """
+    x = queue.get(False)
+    X = derive_point_from_scalar(x)
+    cache[b'X'] = X
+    queue.put(X)
+
+def OP_SUBTRACT_POINTS(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+    """Read the next byte from the tape, interpreting as an unsigned int;
+        pull that many values from the queue, interpreting them as
+        ed25519 scalars; subtract them from the first one; put the
+        result onto the queue.
+    """
+    size = int.from_bytes(tape.read(1), 'big')
+    total = queue.get(False)
+
+    for _ in range(size-1):
+        item = queue.get(False)
+        total = nacl.bindings.crypto_core_ed25519_sub(total, item)
+
+    queue.put(total)
 
 def OP_MAKE_ADAPTER_SIG_PUBLIC(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Takes three items from queue: prvkey seed, public tweak point T,

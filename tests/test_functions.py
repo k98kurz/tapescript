@@ -1812,6 +1812,65 @@ class TestFunctions(unittest.TestCase):
         with self.assertRaises(ValueError) as e:
             functions.OP_CLAMP_SCALAR(self.tape, self.queue, self.cache)
 
+    def test_OP_DERIVE_POINT_replaces_scalar_with_point_on_queue_and_sets_cache(self):
+        seed = token_bytes(32)
+        x = functions.derive_key_from_seed(seed)
+        self.queue.put(x)
+        assert b'X' not in self.cache
+        functions.OP_DERIVE_POINT(self.tape, self.queue, self.cache)
+        assert self.queue.qsize() == 1
+        assert b'X' in self.cache
+        X = self.queue.get(False)
+        assert X != x
+
+    def test_OP_DERIVE_POINT_works_with_CHECK_SIG(self):
+        # basically proves it generates a public key
+        seed = token_bytes(32)
+        x = functions.derive_key_from_seed(seed)
+        m = b'hello world'
+        self.queue.put(x)
+        functions.OP_DERIVE_POINT(self.tape, self.queue, self.cache)
+        X = self.queue.get(False)
+        sig = SigningKey(seed).sign(m).signature
+
+        self.tape = classes.Tape(b'\x00')
+        self.queue.put(m)
+        self.queue.put(sig)
+        self.queue.put(X)
+        functions.OP_CHECK_SIG_QUEUE(self.tape, self.queue, self.cache)
+        assert self.queue.qsize() == 1
+        assert self.queue.get(False) == b'\x01'
+
+    def test_OP_SUBTRACT_POINTS_and_OP_SUBTRACT_SCALARS_work_properly(self):
+        seed1 = token_bytes(32)
+        seed2 = token_bytes(32)
+        x1 = functions.derive_key_from_seed(seed1)
+        x2 = functions.derive_key_from_seed(seed2)
+        x3 = functions.aggregate_scalars([x1, x2])
+        assert x3 not in (x1, x2)
+
+        X1 = functions.derive_point_from_scalar(x1)
+        X2 = functions.derive_point_from_scalar(x2)
+        X3_1 = functions.aggregate_points([X1, X2])
+        X3_2 = functions.derive_point_from_scalar(x3)
+        assert X3_1 == X3_2
+        assert X3_1 not in (X1, X2)
+
+        self.tape.data = b'\x02'
+        self.queue.put(x2)
+        self.queue.put(x3)
+        functions.OP_SUBTRACT_SCALARS(self.tape, self.queue, self.cache)
+        x = self.queue.get(False)
+        X = functions.derive_point_from_scalar(x)
+        assert X == X1
+
+        self.tape.reset()
+        self.queue.put(X2)
+        self.queue.put(X3_1)
+        functions.OP_SUBTRACT_POINTS(self.tape, self.queue, self.cache)
+        X = self.queue.get(False)
+        assert X == X1
+
     def test_OP_MAKE_ADAPTER_SIG_PUBLIC_takes_3_from_and_puts_2_on_queue(self):
         seed = token_bytes(32)
         T = functions.derive_point_from_scalar(

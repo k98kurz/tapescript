@@ -43,6 +43,14 @@ signs the message, and puts the signature onto the queue.
 the queue; puts True onto the queue if the signature was valid for the vkey and
 message, otherwise puts False onto the queue.
 - Reversed order of items placed onto queue after `OP_SPLIT` and `OP_SPLIT_STR`.
+- Updated `OP_EQUAL` to use a timing attack safe comparison.
+- Added `OP_XOR`, `OP_OR`, and `OP_AND` bitwise operators.
+- Added `OP_DERIVE_SCALAR`, `OP_CLAMP_SCALAR`, `OP_ADD_SCALARS`,
+`OP_SUBTRACT_SCALARS`, `OP_DERIVE_POINT`, and `OP_SUBTRACT_POINTS` to expose
+more ed25519 maths.
+- Added `OP_MAKE_ADAPTER_SIG_PUBLIC`, `OP_MAKE_ADAPTER_SIG_PRIVATE`,
+`OP_CHECK_ADAPTER_SIG`, and `OP_DECRYPT_ADAPTER_SIG` to allow easier use of
+adapter signatures.
 
 ## 0.3.1
 
