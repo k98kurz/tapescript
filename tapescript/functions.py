@@ -41,6 +41,14 @@ def int_to_bytes(number: int) -> bytes:
 
     return number.to_bytes(n_bytes, 'big')
 
+def uint_to_bytes(number: int) -> bytes:
+    """Convert from arbitrarily large unsigned int to bytes."""
+    tert(type(number) is int, 'number must be int')
+    n_bits = floor(log2(number)) + 1 if number != 0 else 1
+    n_bytes = ceil(n_bits/8)
+
+    return number.to_bytes(n_bytes, 'big')
+
 def bytes_to_bool(val: bytes) -> bool:
     """Return True if any bits set, else False."""
     return int.from_bytes(val, 'big') > 0
@@ -215,7 +223,7 @@ def OP_SIZE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Pull a value from the queue; put the size of the value onto the
         queue.
     """
-    queue.put(int_to_bytes(len(queue.get(False))))
+    queue.put(uint_to_bytes(len(queue.get(False))))
 
 def OP_WRITE_CACHE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int;
@@ -258,9 +266,9 @@ def OP_READ_CACHE_SIZE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     key = tape.read(size)
 
     if key not in cache:
-        return queue.put(int_to_bytes(0))
+        return queue.put(uint_to_bytes(0))
 
-    queue.put(int_to_bytes(len(cache[key])))
+    queue.put(uint_to_bytes(len(cache[key])))
 
 def OP_READ_CACHE_Q(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Pull a value from the queue as a cache key; put those values from
@@ -280,9 +288,9 @@ def OP_READ_CACHE_Q_SIZE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     key = queue.get(False)
 
     if key not in cache:
-        return queue.put(int_to_bytes(0))
+        return queue.put(uint_to_bytes(0))
 
-    queue.put(int_to_bytes(len(cache[key])))
+    queue.put(uint_to_bytes(len(cache[key])))
 
 def OP_ADD_INTS(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned
@@ -811,7 +819,7 @@ def OP_EVAL(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     # run
     run_tape(subtape, queue, cache, additional_flags=tape.flags)
     if 'returned' in cache:
-        if 'eval_return' in tape.flags:
+        if 'eval_return' in tape.flags and tape.flags['eval_return']:
             OP_RETURN(tape, queue, cache)
         else:
             del cache['returned']
@@ -857,7 +865,7 @@ def OP_UNSET_FLAG(tape: Tape, queue: LifoQueue, cache: dict) -> None:
 
 def OP_DEPTH(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Put the size of the queue onto the queue."""
-    queue.put(int_to_bytes(queue.qsize()))
+    queue.put(uint_to_bytes(queue.qsize()))
 
 def OP_SWAP(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Read the next 2 bytes from the tape, interpreting as unsigned
@@ -1058,13 +1066,17 @@ def OP_TRY_EXCEPT(tape: Tape, queue: LifoQueue, cache: dict) -> None:
         OP_RETURN(tape, queue, cache)
 
 def OP_LESS(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Pull two ints val1 and val2 from queue; put (v1<v2) onto queue."""
+    """Pull two signed ints val1 and val2 from queue; put (v1<v2) onto
+        queue.
+    """
     val1 = bytes_to_int(queue.get(False))
     val2 = bytes_to_int(queue.get(False))
     queue.put(b'\x01' if val1 < val2 else b'\x00')
 
 def OP_LESS_OR_EQUAL(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Pull two ints val1 and val2 from queue; put (v1<=v2) onto queue."""
+    """Pull two signed ints val1 and val2 from queue; put (v1<=v2) onto
+        queue.
+    """
     val1 = bytes_to_int(queue.get(False))
     val2 = bytes_to_int(queue.get(False))
     queue.put(b'\x01' if val1 <= val2 else b'\x00')
@@ -1217,7 +1229,10 @@ def OP_SIGN(tape: Tape, queue: LifoQueue, cache: dict) -> None:
 
     skey = SigningKey(skey_seed)
     sig = skey.sign(message).signature
-    queue.put(sig + sig_flag.to_bytes(1, 'big') if sig_flag else sig)
+    sig = sig + sig_flag.to_bytes(1, 'big') if sig_flag else sig
+    if 9 in tape.flags and tape.flags[9]:
+        cache[b's'] = sig
+    queue.put(sig)
 
 def OP_SIGN_QUEUE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Pulls a value from the queue, interpreting as a SigningKey; pulls
@@ -1230,6 +1245,8 @@ def OP_SIGN_QUEUE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     vert(len(seed) == nacl.bindings.crypto_sign_SEEDBYTES)
     skey = SigningKey(seed)
     sig = skey.sign(msg).signature
+    if 9 in tape.flags and tape.flags[9]:
+        cache[b's'] = sig
     queue.put(sig)
 
 def OP_CHECK_SIG_QUEUE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
@@ -1292,10 +1309,13 @@ def OP_AND(tape: Tape, queue: LifoQueue, cache: dict) -> None:
 
 def OP_DERIVE_SCALAR(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Takes a value seed from queue; derives an ed25519 key scalar from
-        the seed; puts the key scalar onto the queue.
+        the seed; puts the key scalar onto the queue. Sets cache key
+        b'x' to x if allowed by tape.flags.
     """
     seed = queue.get(False)
     x = derive_key_from_seed(seed)
+    if 1 in tape.flags and tape.flags[1]:
+        cache[b'x'] = x
     queue.put(x)
 
 def OP_CLAMP_SCALAR(tape: Tape, queue: LifoQueue, cache: dict) -> None:
@@ -1343,11 +1363,13 @@ def OP_SUBTRACT_SCALARS(tape: Tape, queue: LifoQueue, cache: dict) -> None:
 def OP_DERIVE_POINT(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Takes an an ed25519 scalar value x from the queue; derives a
         curve point X from scalar value x; puts X onto queue; sets cache
-        key b'X' to X (can be used in code with @X).
+        key b'X' to X if allowed by tape.flags (can be used in code with
+        @X).
     """
     x = queue.get(False)
     X = derive_point_from_scalar(x)
-    cache[b'X'] = X
+    if 2 in tape.flags and tape.flags[2]:
+        cache[b'X'] = X
     queue.put(X)
 
 def OP_SUBTRACT_POINTS(tape: Tape, queue: LifoQueue, cache: dict) -> None:
@@ -1369,8 +1391,8 @@ def OP_MAKE_ADAPTER_SIG_PUBLIC(tape: Tape, queue: LifoQueue, cache: dict) -> Non
     """Takes three items from queue: prvkey seed, public tweak point T,
         and message m; creates a signature adapter sa; puts nonce point
         R onto queue; puts signature adapter sa onto queue; sets cache
-        keys b'R' to R, b'T' to T, and b'sa' to sa (can be used in code
-        with @R, @T, and @sa).
+        keys b'R' to R, b'T' to T, and b'sa' to sa if allowed by
+        tape.flags (can be used in code with @R, @T, and @sa).
     """
     seed = queue.get(False)
     T = queue.get(False)
@@ -1385,9 +1407,14 @@ def OP_MAKE_ADAPTER_SIG_PUBLIC(tape: Tape, queue: LifoQueue, cache: dict) -> Non
     sa = nacl.bindings.crypto_core_ed25519_scalar_add(
         r, nacl.bindings.crypto_core_ed25519_scalar_mul(ca, x)
     ) # r + H(R + T || X || m) * x
-    cache[b'R'] = R
-    cache[b'T'] = T
-    cache[b'sa'] = sa
+    if 3 in tape.flags and tape.flags[3]:
+        cache[b'r'] = r
+    if 4 in tape.flags and tape.flags[4]:
+        cache[b'R'] = R
+    if 6 in tape.flags and tape.flags[6]:
+        cache[b'T'] = T
+    if 8 in tape.flags and tape.flags[8]:
+        cache[b'sa'] = sa
     queue.put(R)
     queue.put(sa)
 
@@ -1398,10 +1425,10 @@ def OP_MAKE_ADAPTER_SIG_PRIVATE(tape: Tape, queue: LifoQueue, cache: dict) -> No
         m; derives public nonce point R from r; derives public tweak
         point T from t; creates signature adapter sa; puts T, R, and sa
         onto queue; sets cache keys b't' to t, b'T' to T, b'R' to R, and
-        b'sa' to sa (can be used in code with @t, @T, @R, and @sa).
-        Values seed1 and seed2 should be 32 bytes each. Values T, R, and
-        sa are all public 32 byte values and necessary for verification;
-        t is used to decrypt the signature.
+        b'sa' to sa if allowed by tape.flags (can be used in code with
+        @t, @T, @R, and @sa). Values seed1 and seed2 should be 32 bytes
+        each. Values T, R, and sa are all public 32 byte values and
+        necessary for verification; t is used to decrypt the signature.
     """
     seed1 = queue.get(False)
     seed2 = queue.get(False)
@@ -1418,10 +1445,14 @@ def OP_MAKE_ADAPTER_SIG_PRIVATE(tape: Tape, queue: LifoQueue, cache: dict) -> No
     sa = nacl.bindings.crypto_core_ed25519_scalar_add(
         tr, nacl.bindings.crypto_core_ed25519_scalar_mul(c, x)
     ) # t + r + c*x
-    cache[b't'] = t
-    cache[b'T'] = T
-    cache[b'R'] = R
-    cache[b'sa'] = sa
+    if 4 in tape.flags and tape.flags[4]:
+        cache[b'R'] = R
+    if 5 in tape.flags and tape.flags[5]:
+        cache[b't'] = t
+    if 6 in tape.flags and tape.flags[6]:
+        cache[b'T'] = T
+    if 8 in tape.flags and tape.flags[8]:
+        cache[b'sa'] = sa
     queue.put(T)
     queue.put(R)
     queue.put(sa)
@@ -1457,10 +1488,43 @@ def OP_DECRYPT_ADAPTER_SIG(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     t = derive_key_from_seed(seed)
     RT = aggregate_points((R, T)) # R + T
     s = nacl.bindings.crypto_core_ed25519_scalar_add(sa, t) # s = sa + t
-    cache[b's'] = s
-    cache[b'RT'] = RT
+    if 7 in tape.flags and tape.flags[7]:
+        cache[b'RT'] = RT
+    if 9 in tape.flags and tape.flags[9]:
+        cache[b's'] = s
     queue.put(RT)
     queue.put(s)
+
+def OP_INVOKE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+    """Takes an item from the queue as a contract ID; takes a uint from
+        the queue as argcount; takes argcount items from the queue as
+        arguments; tries to invoke the contract, passing it the
+        arguments; puts any return values onto the queue. Raises
+        ScriptExecutionError if the contract is missing. Raises
+        TypeError if the return value type is not bytes or NoneType. If
+        allowed by tape.flag[0], will put any return values into cache
+        at key b'IR'.
+    """
+    contract_id = queue.get(False)
+    argcount = int.from_bytes(queue.get(False), 'big')
+    args = []
+    for _ in range(argcount):
+        args.append(queue.get(False))
+
+    sert(contract_id in tape.contracts, 'OP_INVOKE unknown contract')
+    contract = tape.contracts[contract_id]
+    vert(hasattr(contract, 'abi'), 'invalid contract: missing the abi callable')
+    vert(callable(getattr(contract, 'abi')), 'invalid contract: abi must be callable')
+    result = getattr(contract, 'abi')(args)
+    tert(type(result) in (tuple, list, type(None)),
+         'invalid contract: abi return value must be tuple[bytes] or None')
+    if result is not None:
+        for r in result:
+            tert(type(r) is bytes,
+                 'invalid contract: abi return value must be tuple[bytes] or None')
+            queue.put(r)
+        if 0 in tape.flags and tape.flags[0]:
+            cache[b'IR'] = result
 
 def NOP(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int
@@ -1588,8 +1652,18 @@ nopcodes_inverse = {
 
 # flags are intended to change how specific opcodes function
 flags = {
-    'ts_threshold': 60*60*12,
-    'epoch_threshold': 60*60*12,
+    'ts_threshold': 60,
+    'epoch_threshold': 60,
+    0: True,
+    1: True,
+    2: True,
+    3: True,
+    4: True,
+    5: True,
+    6: True,
+    7: True,
+    8: True,
+    9: True,
 }
 
 # contracts are intended for use with OP_CHECK_TRANSFER
@@ -1657,10 +1731,10 @@ def add_opcode(code: int, name: str, function: Callable) -> None:
 
 def set_tape_flags(tape: Tape, additional_flags: dict = {}) -> Tape:
     for key in flags:
-        if type(key) is str:
+        if type(key) in (str, int):
             tape.flags[key] = flags[key]
     for key in additional_flags:
-        if type(key) is str:
+        if type(key) in (str, int):
             tape.flags[key] = additional_flags[key]
     return tape
 

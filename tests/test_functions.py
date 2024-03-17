@@ -1817,6 +1817,7 @@ class TestFunctions(unittest.TestCase):
         x = functions.derive_key_from_seed(seed)
         self.queue.put(x)
         assert b'X' not in self.cache
+        functions.set_tape_flags(self.tape)
         functions.OP_DERIVE_POINT(self.tape, self.queue, self.cache)
         assert self.queue.qsize() == 1
         assert b'X' in self.cache
@@ -1880,6 +1881,7 @@ class TestFunctions(unittest.TestCase):
         self.queue.put(m)
         self.queue.put(T)
         self.queue.put(seed)
+        functions.set_tape_flags(self.tape)
         functions.OP_MAKE_ADAPTER_SIG_PUBLIC(self.tape, self.queue, self.cache)
         assert b'T' in self.cache
         assert b'R' in self.cache
@@ -1897,6 +1899,7 @@ class TestFunctions(unittest.TestCase):
         self.queue.put(m)
         self.queue.put(seed2)
         self.queue.put(seed1)
+        functions.set_tape_flags(self.tape)
         functions.OP_MAKE_ADAPTER_SIG_PRIVATE(self.tape, self.queue, self.cache)
         assert b't' in self.cache
         assert b'T' in self.cache
@@ -1977,6 +1980,7 @@ class TestFunctions(unittest.TestCase):
         self.queue.put(m)
         self.queue.put(T)
         self.queue.put(seed1)
+        functions.set_tape_flags(self.tape)
         functions.OP_MAKE_ADAPTER_SIG_PUBLIC(self.tape, self.queue, self.cache)
         assert self.queue.qsize() == 2
         sa = self.queue.get(False)
@@ -1996,11 +2000,26 @@ class TestFunctions(unittest.TestCase):
         # check signature
         self.cache['sigfield1'] = m
         self.tape = classes.Tape(b'\x00')
+        functions.set_tape_flags(self.tape)
         self.queue.put(RT + s)
         self.queue.put(X)
         functions.OP_CHECK_SIG(self.tape, self.queue, self.cache)
         assert self.queue.qsize() == 1
         assert self.queue.get(False) == b'\x01'
+
+    # cryptographic proofs
+    def test_ed25519_maths_meet_homomorphic_one_way_condition(self):
+        """Test if Ed25519 meets the homomorphic one way condition."""
+        x1 = functions.clamp_scalar(token_bytes(32))
+        x2 = functions.clamp_scalar(token_bytes(32))
+        y1 = nacl.bindings.crypto_scalarmult_ed25519_base_noclamp(x1) # G^x1
+        y2 = nacl.bindings.crypto_scalarmult_ed25519_base_noclamp(x2) # G^x2
+
+        # test
+        y3_1 = nacl.bindings.crypto_core_ed25519_add(y1, y2) # G^x1 * G^x2
+        x3 = nacl.bindings.crypto_core_ed25519_scalar_add(x1, x2) # x1 + x2
+        y3_2 = nacl.bindings.crypto_scalarmult_ed25519_base_noclamp(x3) # G^(x1+x2)
+        assert y3_1 == y3_2 # G^x1 * G^x2 = G^(x1+x2) where * denotes group operator
 
     # values
     def test_opcodes_is_dict_mapping_ints_to_tuple_str_function(self):
