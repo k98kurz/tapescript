@@ -11,8 +11,8 @@ class Tape:
     callstack_limit: int = field(default=64)
     callstack_count: int = field(default=0)
     definitions: dict = field(default_factory=dict)
-    flags: dict = field(default_factory=dict)
-    contracts: dict = field(default_factory=dict)
+    flags: dict[str|int, int|bool] = field(default_factory=dict)
+    contracts: dict[bytes, object] = field(default_factory=dict)
 
     def read(self, size: int, move_pointer: bool = True) -> bytes:
         """Read symbols from the data."""

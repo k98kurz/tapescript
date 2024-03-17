@@ -186,7 +186,10 @@ def generate_docs() -> list[str]:
     paragraphs.append('\n\n# Tools')
     paragraphs.append(_format_function_doc(create_merklized_script))
     paragraphs.append(_format_function_doc(generate_docs))
-    paragraphs.append(_format_function_doc(add_soft_fork) + '\n')
+    paragraphs.append(_format_function_doc(add_soft_fork) + '\n\n')
+
+    with open('notes.md', 'r') as f:
+        paragraphs.append(f.read())
 
     return paragraphs
 
