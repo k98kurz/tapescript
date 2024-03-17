@@ -96,9 +96,9 @@ def derive_key_from_seed(seed: bytes) -> bytes:
     """Derive the scalar used for signing from a seed."""
     return clamp_scalar(H_big(seed)[:32], True)
 
-def derive_point_from_scalar(point: bytes) -> bytes:
+def derive_point_from_scalar(scalar: bytes) -> bytes:
     """Derives an ed25519 point from a scalar."""
-    return nacl.bindings.crypto_scalarmult_ed25519_base_noclamp(point)
+    return nacl.bindings.crypto_scalarmult_ed25519_base_noclamp(scalar)
 
 def aggregate_points(points: list[bytes|VerifyKey]) -> bytes:
     """Aggregate points on the Ed25519 curve."""
@@ -1293,7 +1293,7 @@ def OP_CLAMP_SCALAR(tape: Tape, queue: LifoQueue, cache: dict) -> None:
 def OP_ADD_SCALARS(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int;
         pull that many values from the queue; add them together using
-        ed25519 scalar addition; put the result onto the queue.
+        ed25519 scalar addition; put the sum onto the queue.
     """
     count = int.from_bytes(tape.read(1), 'big')
     scalars = []
@@ -1311,7 +1311,7 @@ def OP_SUBTRACT_SCALARS(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as uint count;
         pull that many values from the queue, interpreting them as
         ed25519 scalars; subtract count-1 of them from the first one;
-        put the result onto the queue.
+        put the difference onto the queue.
     """
     size = int.from_bytes(tape.read(1), 'big')
     total = queue.get(False)
@@ -1350,10 +1350,10 @@ def OP_SUBTRACT_POINTS(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     queue.put(total)
 
 def OP_MAKE_ADAPTER_SIG_PUBLIC(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Takes three items from queue: prvkey seed, public tweak point T,
-        and message m; creates a signature adapter sa; puts nonce point
-        R onto queue; puts signature adapter sa onto queue; sets cache
-        keys b'R' to R, b'T' to T, and b'sa' to sa if allowed by
+    """Takes three items from queue: public tweak point T, message m,
+        and prvkey seed; creates a signature adapter sa; puts nonce
+        point R onto queue; puts signature adapter sa onto queue; sets
+        cache keys b'R' to R, b'T' to T, and b'sa' to sa if allowed by
         tape.flags (can be used in code with @R, @T, and @sa).
     """
     seed = queue.get(False)
@@ -1386,11 +1386,12 @@ def OP_MAKE_ADAPTER_SIG_PRIVATE(tape: Tape, queue: LifoQueue, cache: dict) -> No
         derives pubkey X from x; derives private nonce r from seed1 and
         m; derives public nonce point R from r; derives public tweak
         point T from t; creates signature adapter sa; puts T, R, and sa
-        onto queue; sets cache keys b't' to t, b'T' to T, b'R' to R, and
-        b'sa' to sa if allowed by tape.flags (can be used in code with
-        @t, @T, @R, and @sa). Values seed1 and seed2 should be 32 bytes
-        each. Values T, R, and sa are all public 32 byte values and
-        necessary for verification; t is used to decrypt the signature.
+        onto queue; sets cache keys b't' to t if tape.flags[5], b'T' to
+        T if tape.flags[6], b'R' to R if tape.flags[4], and b'sa' to sa
+        if tape.flags[8] (can be used in code with @t, @T, @R, and @sa).
+        Values seed1 and seed2 should be 32 bytes each. Values T, R, and
+        sa are all public 32 byte values and necessary for verification;
+        t is used to decrypt the signature.
     """
     seed1 = queue.get(False)
     seed2 = queue.get(False)
@@ -1420,9 +1421,9 @@ def OP_MAKE_ADAPTER_SIG_PRIVATE(tape: Tape, queue: LifoQueue, cache: dict) -> No
     queue.put(sa)
 
 def OP_CHECK_ADAPTER_SIG(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Takes tweak point T, nonce point R, signature adapter sa, public
-        key X, and message m from the queue; puts True onto queue if the
-        signature adapter is valid and False otherwise.
+    """Takes public key X, tweak point T, nonce point R, signature
+        adapter sa, and message m from the queue; puts True onto queue
+        if the signature adapter is valid and False otherwise.
     """
     X = queue.get(False)
     T = queue.get(False)
@@ -1438,10 +1439,10 @@ def OP_CHECK_ADAPTER_SIG(tape: Tape, queue: LifoQueue, cache: dict) -> None:
 
 def OP_DECRYPT_ADAPTER_SIG(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Takes tweak point T, nonce point R, signature adapter sa, and
-        tweak scalar seed from queue; calculates nonce RT; decrypts
-        signature s from sa; puts RT onto the queue; puts s onto queue;
-        sets cache keys b's' to s and b'RT' to RT (can be used in code
-        with @s and @RT).
+        tweak seed from queue; calculates nonce RT; decrypts signature s
+        from sa; puts RT onto the queue; puts s onto queue; sets cache
+        keys b's' to s if tape.flags[9] and b'RT' to RT if tape.flags[7]
+        (can be used in code with @s and @RT).
     """
     T = queue.get(False)
     R = queue.get(False)
@@ -1460,8 +1461,8 @@ def OP_DECRYPT_ADAPTER_SIG(tape: Tape, queue: LifoQueue, cache: dict) -> None:
 def OP_INVOKE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Takes an item from the queue as a contract ID; takes a uint from
         the queue as argcount; takes argcount items from the queue as
-        arguments; tries to invoke the contract, passing it the
-        arguments; puts any return values onto the queue. Raises
+        arguments; tries to invoke the contract's abi method, passing it
+        the arguments; puts any return values onto the queue. Raises
         ScriptExecutionError if the contract is missing. Raises
         TypeError if the return value type is not bytes or NoneType. If
         allowed by tape.flag[0], will put any return values into cache

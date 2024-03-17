@@ -430,6 +430,62 @@ the message, and puts the signature onto the queue.
 - `OP_CHECK_SIG_QUEUE` - takes a verify key, signature, and message from the
 queue; puts `True` onto the queue if the signature was valid for the vkey and
 message, otherwise puts `False` onto the queue.
+- `OP_DERIVE_SCALAR` - takes a seed from queue; derives an ed25519 private key
+scalar from it; puts the scalar onto the queue and into cache[b'x'] if
+`tape.flags[1]`.
+- `OP_CLAMP_SCALAR is_key` - reads byte from tape as bool `is_key`; pulls a
+value from the queue; clamps the value as an ed25519 private key if `is_key`
+else as normal scalar; puts clamped scalar onto the queue.
+- `OP_ADD_SCALARS count` - takes `count` values from queue; uses ed25519 scalar
+addition to sum them; put the sum onto the queue.
+- `OP_SUBTRACT_SCALARS count` - takes `count` values from queue; uses ed25519
+scalar subtraction to subtract `count-1` values from the first value; put the
+difference onto the queue.
+- `OP_DERIVE_POINT` - takes a value from the queue as a scalar; generates an
+ed25519 curve point from it; puts the point onto the queue and into cache[b'X']
+if `tape.flags[2]`.
+- `OP_SUBTRACT_POINTS count` - takes `count` values from the queue as ed25519
+points; subtracts `count-1` of them from the first using ed25519 inverse group
+operator; puts difference onto the queue.
+- `OP_MAKE_ADAPTER_SIG_PUBLIC` - takes tweak point `T`, message `m`, and prvkey
+`seed` from queue; derives key scalar `x` from `seed` and nonce `r` from `seed`
+and `m`; derives nonce point `R` from `r`; generates signature adapter `sa`;
+puts `R` and `sa` onto queue; sets cache[b'r'] to `r` if `tape.flags[3]`; sets
+cache[b'R'] to `R` if `tape.flages[4]`; sets cache[b'T'] to `T` if
+`tape.flags[6]`; sets cache[b'sa'] if `tape.flags[9]`.
+- `OP_MAKE_ADAPTER_SIG_PRIVATE` - takes prvkey `seed1`, tweak `seed2`, and
+message `m` from the queue; derives prvkey scalar `x` from `seed1`; derives
+tweak scalar `t` from `seed2`; derives pubkey `X` from `x`; derives private
+nonce `r` from `seed1` and `m`; derives public nonce point `R` from `r`; derives
+public tweak point `T` from `t`; creates signature adapter `sa`; puts `T`, `R`,
+and `sa` onto queue; sets cache keys b't' to `t` if `tape.flags[]`, b'T' to `T`, b'R' to `R`, and
+b'sa' to sa if allowed by tape.flags (can be used in code with
+@t, @T, @R, and @sa). Values seed1 and seed2 should be 32 bytes
+each. Values T, R, and sa are all public 32 byte values and
+necessary for verification; t is used to decrypt the signature.
+- `OP_CHECK_ADAPTER_SIG` - takes public key `X`, tweak point `T`, nonce point
+`R`, signature adapter `sa`, and message `m` from the queue; puts `True` onto
+the queue if the signature adapter is valid and `False` otherwise.
+- `OP_DECRYPT_ADAPTER_SIG` - takes tweak point `T`, nonce point `R`, signature
+adapter `sa`, and tweak `seed` from queue; calculates nonce `RT`; decrypts
+signature `s` from `sa`; puts `RT` onto the queue; puts `s` onto queue; sets
+cache keys b's' to `s` if `tape.flags[9]` and b'RT' to `RT` if `tape.flags[7]`
+(can be used in code with @s and @RT).
+- `OP_INVOKE` - takes an item from the queue as a contract ID; takes a uint from
+the queue as `count`; takes `count` items from the queue as arguments; tries to
+invoke the contract's `abi` method, passing it the arguments; puts any return
+values onto the queue. Raises `ScriptExecutionError` if the contract is missing.
+Raises `TypeError` if the return value type is not bytes or NoneType. If allowed
+by `tape.flag[0]`, will put any return values into cache at key b'IR'.
+- `OP_XOR` - takes two items from the queue; bitwise XORs them together; puts
+result onto the queue. Can be used in boolean logic as boolean values are just
+bytes.
+- `OP_OR` - takes two items from the queue; bitwise ORs them together; puts
+result onto the queue. Can be used in boolean logic as boolean values are just
+bytes.
+- `OP_AND` - takes two items from the queue; bitwise ANDs them together; puts
+result onto the queue. Can be used in boolean logic as boolean values are just
+bytes.
 - `NOP count` - removes `count` values from the queue; dummy ops useful for soft
 fork updates
 
