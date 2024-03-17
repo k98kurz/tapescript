@@ -221,9 +221,9 @@ def OP_POP1(tape: Tape, queue: LifoQueue, cache: dict) -> None:
 
 def OP_SIZE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Pull a value from the queue; put the size of the value onto the
-        queue.
+        queue as signed int.
     """
-    queue.put(uint_to_bytes(len(queue.get(False))))
+    queue.put(int_to_bytes(len(queue.get(False))))
 
 def OP_WRITE_CACHE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int;
@@ -266,9 +266,9 @@ def OP_READ_CACHE_SIZE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     key = tape.read(size)
 
     if key not in cache:
-        return queue.put(uint_to_bytes(0))
+        return queue.put(int_to_bytes(0))
 
-    queue.put(uint_to_bytes(len(cache[key])))
+    queue.put(int_to_bytes(len(cache[key])))
 
 def OP_READ_CACHE_Q(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Pull a value from the queue as a cache key; put those values from
@@ -283,14 +283,15 @@ def OP_READ_CACHE_Q(tape: Tape, queue: LifoQueue, cache: dict) -> None:
 
 def OP_READ_CACHE_Q_SIZE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Pull a value from the queue as a cache key; count the number of
-        values in the cache at that key; put the result onto the queue.
+        values in the cache at that key; put the result onto the queue
+        as a signed int.
     """
     key = queue.get(False)
 
     if key not in cache:
-        return queue.put(uint_to_bytes(0))
+        return queue.put(int_to_bytes(0))
 
-    queue.put(uint_to_bytes(len(cache[key])))
+    queue.put(int_to_bytes(len(cache[key])))
 
 def OP_ADD_INTS(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned
@@ -307,15 +308,15 @@ def OP_ADD_INTS(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     queue.put(int_to_bytes(total))
 
 def OP_SUBTRACT_INTS(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Read the next byte from the tape, interpreting as an unsigned int;
+    """Read the next byte from the tape, interpreting as uint count;
         pull that many values from the queue, interpreting them as
-        signed ints; subtract them from the first one; put the result
-        back onto the queue; advance the pointer appropriately.
+        signed ints; subtract count-1 of them from the first one; put
+        the result onto the queue.
     """
-    size = int.from_bytes(tape.read(1), 'big')
+    count = int.from_bytes(tape.read(1), 'big')
     total = bytes_to_int(queue.get(False))
 
-    for _ in range(size-1):
+    for _ in range(count-1):
         item = queue.get(False)
         number = bytes_to_int(item)
         total -= number
@@ -1268,45 +1269,6 @@ def OP_CHECK_SIG_QUEUE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     except:
         OP_FALSE(tape, queue, cache)
 
-def OP_XOR(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Takes two values from the queue; XORs them together; puts result
-        onto the queue. Pads the shorter length value with x00.
-    """
-    item1 = queue.get(False)
-    item2 = queue.get(False)
-    while len(item1) < len(item2):
-        item1 += b'\x00'
-    while len(item1) > len(item2):
-        item2 += b'\x00'
-    result = xor(item1, item2)
-    queue.put(result)
-
-def OP_OR(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Takes two values from the queue; ORs them together; puts result
-        onto the queue. Pads the shorter length value with x00.
-    """
-    item1 = queue.get(False)
-    item2 = queue.get(False)
-    while len(item1) < len(item2):
-        item1 += b'\x00'
-    while len(item1) > len(item2):
-        item2 += b'\x00'
-    result = or_bytes(item1, item2)
-    queue.put(result)
-
-def OP_AND(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Takes two values from the queue; ANDs them together; puts result
-        onto the queue. Pads the shorter length value with x00.
-    """
-    item1 = queue.get(False)
-    item2 = queue.get(False)
-    while len(item1) < len(item2):
-        item1 += b'\x00'
-    while len(item1) > len(item2):
-        item2 += b'\x00'
-    result = and_bytes(item1, item2)
-    queue.put(result)
-
 def OP_DERIVE_SCALAR(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Takes a value seed from queue; derives an ed25519 key scalar from
         the seed; puts the key scalar onto the queue. Sets cache key
@@ -1346,10 +1308,10 @@ def OP_ADD_SCALARS(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     queue.put(sum)
 
 def OP_SUBTRACT_SCALARS(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Read the next byte from the tape, interpreting as an unsigned int;
+    """Read the next byte from the tape, interpreting as uint count;
         pull that many values from the queue, interpreting them as
-        ed25519 scalars; subtract them from the first one; put the
-        result onto the queue.
+        ed25519 scalars; subtract count-1 of them from the first one;
+        put the result onto the queue.
     """
     size = int.from_bytes(tape.read(1), 'big')
     total = queue.get(False)
@@ -1526,6 +1488,45 @@ def OP_INVOKE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
         if 0 in tape.flags and tape.flags[0]:
             cache[b'IR'] = result
 
+def OP_XOR(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+    """Takes two values from the queue; XORs them together; puts result
+        onto the queue. Pads the shorter length value with x00.
+    """
+    item1 = queue.get(False)
+    item2 = queue.get(False)
+    while len(item1) < len(item2):
+        item1 += b'\x00'
+    while len(item1) > len(item2):
+        item2 += b'\x00'
+    result = xor(item1, item2)
+    queue.put(result)
+
+def OP_OR(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+    """Takes two values from the queue; ORs them together; puts result
+        onto the queue. Pads the shorter length value with x00.
+    """
+    item1 = queue.get(False)
+    item2 = queue.get(False)
+    while len(item1) < len(item2):
+        item1 += b'\x00'
+    while len(item1) > len(item2):
+        item2 += b'\x00'
+    result = or_bytes(item1, item2)
+    queue.put(result)
+
+def OP_AND(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+    """Takes two values from the queue; ANDs them together; puts result
+        onto the queue. Pads the shorter length value with x00.
+    """
+    item1 = queue.get(False)
+    item2 = queue.get(False)
+    while len(item1) < len(item2):
+        item1 += b'\x00'
+    while len(item1) > len(item2):
+        item2 += b'\x00'
+    result = and_bytes(item1, item2)
+    queue.put(result)
+
 def NOP(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int
         and pull that many values from the queue. Does nothing with the
@@ -1613,6 +1614,20 @@ opcodes = [
     ('OP_SIGN', OP_SIGN),
     ('OP_SIGN_QUEUE', OP_SIGN_QUEUE),
     ('OP_CHECK_SIG_QUEUE', OP_CHECK_SIG_QUEUE),
+    ('OP_DERIVE_SCALAR', OP_DERIVE_SCALAR),
+    ('OP_CLAMP_SCALAR', OP_CLAMP_SCALAR),
+    ('OP_ADD_SCALARS', OP_ADD_SCALARS),
+    ('OP_SUBTRACT_SCALARS', OP_SUBTRACT_SCALARS),
+    ('OP_DERIVE_POINT', OP_DERIVE_POINT),
+    ('OP_SUBTRACT_POINTS', OP_SUBTRACT_POINTS),
+    ('OP_MAKE_ADAPTER_SIG_PUBLIC', OP_MAKE_ADAPTER_SIG_PUBLIC),
+    ('OP_MAKE_ADAPTER_SIG_PRIVATE', OP_MAKE_ADAPTER_SIG_PRIVATE),
+    ('OP_CHECK_ADAPTER_SIG', OP_CHECK_ADAPTER_SIG),
+    ('OP_DECRYPT_ADAPTER_SIG', OP_DECRYPT_ADAPTER_SIG),
+    ('OP_INVOKE', OP_INVOKE),
+    ('OP_XOR', OP_XOR),
+    ('OP_OR', OP_OR),
+    ('OP_AND', OP_AND),
 ]
 opcodes: dict[int, tuple[str, Callable]] = {x: opcodes[x] for x in range(len(opcodes))}
 

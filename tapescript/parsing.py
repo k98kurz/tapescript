@@ -557,7 +557,10 @@ def get_args(
             'OP_CONCAT' | 'OP_CONCAT_STR' | 'OP_CHECK_TRANSFER' | 'OP_LESS' | \
             'OP_LESS_OR_EQUAL' | 'OP_FLOAT_LESS' | 'OP_FLOAT_LESS_OR_EQUAL' | \
             'OP_INT_TO_FLOAT' | 'OP_FLOAT_TO_INT' | 'OP_SIGN_QUEUE' | \
-            'OP_CHECK_SIG_QUEUE':
+            'OP_CHECK_SIG_QUEUE' | 'OP_DERIVE_SCALAR' | 'OP_DERIVE_POINT' | \
+            'OP_MAKE_ADAPTER_SIG_PUBLIC' | 'OP_MAKE_ADAPTER_SIG_PRIVATE' | \
+            'OP_CHECK_ADAPTER_SIG' | 'OP_DECRYPT_ADAPTER_SIG' | 'OP_INVOKE' | \
+            'OP_XOR' | 'OP_OR' | 'OP_AND':
             # ops that have no arguments on the tape
             # human-readable syntax of OP_[whatever]
             pass
@@ -576,8 +579,9 @@ def get_args(
             'OP_MULT_INTS' | 'OP_ADD_FLOATS' | \
             'OP_SUBTRACT_FLOATS' | 'OP_ADD_POINTS' | 'OP_CALL' | \
             'OP_COPY' | 'OP_SHAKE256' | 'OP_RANDOM' | 'OP_REVERSE' | \
-            'OP_SPLIT' | 'OP_SPLIT_STR' | 'OP_CHECK_SIG' | 'OP_CHECK_SIG_VERIFY' | \
-            'OP_SIGN':
+            'OP_SPLIT' | 'OP_SPLIT_STR' | 'OP_CHECK_SIG' | 'OP_SIGN' | \
+            'OP_CHECK_SIG_VERIFY' | 'OP_CLAMP_SCALAR' | 'OP_ADD_SCALARS' | \
+            'OP_SUBTRACT_SCALARS' | 'OP_SUBTRACT_POINTS':
             # ops that have tape argument of form [0-255]
             # human-readable syntax of OP_[whatever] [int]
             return _get_OP_PUSH0_type_args(opname, symbols, symbols_to_advance, symbol_index)
@@ -1100,7 +1104,11 @@ def decompile_script(script: bytes, indent: int = 0) -> list[str]:
                 'OP_CONCAT' | 'OP_CONCAT_STR' | 'OP_CHECK_TRANSFER' | \
                 'OP_LESS' | 'OP_LESS_OR_EQUAL' | 'OP_FLOAT_LESS' | \
                 'OP_FLOAT_LESS_OR_EQUAL' | 'OP_INT_TO_FLOAT' | \
-                'OP_FLOAT_TO_INT' | 'OP_SIGN_QUEUE' | 'OP_CHECK_SIG_QUEUE':
+                'OP_FLOAT_TO_INT' | 'OP_SIGN_QUEUE' | 'OP_CHECK_SIG_QUEUE' | \
+                'OP_DERIVE_SCALAR' | 'OP_DERIVE_POINT' | \
+                'OP_MAKE_ADAPTER_SIG_PUBLIC' | 'OP_MAKE_ADAPTER_SIG_PRIVATE' | \
+                'OP_CHECK_ADAPTER_SIG' | 'OP_DECRYPT_ADAPTER_SIG' | 'OP_XOR' | \
+                'OP_INVOKE' | 'OP_OR' | 'OP_AND':
                 # ops that have no arguments on the tape
                 # human-readable syntax of OP_[whatever]
                 add_line(op_name)
@@ -1130,7 +1138,8 @@ def decompile_script(script: bytes, indent: int = 0) -> list[str]:
                 'OP_MULT_INTS' | 'OP_ADD_FLOATS' | \
                 'OP_SUBTRACT_FLOATS' | 'OP_ADD_POINTS' | 'OP_CALL' | \
                 'OP_COPY' | 'OP_SHAKE256' | 'OP_RANDOM' | 'OP_REVERSE' | \
-                'OP_SPLIT' | 'OP_SPLIT_STR':
+                'OP_SPLIT' | 'OP_SPLIT_STR' | 'OP_CLAMP_SCALAR' | \
+                'OP_ADD_SCALARS' | 'OP_SUBTRACT_SCALARS' | 'OP_SUBTRACT_POINTS':
                 # ops that have tape argument of form [0-255]
                 # human-readable syntax of OP_[whatever] [int]
                 val = tape.read(1)[0]
