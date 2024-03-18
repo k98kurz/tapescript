@@ -1664,6 +1664,7 @@ opcodes = [
     ('OP_XOR', OP_XOR),
     ('OP_OR', OP_OR),
     ('OP_AND', OP_AND),
+    ('OP_GET_MESSAGE', OP_GET_MESSAGE),
 ]
 opcodes: dict[int, tuple[str, Callable]] = {x: opcodes[x] for x in range(len(opcodes))}
 
