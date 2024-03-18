@@ -1986,10 +1986,9 @@ class TestFunctions(unittest.TestCase):
         sa = self.queue.get(False)
         R = self.queue.get(False)
 
-        self.queue.put(seed2)
         self.queue.put(sa)
-        self.queue.put(T)
         self.queue.put(R)
+        self.queue.put(seed2)
         functions.OP_DECRYPT_ADAPTER_SIG(self.tape, self.queue, self.cache)
         assert self.queue.qsize() == 2
         assert b's' in self.cache

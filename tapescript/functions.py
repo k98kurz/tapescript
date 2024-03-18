@@ -1438,17 +1438,17 @@ def OP_CHECK_ADAPTER_SIG(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     queue.put(b'\x01' if bytes_are_same(sa_G, RcaX) else b'\x00')
 
 def OP_DECRYPT_ADAPTER_SIG(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Takes tweak point T, nonce point R, signature adapter sa, and
-        tweak seed from queue; calculates nonce RT; decrypts signature s
-        from sa; puts RT onto the queue; puts s onto queue; sets cache
-        keys b's' to s if tape.flags[9] and b'RT' to RT if tape.flags[7]
-        (can be used in code with @s and @RT).
+    """Takes tweak seed, nonce point R, and signature adapter sa from
+        queue; calculates nonce RT; decrypts signature s from sa; puts
+        RT onto the queue; puts s onto queue; sets cache keys b's' to s
+        if tape.flags[9] and b'RT' to RT if tape.flags[7] (can be used
+        in code with @s and @RT).
     """
-    T = queue.get(False)
+    seed = queue.get(False)
     R = queue.get(False)
     sa = queue.get(False)
-    seed = queue.get(False)
     t = derive_key_from_seed(seed)
+    T = derive_point_from_scalar(t)
     RT = aggregate_points((R, T)) # R + T
     s = nacl.bindings.crypto_core_ed25519_scalar_add(sa, t) # s = sa + t
     if 7 in tape.flags and tape.flags[7]:
@@ -1527,6 +1527,43 @@ def OP_AND(tape: Tape, queue: LifoQueue, cache: dict) -> None:
         item2 += b'\x00'
     result = and_bytes(item1, item2)
     queue.put(result)
+
+def OP_GET_MESSAGE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+    """Reads a byte from tape as the sigflags; constructs the message
+        that will be used by OP_SIGN and OP_CHECK_SIG/_VERIFY from the
+        sigfields; puts the result onto the queue.
+    """
+    sig_flag = int.from_bytes(tape.read(1), 'big')
+
+    sig_flag1 = sig_flag & 0b00000001
+    sig_flag2 = sig_flag & 0b00000010
+    sig_flag3 = sig_flag & 0b00000100
+    sig_flag4 = sig_flag & 0b00001000
+    sig_flag5 = sig_flag & 0b00010000
+    sig_flag6 = sig_flag & 0b00100000
+    sig_flag7 = sig_flag & 0b01000000
+    sig_flag8 = sig_flag & 0b10000000
+
+    message = b''
+
+    if 'sigfield1' in cache and not sig_flag1:
+        message += cache['sigfield1']
+    if 'sigfield2' in cache and not sig_flag2:
+        message += cache['sigfield2']
+    if 'sigfield3' in cache and not sig_flag3:
+        message += cache['sigfield3']
+    if 'sigfield4' in cache and not sig_flag4:
+        message += cache['sigfield4']
+    if 'sigfield5' in cache and not sig_flag5:
+        message += cache['sigfield5']
+    if 'sigfield6' in cache and not sig_flag6:
+        message += cache['sigfield6']
+    if 'sigfield7' in cache and not sig_flag7:
+        message += cache['sigfield7']
+    if 'sigfield8' in cache and not sig_flag8:
+        message += cache['sigfield8']
+
+    queue.put(message)
 
 def NOP(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int
