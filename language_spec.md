@@ -453,16 +453,16 @@ and `m`; derives nonce point `R` from `r`; generates signature adapter `sa`;
 puts `R` and `sa` onto queue; sets cache[b'r'] to `r` if `tape.flags[3]`; sets
 cache[b'R'] to `R` if `tape.flages[4]`; sets cache[b'T'] to `T` if
 `tape.flags[6]`; sets cache[b'sa'] if `tape.flags[9]`.
-- `OP_MAKE_ADAPTER_SIG_PRIVATE` - takes prvkey `seed1`, tweak `seed2`, and
-message `m` from the queue; derives prvkey scalar `x` from `seed1`; derives
-tweak scalar `t` from `seed2`; derives pubkey `X` from `x`; derives private
-nonce `r` from `seed1` and `m`; derives public nonce point `R` from `r`; derives
-public tweak point `T` from `t`; creates signature adapter `sa`; puts `T`, `R`,
-and `sa` onto queue; sets cache keys b't' to `t` if `tape.flags[]`, b'T' to `T`,
-b'R' to `R`, and b'sa' to sa if allowed by tape.flags (can be used in code with
-@t, @T, @R, and @sa). Values seed1 and seed2 should be 32 bytes
-each. Values T, R, and sa are all public 32 byte values and
-necessary for verification; t is used to decrypt the signature.
+- `OP_MAKE_ADAPTER_SIG_PRIVATE` - takes prvkey `seed`, tweak scalar `t`, and
+message `m` from the queue; derives prvkey scalar `x` from `seed`; derives
+pubkey `X` from `x`; derives private nonce `r` from `seed` and `m`; derives
+public nonce point `R` from `r`; derives public tweak point `T` from `t`;
+creates signature adapter `sa`; puts `T`, `R`, and `sa` onto queue; sets cache
+keys b't' to `t` if `tape.flags[5]`, b'T' to `T` if `tapeflags[6]`, b'R' to `R`
+if `tape.flags[4]`, and b'sa' to `sa` if `tape.flags[8]` (can be used in code with
+@t, @T, @R, and @sa). Values `seed` and `t` should be 32 bytes each. Values `T`,
+`R`, and `sa` are all public 32 byte values and necessary for verification; `t`
+is used to decrypt the signature.
 - `OP_CHECK_ADAPTER_SIG` - takes public key `X`, tweak point `T`, message `m`,
 nonce point `R`, and signature adapter `sa` from the queue; puts `True` onto the
 queue if the signature adapter is valid and `False` otherwise.

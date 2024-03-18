@@ -1381,26 +1381,25 @@ def OP_MAKE_ADAPTER_SIG_PUBLIC(tape: Tape, queue: LifoQueue, cache: dict) -> Non
     queue.put(sa)
 
 def OP_MAKE_ADAPTER_SIG_PRIVATE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Takes three values, seed1, seed2, and message m from the queue;
-        derives prvkey x from seed1; derives tweak value from seed2;
-        derives pubkey X from x; derives private nonce r from seed1 and
-        m; derives public nonce point R from r; derives public tweak
-        point T from t; creates signature adapter sa; puts T, R, and sa
-        onto queue; sets cache keys b't' to t if tape.flags[5], b'T' to
-        T if tape.flags[6], b'R' to R if tape.flags[4], and b'sa' to sa
-        if tape.flags[8] (can be used in code with @t, @T, @R, and @sa).
-        Values seed1 and seed2 should be 32 bytes each. Values T, R, and
-        sa are all public 32 byte values and necessary for verification;
-        t is used to decrypt the signature.
+    """Takes three values, seed, t, and message m from the queue;
+        derives prvkey x from seed; derives pubkey X from x; derives
+        private nonce r from seed and m; derives public nonce point R
+        from r; derives public tweak point T from t; creates signature
+        adapter sa; puts T, R, and sa onto queue; sets cache keys b't'
+        to t if tape.flags[5], b'T' to T if tape.flags[6], b'R' to R if
+        tape.flags[4], and b'sa' to sa if tape.flags[8] (can be used in
+        code with @t, @T, @R, and @sa). Values seed and t should be 32
+        bytes each. Values T, R, and sa are all public 32 byte values
+        and necessary for verification; t is used to decrypt the
+        signature.
     """
-    seed1 = queue.get(False)
-    seed2 = queue.get(False)
+    seed = queue.get(False)
+    t = clamp_scalar(queue.get(False))
     m = queue.get(False)
-    x = derive_key_from_seed(seed1)
+    x = derive_key_from_seed(seed)
     X = nacl.bindings.crypto_scalarmult_ed25519_base_noclamp(x) # G^x
-    t = derive_key_from_seed(seed2)
     T = nacl.bindings.crypto_scalarmult_ed25519_base_noclamp(t) # G^x
-    nonce = H_big(seed1)[32:]
+    nonce = H_big(seed)[32:]
     r = clamp_scalar(H_small(nonce, m))
     R = nacl.bindings.crypto_scalarmult_ed25519_base_noclamp(r) # G^r
     c = clamp_scalar(H_small(R, X, m)) # clamp(H(R || X || m))
