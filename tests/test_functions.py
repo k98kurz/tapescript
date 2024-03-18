@@ -1993,8 +1993,8 @@ class TestFunctions(unittest.TestCase):
         assert self.queue.qsize() == 2
         assert b's' in self.cache
         assert b'RT' in self.cache
-        s = self.queue.get(False)
         RT = self.queue.get(False)
+        s = self.queue.get(False)
 
         # check signature
         self.cache['sigfield1'] = m

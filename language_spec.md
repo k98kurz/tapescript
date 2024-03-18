@@ -468,7 +468,7 @@ nonce point `R`, and signature adapter `sa` from the queue; puts `True` onto the
 queue if the signature adapter is valid and `False` otherwise.
 - `OP_DECRYPT_ADAPTER_SIG` - takes tweak scalar `t`, nonce point `R`, and
 signature adapter `sa` from queue; calculates nonce `RT`; decrypts signature
-`s` from `sa`; puts `RT` onto the queue; puts `s` onto queue; sets cache keys
+`s` from `sa`; puts `s` onto queue; puts `RT` onto the queue; sets cache keys
 b's' to `s` if `tape.flags[9]` and b'RT' to `RT` if `tape.flags[7]` (can be used
 in code with @s and @RT).
 - `OP_INVOKE` - takes an item from the queue as a contract ID; takes a uint from

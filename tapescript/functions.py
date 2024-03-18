@@ -1439,7 +1439,7 @@ def OP_CHECK_ADAPTER_SIG(tape: Tape, queue: LifoQueue, cache: dict) -> None:
 def OP_DECRYPT_ADAPTER_SIG(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Takes tweak scalar t, nonce point R, and signature adapter sa
         from queue; calculates nonce RT; decrypts signature s from sa;
-        puts RT onto the queue; puts s onto queue; sets cache keys b's'
+        puts s onto queue; puts RT onto the queue; sets cache keys b's'
         to s if tape.flags[9] and b'RT' to RT if tape.flags[7] (can be
         used in code with @s and @RT).
     """
@@ -1453,8 +1453,8 @@ def OP_DECRYPT_ADAPTER_SIG(tape: Tape, queue: LifoQueue, cache: dict) -> None:
         cache[b'RT'] = RT
     if 9 in tape.flags and tape.flags[9]:
         cache[b's'] = s
-    queue.put(RT)
     queue.put(s)
+    queue.put(RT)
 
 def OP_INVOKE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Takes an item from the queue as a contract ID; takes a uint from
