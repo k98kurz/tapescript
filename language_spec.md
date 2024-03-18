@@ -476,7 +476,7 @@ the queue as `count`; takes `count` items from the queue as arguments; tries to
 invoke the contract's `abi` method, passing it the arguments; puts any return
 values onto the queue. Raises `ScriptExecutionError` if the contract is missing.
 Raises `TypeError` if the return value type is not bytes or NoneType. If allowed
-by `tape.flag[0]`, will put any return values into cache at key b'IR'.
+by `tape.flags[0]`, will put any return values into cache at key b'IR'.
 - `OP_XOR` - takes two items from the queue; bitwise XORs them together; puts
 result onto the queue. Can be used in boolean logic as boolean values are just
 bytes.
