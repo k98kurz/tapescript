@@ -1,327 +1,327 @@
 # omega e2e parsing test #
 
-DEF 0 {
-    IF {
-        POP0
+def 0 {
+    if {
+        pop0
     }
 }
 
 
-DEF 1 {
+def 1 {
     # comment within def #
-    IF {
+    if {
         # comment within if #
-        PUSH0 d0
-        PUSH1 x22
-    } ELSE {
+        push0 d0
+        push1 x22
+    } else {
         # comment within else #
-        PUSH2 xfeedbeef
-        PUSH4 s"yellow submarine"
+        push2 xfeedbeef
+        push4 s"yellow submarine"
     }
 }
 
 
-DEF 2 {
-    IF {
-        IF {
-            CALL d0
-        } ELSE {
-            CALL d1
+def 2 {
+    if {
+        if {
+            call d0
+        } else {
+            call d1
         }
-    } ELSE {
-        IF {
-            CALL d0
-        } ELSE {
-            CALL d1
+    } else {
+        if {
+            call d0
+        } else {
+            call d1
         }
     }
 }
 
 
-IF {
-    DEF 3 {
-        FALSE
+if {
+    def 3 {
+        false
     }
-} ELSE {
-    DEF 3 {
-        TRUE
-    }
-}
-
-
-TRY {
-    IF {
-        TRUE
-    }
-    DEF 4 {
-        CALL d0
-    }
-} EXCEPT {
-    DEF 4 {
-        FALSE
+} else {
+    def 3 {
+        true
     }
 }
 
-FALSE
-CALL d0
-TRUE
-CALL d1
-SIZE
-WRITE_CACHE s"size" d1
-READ_CACHE s"size"
-READ_CACHE_SIZE s"size"
-READ_CACHE_Q
-READ_CACHE_Q_SIZE
-ADD_INTS d12
-SUBTRACT_INTS d21
-MULT_INTS d2
-DIV_INT d-10
-DIV_INTS
-MOD_INT d10
-MOD_INTS
-ADD_FLOATS d2
-SUBTRACT_FLOATS d2
-DIV_FLOAT x3c4985f0
-DIV_FLOATS
-MOD_FLOAT x3c4985f0
-MOD_FLOATS
-ADD_POINTS d3
-COPY d5
-DUP
-SHA256
-SHAKE256 d20
-VERIFY
-EQUAL
-EQUAL_VERIFY
-CHECK_SIG x22
-CHECK_SIG_VERIFY x33
-CHECK_TIMESTAMP
-CHECK_TIMESTAMP_VERIFY
-CHECK_EPOCH
-CHECK_EPOCH_VERIFY
-EVAL
-NOT
-RANDOM d32
-RETURN
-SET_FLAG xfeedbeef
-UNSET_FLAG xfeedbeef
-DEPTH
-SWAP d12 d21
-SWAP2
-REVERSE d12
-CONCAT
-SPLIT d12
-CONCAT_STR
-SPLIT_STR d21
-CHECK_TRANSFER
-MERKLEVAL xfeedbeeffeedbeeffeedbeeffeedbeeffeedbeeffeedbeeffeedbeeffeedbeef
-TRY {
+
+try {
+    if {
+        true
+    }
+    def 4 {
+        call d0
+    }
+} except {
+    def 4 {
+        false
+    }
+}
+
+false
+call d0
+true
+call d1
+size
+write_cache s"size" d1
+read_cache s"size"
+read_cache_size s"size"
+read_cache_q
+read_cache_q_size
+add_ints d12
+subtract_ints d21
+mult_ints d2
+div_int d-10
+div_ints
+mod_int d10
+mod_ints
+add_floats d2
+subtract_floats d2
+div_float x3c4985f0
+div_floats
+mod_float x3c4985f0
+mod_floats
+add_points d3
+copy d5
+dup
+sha256
+shake256 d20
+verify
+equal
+equal_verify
+check_sig x22
+check_sig_verify x33
+check_timestamp
+check_timestamp_verify
+check_epoch
+check_epoch_verify
+eval
+not
+random d32
+return
+set_flag xfeedbeef
+unset_flag xfeedbeef
+depth
+swap d12 d21
+swap2
+reverse d12
+concat
+split d12
+concat_str
+split_str d21
+check_transfer
+merkleval xfeedbeeffeedbeeffeedbeeffeedbeeffeedbeeffeedbeeffeedbeeffeedbeef
+try {
     # comment within try #
-    FALSE
-    VERIFY
-} EXCEPT {
+    false
+    verify
+} except {
     # comment within except #
-    READ_CACHE x45
-    PUSH s"ScriptExecutionError|OP_VERIFY check failed"
-    TRY {
-        EQUAL_VERIFY
+    read_cache x45
+    push s"ScriptExecutionError|OP_VERIFY check failed"
+    try {
+        equal_verify
     }
 }
-LESS
-LEQ
-VAL s"test"OP_FLOAT_LESS
-FLESS
-FLEQ
-I2F
-F2I
-LOOP {
+less
+leq
+val s"test"op_float_less
+fless
+fleq
+i2f
+f2i
+loop {
     # comment within loop #
-    PUSH d1
-    SUBTRACT_INTS d2
+    push d1
+    subtract_ints d2
 }
-CMS x00 d2 d2
-CMSV x00 d2 d3
-SIGN x00
-SIGN_QUEUE
-CHECK_SIG_QUEUE
-DERIVE_SCALAR
-CLAMP_SCALAR d1
-ADD_SCALARS d3
-SUBTRACT_SCALARS d2
-DERIVE_POINT
-SUBTRACT_POINTS d4
-MAKE_ADAPTER_SIG_PUBLIC
-MAKE_ADAPTER_SIG_PRIVATE
-CHECK_ADAPTER_SIG
-DECRYPT_ADAPTER_SIG
-INVOKE
-XOR
-OR
-AND
-GET_MESSAGE x00
-NOP90 d1
-NOP91 d1
-NOP92 d1
-NOP93 d1
-NOP94 d1
-NOP95 d1
-NOP96 d1
-NOP97 d1
-NOP98 d1
-NOP99 d1
-NOP100 d1
-NOP101 d1
-NOP102 d1
-NOP103 d1
-NOP104 d1
-NOP105 d1
-NOP106 d1
-NOP107 d1
-NOP108 d1
-NOP109 d1
-NOP110 d1
-NOP111 d1
-NOP112 d1
-NOP113 d1
-NOP114 d1
-NOP115 d1
-NOP116 d1
-NOP117 d1
-NOP118 d1
-NOP119 d1
-NOP120 d1
-NOP121 d1
-NOP122 d1
-NOP123 d1
-NOP124 d1
-NOP125 d1
-NOP126 d1
-NOP127 d1
-NOP128 d1
-NOP129 d1
-NOP130 d1
-NOP131 d1
-NOP132 d1
-NOP133 d1
-NOP134 d1
-NOP135 d1
-NOP136 d1
-NOP137 d1
-NOP138 d1
-NOP139 d1
-NOP140 d1
-NOP141 d1
-NOP142 d1
-NOP143 d1
-NOP144 d1
-NOP145 d1
-NOP146 d1
-NOP147 d1
-NOP148 d1
-NOP149 d1
-NOP150 d1
-NOP151 d1
-NOP152 d1
-NOP153 d1
-NOP154 d1
-NOP155 d1
-NOP156 d1
-NOP157 d1
-NOP158 d1
-NOP159 d1
-NOP160 d1
-NOP161 d1
-NOP162 d1
-NOP163 d1
-NOP164 d1
-NOP165 d1
-NOP166 d1
-NOP167 d1
-NOP168 d1
-NOP169 d1
-NOP170 d1
-NOP171 d1
-NOP172 d1
-NOP173 d1
-NOP174 d1
-NOP175 d1
-NOP176 d1
-NOP177 d1
-NOP178 d1
-NOP179 d1
-NOP180 d1
-NOP181 d1
-NOP182 d1
-NOP183 d1
-NOP184 d1
-NOP185 d1
-NOP186 d1
-NOP187 d1
-NOP188 d1
-NOP189 d1
-NOP190 d1
-NOP191 d1
-NOP192 d1
-NOP193 d1
-NOP194 d1
-NOP195 d1
-NOP196 d1
-NOP197 d1
-NOP198 d1
-NOP199 d1
-NOP200 d1
-NOP201 d1
-NOP202 d1
-NOP203 d1
-NOP204 d1
-NOP205 d1
-NOP206 d1
-NOP207 d1
-NOP208 d1
-NOP209 d1
-NOP210 d1
-NOP211 d1
-NOP212 d1
-NOP213 d1
-NOP214 d1
-NOP215 d1
-NOP216 d1
-NOP217 d1
-NOP218 d1
-NOP219 d1
-NOP220 d1
-NOP221 d1
-NOP222 d1
-NOP223 d1
-NOP224 d1
-NOP225 d1
-NOP226 d1
-NOP227 d1
-NOP228 d1
-NOP229 d1
-NOP230 d1
-NOP231 d1
-NOP232 d1
-NOP233 d1
-NOP234 d1
-NOP235 d1
-NOP236 d1
-NOP237 d1
-NOP238 d1
-NOP239 d1
-NOP240 d1
-NOP241 d1
-NOP242 d1
-NOP243 d1
-NOP244 d1
-NOP245 d1
-NOP246 d1
-NOP247 d1
-NOP248 d1
-NOP249 d1
-NOP250 d1
-NOP251 d1
-NOP252 d1
-NOP253 d1
-NOP254 d1
-NOP255 d1
+cms x00 d2 d2
+cmsv x00 d2 d3
+sign x00
+sign_queue
+check_sig_queue
+derive_scalar
+clamp_scalar d1
+add_scalars d3
+subtract_scalars d2
+derive_point
+subtract_points d4
+make_adapter_sig_public
+make_adapter_sig_private
+check_adapter_sig
+decrypt_adapter_sig
+invoke
+xor
+or
+and
+get_message x00
+nop90 d1
+nop91 d1
+nop92 d1
+nop93 d1
+nop94 d1
+nop95 d1
+nop96 d1
+nop97 d1
+nop98 d1
+nop99 d1
+nop100 d1
+nop101 d1
+nop102 d1
+nop103 d1
+nop104 d1
+nop105 d1
+nop106 d1
+nop107 d1
+nop108 d1
+nop109 d1
+nop110 d1
+nop111 d1
+nop112 d1
+nop113 d1
+nop114 d1
+nop115 d1
+nop116 d1
+nop117 d1
+nop118 d1
+nop119 d1
+nop120 d1
+nop121 d1
+nop122 d1
+nop123 d1
+nop124 d1
+nop125 d1
+nop126 d1
+nop127 d1
+nop128 d1
+nop129 d1
+nop130 d1
+nop131 d1
+nop132 d1
+nop133 d1
+nop134 d1
+nop135 d1
+nop136 d1
+nop137 d1
+nop138 d1
+nop139 d1
+nop140 d1
+nop141 d1
+nop142 d1
+nop143 d1
+nop144 d1
+nop145 d1
+nop146 d1
+nop147 d1
+nop148 d1
+nop149 d1
+nop150 d1
+nop151 d1
+nop152 d1
+nop153 d1
+nop154 d1
+nop155 d1
+nop156 d1
+nop157 d1
+nop158 d1
+nop159 d1
+nop160 d1
+nop161 d1
+nop162 d1
+nop163 d1
+nop164 d1
+nop165 d1
+nop166 d1
+nop167 d1
+nop168 d1
+nop169 d1
+nop170 d1
+nop171 d1
+nop172 d1
+nop173 d1
+nop174 d1
+nop175 d1
+nop176 d1
+nop177 d1
+nop178 d1
+nop179 d1
+nop180 d1
+nop181 d1
+nop182 d1
+nop183 d1
+nop184 d1
+nop185 d1
+nop186 d1
+nop187 d1
+nop188 d1
+nop189 d1
+nop190 d1
+nop191 d1
+nop192 d1
+nop193 d1
+nop194 d1
+nop195 d1
+nop196 d1
+nop197 d1
+nop198 d1
+nop199 d1
+nop200 d1
+nop201 d1
+nop202 d1
+nop203 d1
+nop204 d1
+nop205 d1
+nop206 d1
+nop207 d1
+nop208 d1
+nop209 d1
+nop210 d1
+nop211 d1
+nop212 d1
+nop213 d1
+nop214 d1
+nop215 d1
+nop216 d1
+nop217 d1
+nop218 d1
+nop219 d1
+nop220 d1
+nop221 d1
+nop222 d1
+nop223 d1
+nop224 d1
+nop225 d1
+nop226 d1
+nop227 d1
+nop228 d1
+nop229 d1
+nop230 d1
+nop231 d1
+nop232 d1
+nop233 d1
+nop234 d1
+nop235 d1
+nop236 d1
+nop237 d1
+nop238 d1
+nop239 d1
+nop240 d1
+nop241 d1
+nop242 d1
+nop243 d1
+nop244 d1
+nop245 d1
+nop246 d1
+nop247 d1
+nop248 d1
+nop249 d1
+nop250 d1
+nop251 d1
+nop252 d1
+nop253 d1
+nop254 d1
+nop255 d1

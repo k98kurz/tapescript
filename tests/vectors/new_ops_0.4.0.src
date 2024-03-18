@@ -1,32 +1,32 @@
-OP_LESS
-OP_LESS_OR_EQUAL
-OP_GET_VALUE s"test"
-OP_FLOAT_LESS
-OP_FLOAT_LESS_OR_EQUAL
-OP_INT_TO_FLOAT
-OP_FLOAT_TO_INT
-OP_LOOP
+less
+less_or_equal
+get_value s"test"
+float_less
+float_less_or_equal
+int_to_float
+float_to_int
+loop
     " comment "
-    OP_PUSH d1
-    OP_SUBTRACT_INTS d2
-END_LOOP
-OP_CHECK_MULTISIG x00 d2 d2
-OP_CHECK_MULTISIG_VERIFY x00 d2 d3
-OP_SIGN xdd
-OP_SIGN_QUEUE
-OP_CHECK_SIG_QUEUE
-OP_DERIVE_SCALAR
-OP_CLAMP_SCALAR d1
-OP_ADD_SCALARS d3
-OP_SUBTRACT_SCALARS d2
-OP_DERIVE_POINT
-OP_SUBTRACT_POINTS d4
-OP_MAKE_ADAPTER_SIG_PUBLIC
-OP_MAKE_ADAPTER_SIG_PRIVATE
-OP_CHECK_ADAPTER_SIG
-OP_DECRYPT_ADAPTER_SIG
-OP_INVOKE
-OP_XOR
-OP_OR
-OP_AND
-OP_GET_MESSAGE x00
+    push d1
+    subtract_ints d2
+end_loop
+check_multisig x00 d2 d2
+check_multisig_verify x00 d2 d3
+sign xdd
+sign_queue
+check_sig_queue
+derive_scalar
+clamp_scalar d1
+add_scalars d3
+subtract_scalars d2
+derive_point
+subtract_points d4
+make_adapter_sig_public
+make_adapter_sig_private
+check_adapter_sig
+decrypt_adapter_sig
+invoke
+xor
+or
+and
+get_message x00

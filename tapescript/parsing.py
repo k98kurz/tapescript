@@ -14,6 +14,14 @@ from typing import Any, Callable
 import struct
 
 
+def is_hex(s: str) -> bool:
+    """Checks if a string is made of valid hexadecimal chars."""
+    try:
+        bytes.fromhex(f'0{s}' if len(s) % 2 else s)
+        return True
+    except:
+        return False
+
 def get_symbols(script: str) -> list[str]:
     """Split the script source into symbols."""
     splits = [s for s in script.split()]
@@ -37,6 +45,12 @@ def get_symbols(script: str) -> list[str]:
             symbols.append(token)
         elif token[0] not in ('s', 'd', 'x', '!', '@') and (
             len(symbols) == 0 or symbols[-1] not in ('!=', '@=')):
+            symbols.append(token.upper())
+        elif token[0] == 'd' and not token[1:].isnumeric():
+            symbols.append(token.upper())
+        elif token[0] == 'x' and not is_hex(token[1:]):
+            symbols.append(token.upper())
+        elif token[0] == 's' and token[1] not in ('"', "'"):
             symbols.append(token.upper())
         else:
             symbols.append(token)
