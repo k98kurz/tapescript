@@ -1878,9 +1878,9 @@ class TestFunctions(unittest.TestCase):
             functions.derive_key_from_seed(token_bytes(32))
         )
         m = b'hello world'
+        self.queue.put(seed)
         self.queue.put(m)
         self.queue.put(T)
-        self.queue.put(seed)
         functions.set_tape_flags(self.tape)
         functions.OP_MAKE_ADAPTER_SIG_PUBLIC(self.tape, self.queue, self.cache)
         assert b'T' in self.cache
@@ -1942,9 +1942,9 @@ class TestFunctions(unittest.TestCase):
         )
         X = bytes(SigningKey(seed).verify_key)
         m = b'hello world'
+        self.queue.put(seed)
         self.queue.put(m)
         self.queue.put(T)
-        self.queue.put(seed)
         functions.OP_MAKE_ADAPTER_SIG_PUBLIC(self.tape, self.queue, self.cache)
         assert self.queue.qsize() == 2
         sa = self.queue.get(False)
@@ -1977,9 +1977,9 @@ class TestFunctions(unittest.TestCase):
         T = functions.derive_point_from_scalar(t)
         X = bytes(SigningKey(seed1).verify_key)
         m = b'hello world'
+        self.queue.put(seed1)
         self.queue.put(m)
         self.queue.put(T)
-        self.queue.put(seed1)
         functions.set_tape_flags(self.tape)
         functions.OP_MAKE_ADAPTER_SIG_PUBLIC(self.tape, self.queue, self.cache)
         assert self.queue.qsize() == 2

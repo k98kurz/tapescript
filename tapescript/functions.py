@@ -63,7 +63,7 @@ def float_to_bytes(number: float) -> bytes:
     return struct.pack('!f', number)
 
 def clamp_scalar(scalar: bytes, from_private_key: bool = False) -> bytes:
-    """Make a clamped scalar."""
+    """Make a clamped ed25519 scalar by setting specific bits."""
     if type(scalar) is bytes and len(scalar) >= 32:
         x_i = bytearray(scalar[:32])
     elif type(scalar) is SigningKey:
@@ -1356,9 +1356,9 @@ def OP_MAKE_ADAPTER_SIG_PUBLIC(tape: Tape, queue: LifoQueue, cache: dict) -> Non
         cache keys b'R' to R, b'T' to T, and b'sa' to sa if allowed by
         tape.flags (can be used in code with @R, @T, and @sa).
     """
-    seed = queue.get(False)
     T = queue.get(False)
     m = queue.get(False)
+    seed = queue.get(False)
     x = derive_key_from_seed(seed)
     X = nacl.bindings.crypto_scalarmult_ed25519_base_noclamp(x) # G^x
     nonce = H_big(seed)[32:]
