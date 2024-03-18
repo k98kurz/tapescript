@@ -1421,15 +1421,15 @@ def OP_MAKE_ADAPTER_SIG_PRIVATE(tape: Tape, queue: LifoQueue, cache: dict) -> No
     queue.put(sa)
 
 def OP_CHECK_ADAPTER_SIG(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Takes public key X, tweak point T, nonce point R, signature
-        adapter sa, and message m from the queue; puts True onto queue
+    """Takes public key X, tweak point T, message m, nonce point R, and
+        signature adapter sa from the queue; puts True onto queue
         if the signature adapter is valid and False otherwise.
     """
     X = queue.get(False)
     T = queue.get(False)
+    m = queue.get(False)
     R = queue.get(False)
     sa = queue.get(False)
-    m = queue.get(False)
     sa_G = nacl.bindings.crypto_scalarmult_ed25519_base_noclamp(sa) # sa_G = G^sa
     RT = aggregate_points((R, T)) # R + T
     ca = clamp_scalar(H_small(RT, X, m)) # H(R + T || X || m)

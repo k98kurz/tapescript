@@ -458,17 +458,17 @@ message `m` from the queue; derives prvkey scalar `x` from `seed1`; derives
 tweak scalar `t` from `seed2`; derives pubkey `X` from `x`; derives private
 nonce `r` from `seed1` and `m`; derives public nonce point `R` from `r`; derives
 public tweak point `T` from `t`; creates signature adapter `sa`; puts `T`, `R`,
-and `sa` onto queue; sets cache keys b't' to `t` if `tape.flags[]`, b'T' to `T`, b'R' to `R`, and
-b'sa' to sa if allowed by tape.flags (can be used in code with
+and `sa` onto queue; sets cache keys b't' to `t` if `tape.flags[]`, b'T' to `T`,
+b'R' to `R`, and b'sa' to sa if allowed by tape.flags (can be used in code with
 @t, @T, @R, and @sa). Values seed1 and seed2 should be 32 bytes
 each. Values T, R, and sa are all public 32 byte values and
 necessary for verification; t is used to decrypt the signature.
-- `OP_CHECK_ADAPTER_SIG` - takes public key `X`, tweak point `T`, nonce point
-`R`, signature adapter `sa`, and message `m` from the queue; puts `True` onto
-the queue if the signature adapter is valid and `False` otherwise.
+- `OP_CHECK_ADAPTER_SIG` - takes public key `X`, tweak point `T`, message `m`,
+nonce point `R`, and signature adapter `sa` from the queue; puts `True` onto the
+queue if the signature adapter is valid and `False` otherwise.
 - `OP_DECRYPT_ADAPTER_SIG` - takes tweak `seed`, nonce point `R`, and signature
-adapter `sa` from queue; calculates nonce `RT`; decrypts signature `s` from `sa`; puts
-`RT` onto the queue; puts `s` onto queue; sets cache keys b's' to `s` if
+adapter `sa` from queue; calculates nonce `RT`; decrypts signature `s` from `sa`;
+puts `RT` onto the queue; puts `s` onto queue; sets cache keys b's' to `s` if
 `tape.flags[9]` and b'RT' to `RT` if `tape.flags[7]` (can be used in code with
 @s and @RT).
 - `OP_INVOKE` - takes an item from the queue as a contract ID; takes a uint from

@@ -1926,9 +1926,9 @@ class TestFunctions(unittest.TestCase):
         X = functions.derive_point_from_scalar(
             functions.derive_key_from_seed(token_bytes(32))
         )
-        self.queue.put(m)
         self.queue.put(sa)
         self.queue.put(R)
+        self.queue.put(m)
         self.queue.put(T)
         self.queue.put(X)
         functions.OP_CHECK_ADAPTER_SIG(self.tape, self.queue, self.cache)
@@ -1951,9 +1951,9 @@ class TestFunctions(unittest.TestCase):
         R = self.queue.get(False)
 
         # positive case
-        self.queue.put(m)
         self.queue.put(sa)
         self.queue.put(R)
+        self.queue.put(m)
         self.queue.put(T)
         self.queue.put(X)
         functions.OP_CHECK_ADAPTER_SIG(self.tape, self.queue, self.cache)
@@ -1961,9 +1961,9 @@ class TestFunctions(unittest.TestCase):
         assert self.queue.get(False) == b'\x01'
 
         # negative case
-        self.queue.put(m + b'qws')
         self.queue.put(sa)
         self.queue.put(R)
+        self.queue.put(m + b'qws')
         self.queue.put(T)
         self.queue.put(X)
         functions.OP_CHECK_ADAPTER_SIG(self.tape, self.queue, self.cache)
