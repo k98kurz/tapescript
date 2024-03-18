@@ -1437,16 +1437,15 @@ def OP_CHECK_ADAPTER_SIG(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     queue.put(b'\x01' if bytes_are_same(sa_G, RcaX) else b'\x00')
 
 def OP_DECRYPT_ADAPTER_SIG(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Takes tweak seed, nonce point R, and signature adapter sa from
-        queue; calculates nonce RT; decrypts signature s from sa; puts
-        RT onto the queue; puts s onto queue; sets cache keys b's' to s
-        if tape.flags[9] and b'RT' to RT if tape.flags[7] (can be used
-        in code with @s and @RT).
+    """Takes tweak scalar t, nonce point R, and signature adapter sa
+        from queue; calculates nonce RT; decrypts signature s from sa;
+        puts RT onto the queue; puts s onto queue; sets cache keys b's'
+        to s if tape.flags[9] and b'RT' to RT if tape.flags[7] (can be
+        used in code with @s and @RT).
     """
-    seed = queue.get(False)
+    t = clamp_scalar(queue.get(False))
     R = queue.get(False)
     sa = queue.get(False)
-    t = derive_key_from_seed(seed)
     T = derive_point_from_scalar(t)
     RT = aggregate_points((R, T)) # R + T
     s = nacl.bindings.crypto_core_ed25519_scalar_add(sa, t) # s = sa + t

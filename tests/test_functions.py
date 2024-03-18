@@ -1973,7 +1973,7 @@ class TestFunctions(unittest.TestCase):
     def test_OP_MAKE_ADAPTER_SIG_and_OP_DECRYPT_ADAPTER_SIG_e2e(self):
         seed1 = token_bytes(32)
         seed2 = token_bytes(32)
-        t = functions.derive_key_from_seed(seed2)
+        t = functions.clamp_scalar(seed2)
         T = functions.derive_point_from_scalar(t)
         X = bytes(SigningKey(seed1).verify_key)
         m = b'hello world'
