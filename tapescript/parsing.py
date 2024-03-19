@@ -43,8 +43,7 @@ def get_symbols(script: str) -> list[str]:
             yert(found, 'unterminated string encountered')
             token = ' '.join(parts)
             symbols.append(token)
-        elif token[0] not in ('s', 'd', 'x', '!', '@') and (
-            len(symbols) == 0 or symbols[-1] not in ('!=', '@=')):
+        elif token[0] not in ('s', 'd', 'x', '!', '@'):
             symbols.append(token.upper())
         elif token[0] == 'd' and not token[1:].isnumeric():
             symbols.append(token.upper())
@@ -52,6 +51,9 @@ def get_symbols(script: str) -> list[str]:
             symbols.append(token.upper())
         elif token[0] == 's' and token[1] not in ('"', "'"):
             symbols.append(token.upper())
+        elif token[:2] in ('@=', '!='):
+            symbols.append(token)
+            symbols.append(splits.pop())
         else:
             symbols.append(token)
 

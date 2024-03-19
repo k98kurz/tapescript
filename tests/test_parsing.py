@@ -398,7 +398,9 @@ class TestParsing(unittest.TestCase):
             'p2sh_unlocking_script_decompiled.src': 'p2sh_unlocking_script.hex',
             'omega_e2e_decompiled.src': 'omega_e2e.hex',
             'branching_e2e_decompiled.src': 'branching_e2e.hex',
+            'macros_and_variables_decompiled.src': 'macros_and_variables.hex',
             'new_if_hoist_syntax_0.4.0_decompiled.src': 'new_if_hoist_syntax_0.4.0.hex',
+            'new_ops_0.4.0_decompiled.src': 'new_ops_0.4.0.hex',
         }
         vectors = {}
         names = {}
