@@ -272,7 +272,7 @@ def make_single_sig_lock(pubkey: bytes, sigflags: str = '00') -> str:
     """
     return f'push x{pubkey.hex()} check_sig x{sigflags}'
 
-def make_single_sig_unlock(
+def make_single_sig_witness(
         prvkey: bytes, sigfields: dict[str, bytes], sigflags: str = '00',
         contracts: dict = {}) -> str:
     """Make an unlocking script that validates for a single sig locking
@@ -285,6 +285,20 @@ def make_single_sig_unlock(
     )
     s = queue.get(False)
     return f'push x{s.hex()}{sigflags}'
+
+def make_multisig_lock(
+        pubkeys: list[bytes], quorum_size: int, sigflags: str = '00') -> str:
+    """Make a locking script that requires quorum_size valid signatures
+        from unique keys within the pubkeys list. Returns tapescript
+        source code. Can be unlocked by joining the results of
+        quorum_size calls to make_single_sig_witness by different key
+        holders.
+    """
+    src = ''
+    for pk in pubkeys:
+        src += f'push x{pk.hex()}\n'
+    src += f'check_multisig x{sigflags} d{quorum_size} d{len(pubkeys)}'
+    return src
 
 def make_adapter_locks_pub(
         pubkey: bytes, tweak_point: bytes, sigflags: str = '00') -> tuple[str]:
@@ -303,8 +317,7 @@ def make_adapter_locks_pub(
     '''
     script2 = f'''
         # required push by unlocking script: decrypted signature #
-        push x{pubkey.hex()}
-        check_sig x{sigflags}
+        {make_single_sig_lock(pubkey, sigflags)}
     '''
     return (script1, script2)
 
