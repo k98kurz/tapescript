@@ -3,11 +3,26 @@ from context import errors
 from context import functions
 from context import parsing
 from context import tools
+from nacl.signing import SigningKey, VerifyKey
 from queue import LifoQueue
+from secrets import token_bytes
+import nacl.bindings
 import unittest
 
 
 class TestTools(unittest.TestCase):
+    prvkeyA: SigningKey
+    prvkeyB: SigningKey
+    pubkeyA: VerifyKey
+    pubkeyB: VerifyKey
+
+    def setUp(self) -> None:
+        self.prvkeyA = SigningKey(b'yellow submarine is extra yellow')
+        self.pubkeyA = self.prvkeyA.verify_key
+        self.prvkeyB = SigningKey(b'submarine such yellow extra very')
+        self.pubkeyB = self.prvkeyB.verify_key
+        return super().setUp()
+
     @classmethod
     def setUpClass(cls) -> None:
         cls.original_opcodes = {**functions.opcodes}
@@ -234,6 +249,108 @@ class TestTools(unittest.TestCase):
             assert functions.run_auth_script(branch)
             branch = bad_unlocking_scripts[i] + bad_locking_script + locking_script_old
             assert not functions.run_auth_script(branch)
+
+    def test_make_adapter_locks_prv_and_make_adapter_witness_e2e(self):
+        # setup lock and decrypt scripts
+        tweak = token_bytes(32)
+        scripts = tools.make_adapter_locks_prv(bytes(self.pubkeyA), tweak)
+        assert type(scripts) in (list, tuple) and len(scripts) == 3
+        script1_src, script2_src, script3_src = scripts
+        verify_adapter_lock = parsing.compile_script(script1_src)
+        decrypt_adapter_script = parsing.compile_script(script2_src)
+        check_sig_lock = parsing.compile_script(script3_src)
+        # make_adapter_locks_prv calls make_adapter_locks_pub under the hood,
+        # so this counts as testing both
+
+        # setup adapter witness
+        sigfields = {
+            'sigfield1': b'hello world',
+            'sigfield2': b'pay Bob 2 btc pls',
+        }
+        tweak_point = functions.derive_point_from_scalar(
+            functions.clamp_scalar(tweak)
+        )
+        witness_src = tools.make_adapter_witness(
+            bytes(self.prvkeyA),
+            tweak_point,
+            sigfields
+        )
+        witness = tools.compile_script(witness_src)
+
+        # run witness script
+        _, queue, _ = functions.run_script(witness, sigfields)
+        assert queue.qsize() == 2
+        R = queue.get(False)
+        sa = queue.get(False)
+        assert nacl.bindings.crypto_core_ed25519_is_valid_point(R)
+        assert len(sa) == 32
+
+        # verify adapter witness with adapter verification script
+        assert functions.run_auth_script(
+            witness + verify_adapter_lock,
+            sigfields
+        )
+
+        # decrypt signature from witness
+        _, queue, _ = functions.run_script(
+            witness + decrypt_adapter_script,
+            sigfields
+        )
+        assert queue.qsize() == 2
+        RT = queue.get(False)
+        s = queue.get(False)
+
+        # check the signature with the check_sig auth script
+        assert functions.run_auth_script(
+            parsing.compile_script(f'push x{(RT+s).hex()}') + check_sig_lock,
+            sigfields
+        )
+
+        # decrypt and check sig in one shot
+        assert functions.run_auth_script(
+            witness + decrypt_adapter_script + parsing.compile_script('concat') +
+            check_sig_lock,
+            sigfields
+        )
+
+    def test_make_adapter_lock_prv_and_make_adapter_witness_e2e(self):
+        # setup lock and decrypt scripts
+        tweak = token_bytes(32)
+        script = tools.make_adapter_lock_prv(bytes(self.pubkeyA), tweak)
+        lock = parsing.compile_script(script)
+        # make_adapter_lock_prv calls make_adapter_lock_pub under the hood,
+        # so this counts as testing both
+
+        # setup adapter witness
+        sigfields = {
+            'sigfield1': b'hello world',
+            'sigfield2': b'pay Bob 2 btc pls',
+        }
+        tweak_point = functions.derive_point_from_scalar(
+            functions.clamp_scalar(tweak)
+        )
+        witness_src = tools.make_adapter_witness(
+            bytes(self.prvkeyA),
+            tweak_point,
+            {**sigfields}
+        )
+        witness = tools.compile_script(f'push x{tweak.hex()} {witness_src}')
+
+        # run witness script
+        _, queue, _ = functions.run_script(witness, {**sigfields})
+        assert queue.qsize() == 3
+        R = queue.get(False)
+        sa = queue.get(False)
+        t = queue.get(False)
+        assert nacl.bindings.crypto_core_ed25519_is_valid_point(R)
+        assert len(sa) == 32
+        assert t == tweak
+
+        # run combined auth script
+        assert functions.run_auth_script(
+            witness + lock,
+            {**sigfields}
+        )
 
 
 if __name__ == '__main__':

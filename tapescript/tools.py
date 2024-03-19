@@ -15,7 +15,9 @@ from .functions import (
     add_contract,
     remove_contract,
     add_contract_interface,
-    remove_contract_interface
+    remove_contract_interface,
+    clamp_scalar,
+    derive_point_from_scalar,
 )
 from hashlib import sha256
 from typing import Callable
@@ -225,3 +227,129 @@ def add_soft_fork(code: int, name: str, op: Callable) -> None:
 
     add_opcode(code, name, op)
     add_opcode_parsing_handlers(name, compiler_handler, decompiler_handler)
+
+def make_adapter_lock_pub(
+        pubkey: bytes, tweak_point: bytes, sigflags: str = '00') -> str:
+    """Make an adapter locking script that verifies a sig adapter,
+        decrypts it, and then verifies the decrypted signature.
+    """
+    return f'''
+        # required push by unlocking script: tweak scalar t #
+        # required push by unlocking script: signature adapter sa #
+        # required push by unlocking script: nonce point R #
+        @= R 1
+        @= sa 1
+        @= t 1
+
+        # verify adapter sig #
+        @sa @R
+        get_message x{sigflags}
+        push x{tweak_point.hex()}
+        push x{pubkey.hex()}
+        check_adapter_sig verify
+
+        # decrypt adapter sig #
+        @sa @R @t decrypt_adapter_sig
+        concat
+
+        # check sig #
+        push x{pubkey.hex()}
+        check_sig x{sigflags}
+    '''
+
+def make_adapter_lock_prv(
+        pubkey: bytes, tweak: bytes, sigflags: str = '00') -> str:
+    """Make an adapter locking script that verifies a sig adapter,
+        decrypts it, and then verifies the decrypted signature.
+    """
+    t = clamp_scalar(tweak)
+    T = derive_point_from_scalar(t)
+    return make_adapter_lock_pub(pubkey, T, sigflags)
+
+def make_single_sig_lock(pubkey: bytes, sigflags: str = '00') -> str:
+    """Make a locking script that requires a valid signature from a
+        single key to unlock. Returns tapescript source code.
+    """
+    return f'push x{pubkey.hex()} check_sig x{sigflags}'
+
+def make_single_sig_unlock(
+        prvkey: bytes, sigfields: dict[str, bytes], sigflags: str = '00',
+        contracts: dict = {}) -> str:
+    """Make an unlocking script that validates for a single sig locking
+        script by signing the sigfields. Returns tapescript source code.
+    """
+    _, queue, _ = run_script(
+        compile_script(f'push x{prvkey.hex()} sign x{sigflags}'),
+        {**sigfields},
+        {**contracts}
+    )
+    s = queue.get(False)
+    return f'push x{s.hex()}{sigflags}'
+
+def make_adapter_locks_pub(
+        pubkey: bytes, tweak_point: bytes, sigflags: str = '00') -> tuple[str]:
+    """Make adapter locking scripts using a public key and a tweak
+        scalar. Returns the source for 2 tapescripts: one that checks if
+        a sig adapter is valid, and one that verifies the decrypted
+        signature.
+    """
+    script1 = f'''
+        # required push by unlocking script: signature adapter sa #
+        # required push by unlocking script: nonce point R #
+        get_message x{sigflags}
+        push x{tweak_point.hex()}
+        push x{pubkey.hex()}
+        check_adapter_sig
+    '''
+    script2 = f'''
+        # required push by unlocking script: decrypted signature #
+        push x{pubkey.hex()}
+        check_sig x{sigflags}
+    '''
+    return (script1, script2)
+
+def make_adapter_locks_prv(
+        pubkey: bytes, tweak: bytes, sigflags: str = '00') -> tuple[str]:
+    """Make adapter locking scripts using a public key and a tweak
+        scalar. Returns the source for 3 tapescripts: one that checks if
+        a sig adapter is valid, one that decrypts the signature, and one
+        that verifies the decrypted signature.
+    """
+    t = clamp_scalar(tweak)
+    T = derive_point_from_scalar(t)
+    script1, script3 = make_adapter_locks_pub(pubkey, T, sigflags)
+    script2 = f'''
+        push x{t.hex()}
+        decrypt_adapter_sig
+    '''
+    return (script1, script2, script3)
+
+def make_adapter_witness(
+        prvkey: bytes, tweak_point: bytes, sigfields: dict,
+        sigflags: str = '00', contracts: dict[bytes, object] = {}) -> str:
+    """Make an adapter signature witness using a private key and a tweak
+        point. Returns tapescript src code.
+    """
+    assert 'sigfield1' in sigfields or 'sigfield2' in sigfields or \
+        'sigfield3' in sigfields or 'sigfield4' in sigfields or \
+        'sigfield5' in sigfields or 'sigfield6' in sigfields or \
+        'sigfield7' in sigfields or 'sigfield8' in sigfields, \
+        'at least one sigfield[1-8] must be included'
+
+    _, queue, _ = run_script(
+        compile_script(f'''
+            push x{prvkey.hex()}
+            get_message x{sigflags}
+            push x{tweak_point.hex()}
+            make_adapter_sig_public
+        '''),
+        {**sigfields},
+        {**contracts}
+    )
+    sa = queue.get(False)
+    R = queue.get(False)
+
+    return f'''
+        push x{sa.hex()}
+        push x{R.hex()}
+    '''
