@@ -6,6 +6,7 @@ from context import tools
 from nacl.signing import SigningKey, VerifyKey
 from queue import LifoQueue
 from secrets import token_bytes
+from time import time
 import nacl.bindings
 import unittest
 
@@ -379,6 +380,101 @@ class TestTools(unittest.TestCase):
 
         # run e2e
         assert functions.run_auth_script(unlock + lock, {**sigfields})
+
+    def test_make_delegate_key_lock_e2e(self):
+        lock_src = tools.make_delegate_key_lock(bytes(self.pubkeyA))
+        lock = parsing.compile_script(lock_src)
+
+        begin_ts = int(time()) - 120
+        end_ts = int(time()) + 120
+        cert_sig = tools.make_delegate_key_cert_sig(
+            bytes(self.prvkeyA), bytes(self.pubkeyB), begin_ts, end_ts
+        )
+        assert type(cert_sig) is bytes
+        assert len(cert_sig) == 64
+
+        cache = {'sigfield1': b'hello world'}
+
+        unlock_src = tools.make_delegate_key_unlock(
+            bytes(self.prvkeyB), bytes(self.pubkeyB), begin_ts, end_ts,
+            cert_sig, cache
+        )
+        unlock = parsing.compile_script(unlock_src)
+
+        # run e2e
+        assert functions.run_auth_script(unlock + lock, cache)
+
+    def test_mke_htlc_sha256_lock_e2e(self):
+        preimage = token_bytes(16)
+        sigfields = {'sigfield1': b'hello world'}
+        # NB: ts_threshold is 60, preventing timestamps >60s into future from verifying
+        timeout = 30
+        lock_src = tools.make_htlc_sha256_lock(
+            receiver_pubkey=bytes(self.pubkeyB),
+            preimage=preimage,
+            refund_pubkey=bytes(self.pubkeyA),
+            timeout=timeout
+        )
+        lock = parsing.compile_script(lock_src)
+
+        hash_unlock_src = tools.make_htlc_witness(
+            prvkey=bytes(self.prvkeyB),
+            preimage=preimage,
+            sigfields=sigfields
+        )
+        hash_unlock = parsing.compile_script(hash_unlock_src)
+        refund_unlock_src = tools.make_htlc_witness(
+            bytes(self.prvkeyA), b'refund', sigfields
+        )
+        refund_unlock = parsing.compile_script(refund_unlock_src)
+
+        # test that the refund will not work yet
+        assert not functions.run_auth_script(refund_unlock + lock, sigfields)
+
+        # test that the main path works
+        assert functions.run_auth_script(hash_unlock + lock, sigfields)
+
+        # test that the refund will work if the timestamp is past the timeout
+        assert functions.run_auth_script(
+            refund_unlock + lock,
+            {**sigfields, 'timestamp': int(time()) + timeout + 1}
+        )
+
+    def test_mke_htlc_sha256_lock_e2e(self):
+        preimage = token_bytes(16)
+        sigfields = {'sigfield1': b'hello world'}
+        # NB: ts_threshold is 60, preventing timestamps >60s into future from verifying
+        timeout = 30
+        lock_src = tools.make_htlc_shake256_lock(
+            receiver_pubkey=bytes(self.pubkeyB),
+            preimage=preimage,
+            refund_pubkey=bytes(self.pubkeyA),
+            timeout=timeout
+        )
+        lock = parsing.compile_script(lock_src)
+
+        hash_unlock_src = tools.make_htlc_witness(
+            prvkey=bytes(self.prvkeyB),
+            preimage=preimage,
+            sigfields=sigfields
+        )
+        hash_unlock = parsing.compile_script(hash_unlock_src)
+        refund_unlock_src = tools.make_htlc_witness(
+            bytes(self.prvkeyA), b'refund', sigfields
+        )
+        refund_unlock = parsing.compile_script(refund_unlock_src)
+
+        # test that the refund will not work yet
+        assert not functions.run_auth_script(refund_unlock + lock, sigfields)
+
+        # test that the main path works
+        assert functions.run_auth_script(hash_unlock + lock, sigfields)
+
+        # test that the refund will work if the timestamp is past the timeout
+        assert functions.run_auth_script(
+            refund_unlock + lock,
+            {**sigfields, 'timestamp': int(time()) + timeout + 1}
+        )
 
 
 if __name__ == '__main__':

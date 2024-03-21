@@ -1,5 +1,6 @@
+from .AMHL import AMHL
 from .classes import Tape
-from .errors import tert, vert, sert, yert
+from .errors import tert, vert, yert
 from .parsing import (
     compile_script,
     decompile_script,
@@ -19,7 +20,8 @@ from .functions import (
     clamp_scalar,
     derive_point_from_scalar,
 )
-from hashlib import sha256
+from hashlib import sha256, shake_256
+from time import time
 from typing import Callable
 
 
@@ -365,4 +367,130 @@ def make_adapter_witness(
     return f'''
         push x{sa.hex()}
         push x{R.hex()}
+    '''
+
+def make_delegate_key_lock(root_pubkey: bytes, sigflags: str = '00') -> str:
+    """Takes a root_pubkey and returns the tapescript source for a
+        locking script that is unlocked with a signature from the
+        delegate key, the delegated public key, and a certificate from
+        the root key committing to the delegate public key and validity
+        time constraints.
+    """
+    return f'''
+        # required push: signature from delegate key #
+        # required push: delegate public key #
+        # required push: delegation begin ts #
+        # required push: delegation expiry ts #
+        # required push: signature from root key #
+        @= crt 1
+        @= exp 1
+        @= bgn 1
+        @= dpk 1
+        @= sig 1
+
+        # prove the timestamp is within the cert bounds #
+        @exp val s"timestamp" less verify
+        val s"timestamp" @bgn less verify
+
+        # cert form: delegate key + begin ts + expiry #
+        @exp @bgn concat @dpk concat
+        @crt push x{root_pubkey.hex()} check_sig_queue verify
+
+        @sig @dpk check_sig x{sigflags}
+    '''
+
+def make_delegate_key_cert_sig(
+        root_skey: bytes, delegate_pubkey: bytes, begin_ts: int, end_ts: int
+    ) -> bytes:
+    """Returns a signature for a key delegation cert."""
+    _, queue, _ = run_script(compile_script(f'''
+        push d{end_ts} push d{begin_ts} concat
+        push x{delegate_pubkey.hex()} concat
+        push x{root_skey.hex()} sign_queue
+    '''))
+    assert queue.qsize() == 1
+    return queue.get(False)
+
+def make_delegate_key_unlock(
+        prvkey: bytes, pubkey: bytes, begin_ts: int, end_ts: int,
+        cert_sig: bytes, sigfields: dict, sigflags: str = '00'
+    ) -> str:
+    _, queue, _ = run_script(
+        compile_script(f'push x{prvkey.hex()} sign x{sigflags}'),
+        sigfields
+    )
+    assert queue.qsize() == 1
+    sig = queue.get(False)
+    return f'''
+        push x{sig.hex()}
+        push x{pubkey.hex()}
+        push d{begin_ts}
+        push d{end_ts}
+        push x{cert_sig.hex()}
+    '''
+
+def make_htlc_sha256_lock(
+        receiver_pubkey: bytes, preimage: bytes, refund_pubkey: bytes,
+        timeout: int = 60*60*24, sigflags: str = '00') -> str:
+    """Returns an HTLC that can be unlocked either with the preimage and
+        a signature matching receiver_pubkey or with a signature
+        matching the refund_pubkey after the timeout has expired.
+        Suitable only for systems with guaranteed causal ordering and
+        non-repudiation of transactions.
+    """
+    return f'''
+        sha256
+        push x{sha256(preimage).digest().hex()}
+        equal
+        if {{
+            push x{receiver_pubkey.hex()}
+            check_sig x{sigflags}
+        }} else {{
+            push d{int(time())+timeout}
+            check_timestamp_verify
+            push x{refund_pubkey.hex()}
+            check_sig x{sigflags}
+        }}
+    '''
+
+def make_htlc_shake256_lock(
+        receiver_pubkey: bytes, preimage: bytes, refund_pubkey: bytes,
+        hash_size: int = 20, timeout: int = 60*60*24, sigflags: str = '00') -> str:
+    """Returns an HTLC that can be unlocked either with the preimage and
+        a signature matching receiver_pubkey or with a signature
+        matching the refund_pubkey after the timeout has expired.
+        Suitable only for systems with guaranteed causal ordering and
+        non-repudiation of transactions. Using a hash_size of 20 saves
+        11 bytes compared to the sha256 version with a 96 bit reduction
+        in security (remaining 160 bits) for the hash lock.
+    """
+    return f'''
+        shake256 d{hash_size}
+        push x{shake_256(preimage).digest(20).hex()}
+        equal
+        if {{
+            push x{receiver_pubkey.hex()}
+            check_sig x{sigflags}
+        }} else {{
+            push d{int(time())+timeout}
+            check_timestamp_verify
+            push x{refund_pubkey.hex()}
+            check_sig x{sigflags}
+        }}
+    '''
+
+def make_htlc_witness(
+        prvkey: bytes, preimage: bytes, sigfields: dict, sigflags: str = '00') -> str:
+    """Returns the tapescript source for a witness to unlock either the
+        hash lock or the time lock path of an HTLC, depending upon
+        whether or not the preimage matches.
+    """
+    _, queue, _ = run_script(
+        compile_script(f'push x{prvkey.hex()} sign x{sigflags}'),
+        sigfields
+    )
+    sig = queue.get(False)
+    return f'''
+        push x{sig.hex()}
+        push x{preimage.hex()}
     '''
