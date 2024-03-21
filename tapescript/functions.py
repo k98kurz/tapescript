@@ -1796,7 +1796,7 @@ def run_script(script: bytes, cache_vals: dict = {},
     """Run the given script byte code. Returns a tape, queue, and dict."""
     tape = Tape(script)
     queue = LifoQueue()
-    cache = {**cache_vals}
+    cache = {'timestamp': int(time()), **cache_vals}
     tape.contracts = {**_contracts, **contracts}
     run_tape(tape, queue, cache, additional_flags=additional_flags)
     return (tape, queue, cache)
