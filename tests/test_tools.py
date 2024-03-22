@@ -411,7 +411,7 @@ class TestTools(unittest.TestCase):
         # run e2e
         assert functions.run_auth_script(unlock + lock, cache)
 
-    def test_mke_htlc_sha256_lock_e2e(self):
+    def test_make_htlc_sha256_lock_e2e(self):
         preimage = token_bytes(16)
         sigfields = {'sigfield1': b'hello world'}
         # NB: ts_threshold is 60, preventing timestamps >60s into future from verifying
@@ -447,7 +447,7 @@ class TestTools(unittest.TestCase):
             {**sigfields, 'timestamp': int(time()) + timeout + 1}
         )
 
-    def test_mke_htlc_sha256_lock_e2e(self):
+    def test_make_htlc_shake256_lock_e2e(self):
         preimage = token_bytes(16)
         sigfields = {'sigfield1': b'hello world'}
         # NB: ts_threshold is 60, preventing timestamps >60s into future from verifying
@@ -467,6 +467,78 @@ class TestTools(unittest.TestCase):
         )
         hash_unlock = parsing.compile_script(hash_unlock_src)
         refund_unlock_src = tools.make_htlc_witness(
+            bytes(self.prvkeyA), b'refund', sigfields
+        )
+        refund_unlock = parsing.compile_script(refund_unlock_src)
+
+        # test that the refund will not work yet
+        assert not functions.run_auth_script(refund_unlock + lock, sigfields)
+
+        # test that the main path works
+        assert functions.run_auth_script(hash_unlock + lock, sigfields)
+
+        # test that the refund will work if the timestamp is past the timeout
+        assert functions.run_auth_script(
+            refund_unlock + lock,
+            {**sigfields, 'timestamp': int(time()) + timeout + 1}
+        )
+
+    def test_make_htlc2_sha256_lock_e2e(self):
+        preimage = token_bytes(16)
+        sigfields = {'sigfield1': b'hello world'}
+        # NB: ts_threshold is 60, preventing timestamps >60s into future from verifying
+        timeout = 30
+        lock_src = tools.make_htlc2_sha256_lock(
+            receiver_pubkey=bytes(self.pubkeyB),
+            preimage=preimage,
+            refund_pubkey=bytes(self.pubkeyA),
+            timeout=timeout
+        )
+        lock = parsing.compile_script(lock_src)
+
+        hash_unlock_src = tools.make_htlc2_witness(
+            prvkey=bytes(self.prvkeyB),
+            preimage=preimage,
+            sigfields=sigfields
+        )
+        hash_unlock = parsing.compile_script(hash_unlock_src)
+        refund_unlock_src = tools.make_htlc2_witness(
+            bytes(self.prvkeyA), b'refund', sigfields
+        )
+        refund_unlock = parsing.compile_script(refund_unlock_src)
+
+        # test that the refund will not work yet
+        assert not functions.run_auth_script(refund_unlock + lock, sigfields)
+
+        # test that the main path works
+        assert functions.run_auth_script(hash_unlock + lock, sigfields)
+
+        # test that the refund will work if the timestamp is past the timeout
+        assert functions.run_auth_script(
+            refund_unlock + lock,
+            {**sigfields, 'timestamp': int(time()) + timeout + 1}
+        )
+
+    def test_make_htlc2_shake256_lock_e2e(self):
+        preimage = token_bytes(16)
+        sigfields = {'sigfield1': b'hello world'}
+        # NB: ts_threshold is 60, preventing timestamps >60s into future from verifying
+        timeout = 30
+        lock_src = tools.make_htlc2_shake256_lock(
+            receiver_pubkey=bytes(self.pubkeyB),
+            preimage=preimage,
+            refund_pubkey=bytes(self.pubkeyA),
+            timeout=timeout
+        )
+        lock = parsing.compile_script(lock_src)
+
+        hash_unlock_src = tools.make_htlc2_witness(
+            prvkey=bytes(self.prvkeyB),
+            preimage=preimage,
+            sigfields=sigfields
+        )
+        hash_unlock = parsing.compile_script(hash_unlock_src)
+        refund_unlock_src = tools.make_htlc2_witness(
             bytes(self.prvkeyA), b'refund', sigfields
         )
         refund_unlock = parsing.compile_script(refund_unlock_src)

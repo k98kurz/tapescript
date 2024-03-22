@@ -459,13 +459,12 @@ def make_htlc_sha256_lock(
         equal
         if {{
             push x{receiver_pubkey.hex()}
-            check_sig x{sigflags}
         }} else {{
             push d{int(time())+timeout}
             check_timestamp_verify
             push x{refund_pubkey.hex()}
-            check_sig x{sigflags}
         }}
+        check_sig x{sigflags}
     '''
 
 def make_htlc_shake256_lock(
@@ -485,13 +484,12 @@ def make_htlc_shake256_lock(
         equal
         if {{
             push x{receiver_pubkey.hex()}
-            check_sig x{sigflags}
         }} else {{
             push d{int(time())+timeout}
             check_timestamp_verify
             push x{refund_pubkey.hex()}
-            check_sig x{sigflags}
         }}
+        check_sig x{sigflags}
     '''
 
 def make_htlc_witness(
@@ -507,6 +505,103 @@ def make_htlc_witness(
     sig = queue.get(False)
     return f'''
         push x{sig.hex()}
+        push x{preimage.hex()}
+    '''
+
+
+def make_htlc2_sha256_lock(
+        receiver_pubkey: bytes, preimage: bytes, refund_pubkey: bytes,
+        timeout: int = 60*60*24, sigflags: str = '00') -> str:
+    """Returns an HTLC that can be unlocked either with the preimage and
+        a signature matching receiver_pubkey or with a signature
+        matching the refund_pubkey after the timeout has expired.
+        Suitable only for systems with guaranteed causal ordering and
+        non-repudiation of transactions. This version is optimized for
+        smaller locking script size (-18 bytes) at the expense of larger
+        witnesses (+33 bytes) for larger overall txn size (+15 bytes).
+        Which to use will depend upon the intended use case: for public
+        blockchains where all nodes must hold a UTXO set in memory and
+        can trim witness data after consensus, the lock script size
+        reduction is significant and useful; for other use cases, in
+        particular systems where witness data cannot be trimmed, the
+        other version is more appropriate.
+    """
+    return f'''
+        sha256
+        push x{sha256(preimage).digest().hex()}
+        equal
+        if {{
+            dup shake256 d20
+            push x{shake_256(receiver_pubkey).digest(20).hex()}
+        }} else {{
+            push d{int(time())+timeout}
+            check_timestamp_verify
+            dup shake256 d20
+            push x{shake_256(refund_pubkey).digest(20).hex()}
+        }}
+        equal_verify
+        check_sig x{sigflags}
+    '''
+
+def make_htlc2_shake256_lock(
+        receiver_pubkey: bytes, preimage: bytes, refund_pubkey: bytes,
+        hash_size: int = 20, timeout: int = 60*60*24, sigflags: str = '00') -> str:
+    """Returns an HTLC that can be unlocked either with the preimage and
+        a signature matching receiver_pubkey or with a signature
+        matching the refund_pubkey after the timeout has expired.
+        Suitable only for systems with guaranteed causal ordering and
+        non-repudiation of transactions. Using a hash_size of 20 saves
+        11 bytes compared to the sha256 version with a 96 bit reduction
+        in security (remaining 160 bits) for the hash lock. This version
+        is optimized for smaller locking script size (-18 bytes) at the
+        expense of larger witnesses (+33 bytes) for larger overall txn
+        size (+15 bytes). Which to use will depend upon the intended use
+        case: for public blockchains where all nodes must hold a UTXO
+        set in memory and can trim witness data after consensus, the
+        lock script size reduction is significant and useful; for other
+        use cases, in particular systems where witness data cannot be
+        trimmed, the other version is more appropriate.
+    """
+    return f'''
+        shake256 d{hash_size}
+        push x{shake_256(preimage).digest(20).hex()}
+        equal
+        if {{
+            dup shake256 d20
+            push x{shake_256(receiver_pubkey).digest(20).hex()}
+        }} else {{
+            push d{int(time())+timeout}
+            check_timestamp_verify
+            dup shake256 d20
+            push x{shake_256(refund_pubkey).digest(20).hex()}
+        }}
+        equal_verify
+        check_sig x{sigflags}
+    '''
+
+def make_htlc2_witness(
+        prvkey: bytes, preimage: bytes, sigfields: dict, sigflags: str = '00') -> str:
+    """Returns the tapescript source for a witness to unlock either the
+        hash lock or the time lock path of an HTLC, depending upon
+        whether or not the preimage matches. This version is optimized
+        for smaller locking script size (-18 bytes) at the expense of
+        larger witnesses (+33 bytes) for larger overall txn size (+15
+        bytes). Which to use will depend upon the intended use case: for
+        public blockchains where all nodes must hold a UTXO set in
+        memory and can trim witness data after consensus, the lock
+        script size reduction is significant and useful; for other use
+        cases, in particular systems where witness data cannot be
+        trimmed, the other version is more appropriate.
+    """
+    _, queue, _ = run_script(
+        compile_script(f'push x{prvkey.hex()} dup derive_scalar derive_point swap2 sign x{sigflags}'),
+        sigfields
+    )
+    sig = queue.get(False)
+    pubkey = queue.get(False)
+    return f'''
+        push x{sig.hex()}
+        push x{pubkey.hex()}
         push x{preimage.hex()}
     '''
 
