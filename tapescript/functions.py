@@ -1718,6 +1718,21 @@ flags = {
     9: True,
 }
 
+flags_to_set = [
+    'ts_threshold',
+    'epoch_threshold',
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+]
+
 # contracts are intended for use with OP_CHECK_TRANSFER
 _contracts = {}
 _contract_interfaces = {
@@ -1727,11 +1742,12 @@ _contract_interfaces = {
 
 def _check_contract(contract: object) -> None:
     """Check a contract against required interfaces. Raise
-        ScriptExecutionError if any checks fail.
+        ScriptExecutionError if it does not match at least one.
     """
-    for name, interface in _contract_interfaces.items():
-        sert(isinstance(contract, interface),
-            f'contract does not fulfill the {name} interface')
+    matched = False
+    for _, interface in _contract_interfaces.items():
+            matched = matched or isinstance(contract, interface)
+    sert(matched, f'contract does not fulfill at least one interface')
 
 def add_contract(contract_id: bytes, contract: object) -> None:
     """Add a contract to be loaded on each script execution."""
@@ -1782,8 +1798,11 @@ def add_opcode(code: int, name: str, function: Callable) -> None:
         del nopcodes_inverse[nopname]
 
 def set_tape_flags(tape: Tape, additional_flags: dict = {}) -> Tape:
+    """Sets flags included in flags_to_set and any additional_flags for
+        the tape.
+    """
     for key in flags:
-        if type(key) in (str, int):
+        if type(key) in (str, int) and key in flags_to_set:
             tape.flags[key] = flags[key]
     for key in additional_flags:
         if type(key) in (str, int):

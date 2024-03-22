@@ -28,6 +28,15 @@ class InvalidContract:
     def __init__(self, amount: int) -> None:
         self.amount = amount
 
+@runtime_checkable
+class CanDoThing(Protocol):
+    def does_thing(self):
+        ...
+
+class DoesThing:
+    def does_thing(self):
+        ...
+
 
 class TestFunctions(unittest.TestCase):
     tape: classes.Tape
@@ -1155,7 +1164,7 @@ class TestFunctions(unittest.TestCase):
         self.tape.contracts[b'contractid'] = InvalidContract(10)
         with self.assertRaises(errors.ScriptExecutionError) as e:
             functions.OP_CHECK_TRANSFER(self.tape, self.queue, self.cache)
-        assert str(e.exception) == 'contract does not fulfill the CanCheckTransfer interface'
+        assert str(e.exception) == 'contract does not fulfill at least one interface'
 
     def test_OP_CHECK_TRANSFER_works(self):
         def setup_transfer():
@@ -1739,6 +1748,20 @@ class TestFunctions(unittest.TestCase):
         assert self.queue.qsize() == 1
         assert self.queue.get(False) == b'\x00'
 
+    def test_OP_INVOKE_e2e(self):
+        contract_id = b'abcdef'
+        class ABIContract:
+            def abi(self, args: list[bytes]) -> list[bytes]:
+                return [b''.join(args)]
+        self.queue.put(b'world')
+        self.queue.put(b'hello')
+        self.queue.put(b'\x02')
+        self.queue.put(contract_id)
+        self.tape.contracts[contract_id] = ABIContract()
+        functions.OP_INVOKE(self.tape, self.queue, self.cache)
+        assert self.queue.qsize() == 1
+        assert self.queue.get(False) == b'helloworld'
+
     def test_OP_XOR_takes_two_values_and_puts_XOR_of_them_onto_queue(self):
         item1 = b'hello'
         item2 = b'world'
@@ -2214,7 +2237,7 @@ class TestFunctions(unittest.TestCase):
         assert b'123' not in functions._contracts
         with self.assertRaises(errors.ScriptExecutionError) as e:
             functions.add_contract(b'123', InvalidContract(1))
-        assert str(e.exception) == 'contract does not fulfill the CanCheckTransfer interface'
+        assert str(e.exception) == 'contract does not fulfill at least one interface'
         assert b'123' not in functions._contracts
 
     def test_add_contract_adds_valid_contract(self):
@@ -2249,14 +2272,10 @@ class TestFunctions(unittest.TestCase):
         functions.add_contract(b'123', ValidContract(10))
         assert b'123' in functions._contracts
 
-        @runtime_checkable
-        class CanDoThing(Protocol):
-            def does_thing(self):
-                ...
-
-        functions.add_contract_interface(CanDoThing)
         with self.assertRaises(errors.ScriptExecutionError):
-            functions.add_contract(b'321', ValidContract(10))
+            functions.add_contract(b'321', DoesThing())
+        functions.add_contract_interface(CanDoThing)
+        functions.add_contract(b'321', DoesThing())
 
     def test_remove_contract_inferface_raises_TypeError_for_invalid_interface(self):
         with self.assertRaises(TypeError) as e:
@@ -2266,12 +2285,13 @@ class TestFunctions(unittest.TestCase):
     def test_remove_contract_interface_removes_interface_for_type_checking(self):
         assert b'123' not in functions._contracts
         with self.assertRaises(errors.ScriptExecutionError):
-            functions.add_contract(b'123', {})
+            functions.add_contract(b'123', DoesThing())
         assert b'123' not in functions._contracts
 
         functions.remove_contract_interface(interfaces.CanCheckTransfer)
-        functions.add_contract(b'123', {})
-        assert b'123' in functions._contracts
+        with self.assertRaises(errors.ScriptExecutionError):
+            functions.add_contract(b'321', ValidContract(10))
+        assert b'321' not in functions._contracts
 
     # e2e vectors
     def test_p2pk_e2e(self):

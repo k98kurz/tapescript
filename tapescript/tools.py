@@ -432,7 +432,6 @@ def make_delegate_key_lock(root_pubkey: bytes, sigflags: str = '00') -> str:
         @= exp 1
         @= bgn 1
         @= dpk 1
-        @= sig 1
 
         # prove the timestamp is within the cert bounds #
         @exp val s"timestamp" less verify
@@ -442,7 +441,7 @@ def make_delegate_key_lock(root_pubkey: bytes, sigflags: str = '00') -> str:
         @exp @bgn concat @dpk concat
         @crt push x{root_pubkey.hex()} check_sig_queue verify
 
-        @sig @dpk check_sig x{sigflags}
+        @dpk check_sig x{sigflags}
     '''
 
 def make_delegate_key_cert_sig(
