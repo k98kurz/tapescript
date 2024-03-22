@@ -373,16 +373,29 @@ class TestTools(unittest.TestCase):
         # run e2e
         assert functions.run_auth_script(unlock + lock, {**sigfields})
 
+    def test_make_single_sig_lock2_and_make_single_sig_witness2_e2e(self):
+        # make lock
+        sigfields = {'sigfield1': b'hello world'}
+        lock_src = tools.make_single_sig_lock2(bytes(self.pubkeyA))
+        lock = parsing.compile_script(lock_src)
+
+        # make witness
+        unlock_src = tools.make_single_sig_witness2(bytes(self.prvkeyA), {**sigfields})
+        unlock = parsing.compile_script(unlock_src)
+
+        # run e2e
+        assert functions.run_auth_script(unlock + lock, {**sigfields})
+
     def test_make_multi_sig_lock_and_make_single_sig_witness_e2e(self):
         # make lock
         sigfields = {'sigfield1': b'hello world'}
         lock_src = tools.make_multisig_lock(
-            [bytes(self.pubkeyA), bytes(self.pubkeyB)], 2)
+            [bytes(self.pubkeyA), bytes(self.pubkeyB)], 2, 'f0')
         lock = parsing.compile_script(lock_src)
 
         # make witness
-        unlock_src1 = tools.make_single_sig_witness(bytes(self.prvkeyA), {**sigfields})
-        unlock_src2 = tools.make_single_sig_witness(bytes(self.prvkeyB), {**sigfields})
+        unlock_src1 = tools.make_single_sig_witness(bytes(self.prvkeyA), {**sigfields}, 'f0')
+        unlock_src2 = tools.make_single_sig_witness(bytes(self.prvkeyB), {**sigfields}, 'f0')
         unlock = parsing.compile_script(unlock_src1) + parsing.compile_script(unlock_src2)
 
         # run e2e

@@ -275,6 +275,19 @@ def make_single_sig_lock(pubkey: bytes, sigflags: str = '00') -> str:
     """
     return f'push x{pubkey.hex()} check_sig x{sigflags}'
 
+def make_single_sig_lock2(pubkey: bytes, sigflags: str = '00') -> str:
+    """Make a locking script that requires a valid signature from a
+        single key to unlock. Returns tapescript source code. Saves 8
+        bytes in locking script at expense of an additional 33 bytes in
+        the witness.
+    """
+    return f'''
+        dup shake256 d20
+        push x{shake_256(pubkey).digest(20).hex()}
+        equal_verify
+        check_sig x{sigflags}
+    '''
+
 def make_single_sig_witness(
         prvkey: bytes, sigfields: dict[str, bytes], sigflags: str = '00',
         contracts: dict = {}) -> str:
@@ -283,11 +296,29 @@ def make_single_sig_witness(
     """
     _, queue, _ = run_script(
         compile_script(f'push x{prvkey.hex()} sign x{sigflags}'),
-        {**sigfields},
-        {**contracts}
+        {**sigfields}
     )
-    s = queue.get(False)
-    return f'push x{s.hex()}{sigflags}'
+    sig = queue.get(False)
+    return f'push x{sig.hex()}'
+
+def make_single_sig_witness2(
+        prvkey: bytes, sigfields: dict[str, bytes], sigflags: str = '00') -> str:
+    """Make an unlocking script that validates for a single sig locking
+        script by signing the sigfields. Returns tapescript source code.
+        33 bytes larger witness than make_single_sig_witness to save 8
+        bytes in the locking script.
+    """
+    _, queue, _ = run_script(
+        compile_script(f'''
+            push x{prvkey.hex()}
+            dup derive_scalar derive_point
+            swap2 sign x{sigflags}
+        '''),
+        {**sigfields}
+    )
+    sig = queue.get(False)
+    pubkey = queue.get(False)
+    return f'push x{sig.hex()} push x{pubkey.hex()}'
 
 def make_multisig_lock(
         pubkeys: list[bytes], quorum_size: int, sigflags: str = '00') -> str:
@@ -493,7 +524,8 @@ def make_htlc_shake256_lock(
     '''
 
 def make_htlc_witness(
-        prvkey: bytes, preimage: bytes, sigfields: dict, sigflags: str = '00') -> str:
+        prvkey: bytes, preimage: bytes, sigfields: dict, sigflags: str = '00'
+    ) -> str:
     """Returns the tapescript source for a witness to unlock either the
         hash lock or the time lock path of an HTLC, depending upon
         whether or not the preimage matches.
@@ -507,7 +539,6 @@ def make_htlc_witness(
         push x{sig.hex()}
         push x{preimage.hex()}
     '''
-
 
 def make_htlc2_sha256_lock(
         receiver_pubkey: bytes, preimage: bytes, refund_pubkey: bytes,
@@ -545,7 +576,8 @@ def make_htlc2_sha256_lock(
 
 def make_htlc2_shake256_lock(
         receiver_pubkey: bytes, preimage: bytes, refund_pubkey: bytes,
-        hash_size: int = 20, timeout: int = 60*60*24, sigflags: str = '00') -> str:
+        hash_size: int = 20, timeout: int = 60*60*24, sigflags: str = '00'
+    ) -> str:
     """Returns an HTLC that can be unlocked either with the preimage and
         a signature matching receiver_pubkey or with a signature
         matching the refund_pubkey after the timeout has expired.
@@ -580,7 +612,8 @@ def make_htlc2_shake256_lock(
     '''
 
 def make_htlc2_witness(
-        prvkey: bytes, preimage: bytes, sigfields: dict, sigflags: str = '00') -> str:
+        prvkey: bytes, preimage: bytes, sigfields: dict, sigflags: str = '00'
+    ) -> str:
     """Returns the tapescript source for a witness to unlock either the
         hash lock or the time lock path of an HTLC, depending upon
         whether or not the preimage matches. This version is optimized
@@ -594,7 +627,11 @@ def make_htlc2_witness(
         trimmed, the other version is more appropriate.
     """
     _, queue, _ = run_script(
-        compile_script(f'push x{prvkey.hex()} dup derive_scalar derive_point swap2 sign x{sigflags}'),
+        compile_script(f'''
+            push x{prvkey.hex()}
+            dup derive_scalar derive_point
+            swap2 sign x{sigflags}
+        '''),
         sigfields
     )
     sig = queue.get(False)
