@@ -22,6 +22,10 @@ class TestTools(unittest.TestCase):
         self.pubkeyA = self.prvkeyA.verify_key
         self.prvkeyB = SigningKey(b'submarine such yellow extra very')
         self.pubkeyB = self.prvkeyB.verify_key
+        self.prvkeyC = SigningKey(b'extra yellow is yellow submarine')
+        self.pubkeyC = self.prvkeyC.verify_key
+        self.prvkeyD = SigningKey(b'very submarine such yellow wow..')
+        self.pubkeyD = self.prvkeyD.verify_key
         return super().setUp()
 
     @classmethod
@@ -260,8 +264,8 @@ class TestTools(unittest.TestCase):
         verify_adapter_lock = parsing.compile_script(script1_src)
         decrypt_adapter_script = parsing.compile_script(script2_src)
         check_sig_lock = parsing.compile_script(script3_src)
-        # make_adapter_locks_prv calls make_adapter_locks_pub under the hood,
-        # so this counts as testing both
+        # make_adapter_locks_prv calls make_adapter_locks_pub and
+        # make_adapter_decrypt under the hood, so this counts as testing both
 
         # setup adapter witness
         sigfields = {
@@ -300,6 +304,9 @@ class TestTools(unittest.TestCase):
         assert queue.qsize() == 2
         RT = queue.get(False)
         s = queue.get(False)
+
+        # decrypt method 2
+        assert tools.decrypt_adapter(witness, tweak) == RT + s
 
         # check the signature with the check_sig auth script
         assert functions.run_auth_script(
@@ -474,6 +481,140 @@ class TestTools(unittest.TestCase):
         assert functions.run_auth_script(
             refund_unlock + lock,
             {**sigfields, 'timestamp': int(time()) + timeout + 1}
+        )
+
+    def test_AMHL_primitive(self):
+        """Test for setup, locking, and release of an Anonymous Multi-
+            Hop Lock using the homomorphic one-way ability of ed25519.
+        """
+        # first run the initial setup for 5 payers (4 intermediate)
+        n = 5
+        s = tools.AMHL.setup(n)
+
+        # validate setups for each user
+        for i in range(len(s[0])):
+            assert tools.AMHL.check_setup(tools.AMHL.setup_for(s, i), i, n)
+
+        # validate releasing of locks from right to left
+        s_n = tools.AMHL.setup_for(s, n)
+        k = s_n[1]
+
+        for i in range(n-1, 1, -1):
+            s_i = tools.AMHL.setup_for(s, i)
+            r = tools.AMHL.release(k, s_i[2])
+            assert tools.AMHL.verify_lock_key(tools.AMHL.setup_for(s, i-1)[1], r)
+            k = r
+
+    def test_setup_amhl_adapter_locks(self):
+        pubkeys = [
+            bytes(self.pubkeyA),
+            bytes(self.pubkeyB),
+            bytes(self.pubkeyC),
+        ]
+        prvkeys = [
+            bytes(self.prvkeyA),
+            bytes(self.prvkeyB),
+            bytes(self.prvkeyC),
+        ]
+        amhl = tools.setup_amhl(b'123', pubkeys)
+        assert type(amhl) is dict
+        for pk in pubkeys:
+            assert pk in amhl
+        assert 'key' in amhl
+        sigfields = [
+            {'sigfield1': b'pay Bob 1.2'},
+            {'sigfield1': b'pay Carla 1.1'},
+            {'sigfield1': b'pay Dave 1.0'},
+        ]
+
+        adapter_witnesses_sources = [
+            tools.make_adapter_witness(prvkeys[i], amhl[pubkeys[i]][2], sigfields[i])
+            for i in range(len(prvkeys))
+        ]
+        adapter_witnesses = [
+            parsing.compile_script(ws)
+            for ws in adapter_witnesses_sources
+        ]
+
+        # validate adapter witnesses
+        for i in range(len(adapter_witnesses)):
+            assert functions.run_auth_script(
+                adapter_witnesses[i] + parsing.compile_script(amhl[pubkeys[i]][0]),
+                sigfields[i]
+            )
+
+        Alice = {
+            'outbound_txn': {
+                'sigfields': sigfields[0],
+                'adapter_lock': amhl[pubkeys[0]][0],
+                'adapter_witness': adapter_witnesses[0],
+                'locking_script': parsing.compile_script(amhl[pubkeys[0]][1]),
+            },
+            'tweak_point': amhl[pubkeys[0]][2],
+            'scalar': amhl[pubkeys[0]][3],
+        }
+
+        Bob = {
+            'outbound_txn': {
+                'sigfields': sigfields[1],
+                'adapter_lock': amhl[pubkeys[1]][0],
+                'adapter_witness': adapter_witnesses[1],
+                'locking_script': parsing.compile_script(amhl[pubkeys[1]][1]),
+            },
+            'inbound_txn': Alice['outbound_txn'],
+            'tweak_point': amhl[pubkeys[1]][2],
+            'scalar': amhl[pubkeys[1]][3],
+        }
+
+        Carla = {
+            'outbound_txn': {
+                'sigfields': sigfields[2],
+                'adapter_lock': amhl[pubkeys[2]][0],
+                'adapter_witness': adapter_witnesses[2],
+                'locking_script': parsing.compile_script(amhl[pubkeys[2]][1]),
+            },
+            'inbound_txn': Bob['outbound_txn'],
+            'tweak_point': amhl[pubkeys[2]][2],
+            'scalar': amhl[pubkeys[2]][3],
+        }
+
+        Dave = {
+            'inbound_txn': Carla['outbound_txn'],
+            'scalar': amhl['key'],
+        }
+
+        # unlock from right to left; decrypt last hop first
+        # after a payment route has been set up, the payer sends the scalar to
+        # the final recipient to begin the process; the decrypted signature is
+        # sent back to the previous hop correspondent C to clear, thus hop C
+        # will be able to unlock the payment from B
+        sigC = tools.decrypt_adapter(Dave['inbound_txn']['adapter_witness'], Dave['scalar'])
+        Dave['inbound_txn']['witness'] = parsing.compile_script(f'push x{sigC.hex()}')
+        assert functions.run_auth_script(
+            Dave['inbound_txn']['witness'] + Dave['inbound_txn']['locking_script'],
+            Dave['inbound_txn']['sigfields']
+        )
+
+        # release previous hop; done by correspondent C to get payment from B
+        r = tools.release_left_amhl_lock(
+            Carla['outbound_txn']['adapter_witness'], sigC, Carla['scalar']
+        )
+        sigB = tools.decrypt_adapter(Carla['inbound_txn']['adapter_witness'], r)
+        Carla['inbound_txn']['witness'] = parsing.compile_script(f'push x{sigB.hex()}')
+        assert functions.run_auth_script(
+            Carla['inbound_txn']['witness'] + Carla['inbound_txn']['locking_script'],
+            Carla['inbound_txn']['sigfields']
+        )
+
+        # release previous hop again; done by correspondent B to get payment from A
+        r = tools.release_left_amhl_lock(
+            Bob['outbound_txn']['adapter_witness'], sigB, Bob['scalar']
+        )
+        sigA = tools.decrypt_adapter(Bob['inbound_txn']['adapter_witness'], r)
+        Bob['inbound_txn']['witness'] = parsing.compile_script(f'push x{sigA.hex()}')
+        assert functions.run_auth_script(
+            Bob['inbound_txn']['witness'] + Bob['inbound_txn']['locking_script'],
+            Bob['inbound_txn']['sigfields']
         )
 
 

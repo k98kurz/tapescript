@@ -23,6 +23,7 @@ from .functions import (
 from hashlib import sha256, shake_256
 from time import time
 from typing import Callable
+import nacl.bindings
 
 
 def _combine_two(branch_a: str, branch_b: str) -> list[str]:
@@ -323,6 +324,24 @@ def make_adapter_locks_pub(
     '''
     return (script1, script2)
 
+def make_adapter_decrypt(tweak: bytes) -> str:
+    """Make adapter decryption script."""
+    t = clamp_scalar(tweak)
+    return f'''
+        push x{t.hex()}
+        decrypt_adapter_sig
+    '''
+
+def decrypt_adapter(adapter_witness: bytes, tweak: bytes) -> bytes:
+    """Decrypt an adapter signature, returning the decrypted signature."""
+    _, queue, _ = run_script(
+        adapter_witness +
+        compile_script(make_adapter_decrypt(tweak))
+    )
+    RT = queue.get(False)
+    s = queue.get(False)
+    return RT + s
+
 def make_adapter_locks_prv(
         pubkey: bytes, tweak: bytes, sigflags: str = '00') -> tuple[str]:
     """Make adapter locking scripts using a public key and a tweak
@@ -333,15 +352,12 @@ def make_adapter_locks_prv(
     t = clamp_scalar(tweak)
     T = derive_point_from_scalar(t)
     script1, script3 = make_adapter_locks_pub(pubkey, T, sigflags)
-    script2 = f'''
-        push x{t.hex()}
-        decrypt_adapter_sig
-    '''
+    script2 = make_adapter_decrypt(tweak)
     return (script1, script2, script3)
 
 def make_adapter_witness(
         prvkey: bytes, tweak_point: bytes, sigfields: dict,
-        sigflags: str = '00', contracts: dict[bytes, object] = {}) -> str:
+        sigflags: str = '00') -> str:
     """Make an adapter signature witness using a private key and a tweak
         point. Returns tapescript src code.
     """
@@ -358,8 +374,7 @@ def make_adapter_witness(
             push x{tweak_point.hex()}
             make_adapter_sig_public
         '''),
-        {**sigfields},
-        {**contracts}
+        {**sigfields}
     )
     sa = queue.get(False)
     R = queue.get(False)
@@ -494,3 +509,43 @@ def make_htlc_witness(
         push x{sig.hex()}
         push x{preimage.hex()}
     '''
+
+def setup_amhl(
+        seed: bytes, pubkeys: tuple[bytes]|list[bytes], sigflags: str = '00'
+    ) -> dict[bytes|str, bytes|tuple[str|bytes]]:
+    """Sets up an annoymous multi-hop lock for a sorted list of pubkeys.
+        Returns a dict mapping each public key to a tuple containing the
+        tuple of scripts returned by make_adapter_locks_pub and the
+        tweak point for the hop, and mapping the key 'key' to the first
+        tweak scalar needed to unlock the last hop in the AMHL and begin
+        the cascade back to the funding source.
+    """
+    tert(type(seed) is bytes, 'seed must be bytes')
+    tert(type(pubkeys) in (tuple, list), 'pubkeys must be tuple[bytes]')
+    tert(all([type(pk) is bytes for pk in pubkeys]),
+         'pubkeys must be tuple[bytes]')
+    n = len(pubkeys)
+    setup = AMHL.setup(n, seed)
+    result = {}
+    for i in range(n):
+        s = AMHL.setup_for(setup, i)
+        T = s[1] if len(s) > 1 else AMHL.oneway(s[0])
+        k = s[-1] if len(s) > 0 else s[0]
+        pk = pubkeys[i]
+        result[pk] = (*make_adapter_locks_pub(pk, T, sigflags), T, k)
+    result['key'] = AMHL.setup_for(setup, n)[-1]
+    return result
+
+def release_left_amhl_lock(adapter_witness: bytes, signature: bytes, y: bytes) -> bytes:
+    """Release the next lock using an adapter witness and a decrypted
+        signature from right lock. Returns the tweak scalar used to
+        decrypt the left adapter signature.
+    """
+    tert(type(adapter_witness) is bytes, 'adapter_witness must be bytes of len 66')
+    vert(len(adapter_witness) == 68, 'adapter_witness must be bytes of len 68')
+    tert(type(signature) is bytes, 'signature must be bytes of len 64 or 65')
+    vert(len(signature) == 64, 'signature must be bytes of len 64')
+    sa = adapter_witness[2:34]
+    s = signature[32:]
+    t = nacl.bindings.crypto_core_ed25519_scalar_sub(s, sa) # s = sa + t
+    return AMHL.release(t, y)
