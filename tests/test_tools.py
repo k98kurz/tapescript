@@ -601,6 +601,43 @@ class TestTools(unittest.TestCase):
             {**sigfields, 'timestamp': int(time()) + timeout + 1}
         )
 
+    def test_make_ptlc_lock_with_tweak_e2e(self):
+        tweak_scalar = functions.clamp_scalar(token_bytes(32), True)
+        tweak_point = functions.derive_point_from_scalar(tweak_scalar)
+        sigfields = {'sigfield1': b'hello world'}
+        # NB: ts_threshold is 60, preventing timestamps >60s into future from verifying
+        timeout = 30
+        lock_src = tools.make_ptlc_lock(
+            receiver_pubkey=bytes(self.pubkeyB),
+            refund_pubkey=bytes(self.pubkeyA),
+            tweak_point=tweak_point,
+            timeout=timeout,
+        )
+        lock = parsing.compile_script(lock_src)
+
+        unlock_src = tools.make_ptlc_witness(
+            prvkey=bytes(self.prvkeyB),
+            sigfields=sigfields,
+            tweak_scalar=tweak_scalar,
+        )
+        unlock = parsing.compile_script(unlock_src)
+        refund_unlock_src = tools.make_ptlc_refund_witness(
+            bytes(self.prvkeyA), sigfields
+        )
+        refund_unlock = parsing.compile_script(refund_unlock_src)
+
+        # test that the refund will not work yet
+        assert not functions.run_auth_script(refund_unlock + lock, sigfields)
+
+        # test that the main path works
+        assert functions.run_auth_script(unlock + lock, sigfields)
+
+        # test that the refund will work if the timestamp is past the timeout
+        assert functions.run_auth_script(
+            refund_unlock + lock,
+            {**sigfields, 'timestamp': int(time()) + timeout + 1}
+        )
+
     def test_AMHL_primitive(self):
         """Test for setup, locking, and release of an Anonymous Multi-
             Hop Lock using the homomorphic one-way ability of ed25519.

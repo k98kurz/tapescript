@@ -18,7 +18,12 @@ from .functions import (
     add_contract_interface,
     remove_contract_interface,
     clamp_scalar,
+    derive_key_from_seed,
     derive_point_from_scalar,
+    aggregate_points,
+    aggregate_scalars,
+    H_big,
+    H_small,
 )
 from hashlib import sha256, shake_256
 from time import time
@@ -641,14 +646,18 @@ def make_htlc2_witness(
     '''
 
 def make_ptlc_lock(
-        receiver_pubkey: bytes, refund_pubkey: bytes, timeout: int = 60*60*24,
-        sigflags: str = '00') -> str:
+        receiver_pubkey: bytes, refund_pubkey: bytes, tweak_point: bytes = None,
+        timeout: int = 60*60*24, sigflags: str = '00') -> str:
     """Returns the tapescript source for a Point Time Locked Contract
         that can be unlcoked with either a signature matching the
         receiver_pubkey or with a signature matching the refund_pubkey
         after the timeout has expired. Suitable only for systems with
         guaranteed causal ordering and non-repudiation of transactions.
+        If a tweak_point is passed, use tweak_point+receiver_pubkey as
+        the point lock.
     """
+    if type(tweak_point) is bytes:
+        receiver_pubkey = aggregate_points([receiver_pubkey, tweak_point])
     return f'''
         if {{
             push x{receiver_pubkey.hex()}
@@ -660,10 +669,27 @@ def make_ptlc_lock(
         check_sig x{sigflags}
     '''
 
-def make_ptlc_witness(prvkey: bytes, sigfields: dict, sigflags: str = '00') -> str:
+def make_ptlc_witness(
+        prvkey: bytes, sigfields: dict, tweak_scalar: bytes = None,
+        sigflags: str = '00') -> str:
     '''Returns the tapescript source for a PTLC witness unlocking the
-        main branch.
+        main branch. If a tweak_scalar is passed, add tweak_scalar to x
+        within signature generation to unlock the point corresponding to
+        derive_point(tweak_scalar)+derive_point(x).
     '''
+    if tweak_scalar:
+        # create signature manually
+        _, queue, _ = run_script(compile_script(f'get_message x{sigflags}'), {**sigfields})
+        m = queue.get(False)
+        x = aggregate_scalars([derive_key_from_seed(prvkey), tweak_scalar])
+        X = nacl.bindings.crypto_scalarmult_ed25519_base_noclamp(x) # G^x
+        r = clamp_scalar(H_small(H_big(prvkey)[32:], m))
+        R = nacl.bindings.crypto_scalarmult_ed25519_base_noclamp(r) # G^r
+        c = clamp_scalar(H_small(R, X, m)) # clamp(H(R || X || m))
+        s = nacl.bindings.crypto_core_ed25519_scalar_add(
+            r, nacl.bindings.crypto_core_ed25519_scalar_mul(c, x)
+        )
+        return f'push x{R.hex() + s.hex()}{sigflags} true'
     return f'{make_single_sig_witness(prvkey, sigfields, sigflags)} true'
 
 def make_ptlc_refund_witness(prvkey: bytes, sigfields: dict, sigflags: str = '00') -> str:
