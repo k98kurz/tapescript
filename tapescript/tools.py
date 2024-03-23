@@ -289,8 +289,7 @@ def make_single_sig_lock2(pubkey: bytes, sigflags: str = '00') -> str:
     '''
 
 def make_single_sig_witness(
-        prvkey: bytes, sigfields: dict[str, bytes], sigflags: str = '00',
-        contracts: dict = {}) -> str:
+        prvkey: bytes, sigfields: dict[str, bytes], sigflags: str = '00') -> str:
     """Make an unlocking script that validates for a single sig locking
         script by signing the sigfields. Returns tapescript source code.
     """
@@ -531,7 +530,7 @@ def make_htlc_witness(
     """
     _, queue, _ = run_script(
         compile_script(f'push x{prvkey.hex()} sign x{sigflags}'),
-        sigfields
+        {**sigfields}
     )
     sig = queue.get(False)
     return f'''
@@ -631,7 +630,7 @@ def make_htlc2_witness(
             dup derive_scalar derive_point
             swap2 sign x{sigflags}
         '''),
-        sigfields
+        {**sigfields}
     )
     sig = queue.get(False)
     pubkey = queue.get(False)
@@ -641,6 +640,38 @@ def make_htlc2_witness(
         push x{preimage.hex()}
     '''
 
+def make_ptlc_lock(
+        receiver_pubkey: bytes, refund_pubkey: bytes, timeout: int = 60*60*24,
+        sigflags: str = '00') -> str:
+    """Returns the tapescript source for a Point Time Locked Contract
+        that can be unlcoked with either a signature matching the
+        receiver_pubkey or with a signature matching the refund_pubkey
+        after the timeout has expired. Suitable only for systems with
+        guaranteed causal ordering and non-repudiation of transactions.
+    """
+    return f'''
+        if {{
+            push x{receiver_pubkey.hex()}
+        }} else {{
+            push d{int(time())+timeout}
+            check_timestamp_verify
+            push x{refund_pubkey.hex()}
+        }}
+        check_sig x{sigflags}
+    '''
+
+def make_ptlc_witness(prvkey: bytes, sigfields: dict, sigflags: str = '00') -> str:
+    '''Returns the tapescript source for a PTLC witness unlocking the
+        main branch.
+    '''
+    return f'{make_single_sig_witness(prvkey, sigfields, sigflags)} true'
+
+def make_ptlc_refund_witness(prvkey: bytes, sigfields: dict, sigflags: str = '00') -> str:
+    '''Returns the tapescript source for a PTLC witness unlcoking the
+        time locked refund branch.
+    '''
+    return f'{make_single_sig_witness(prvkey, sigfields, sigflags)} false'
+
 def setup_amhl(
         seed: bytes, pubkeys: tuple[bytes]|list[bytes], sigflags: str = '00'
     ) -> dict[bytes|str, bytes|tuple[str|bytes]]:
@@ -649,7 +680,9 @@ def setup_amhl(
         tuple of scripts returned by make_adapter_locks_pub and the
         tweak point for the hop, and mapping the key 'key' to the first
         tweak scalar needed to unlock the last hop in the AMHL and begin
-        the cascade back to the funding source.
+        the cascade back to the funding source. The order of pubkeys
+        must start with the originator and end with the correspondent
+        of the receiver.
     """
     tert(type(seed) is bytes, 'seed must be bytes')
     tert(type(pubkeys) in (tuple, list), 'pubkeys must be tuple[bytes]')
