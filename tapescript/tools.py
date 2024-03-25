@@ -699,7 +699,8 @@ def make_ptlc_refund_witness(prvkey: bytes, sigfields: dict, sigflags: str = '00
     return f'{make_single_sig_witness(prvkey, sigfields, sigflags)} false'
 
 def setup_amhl(
-        seed: bytes, pubkeys: tuple[bytes]|list[bytes], sigflags: str = '00'
+        seed: bytes, pubkeys: tuple[bytes]|list[bytes], sigflags: str = '00',
+        refund_pubkeys: dict[bytes] = None, timeout: int = 60*60*24
     ) -> dict[bytes|str, bytes|tuple[str|bytes]]:
     """Sets up an annoymous multi-hop lock for a sorted list of pubkeys.
         Returns a dict mapping each public key to a tuple containing the
@@ -708,7 +709,9 @@ def setup_amhl(
         tweak scalar needed to unlock the last hop in the AMHL and begin
         the cascade back to the funding source. The order of pubkeys
         must start with the originator and end with the correspondent
-        of the receiver.
+        of the receiver. If refund_pubkeys dict is passed, then for any
+        pk in pubkeys that is also a key in the refund_pubkeys dict, the
+        single sig lock (2nd value) will be replaced with a PTLC.
     """
     tert(type(seed) is bytes, 'seed must be bytes')
     tert(type(pubkeys) in (tuple, list), 'pubkeys must be tuple[bytes]')
@@ -722,7 +725,11 @@ def setup_amhl(
         T = s[1] if len(s) > 1 else AMHL.oneway(s[0])
         k = s[-1] if len(s) > 0 else s[0]
         pk = pubkeys[i]
-        result[pk] = (*make_adapter_locks_pub(pk, T, sigflags), T, k)
+        result[pk] = [*make_adapter_locks_pub(pk, T, sigflags), T, k]
+        if type(refund_pubkeys) is dict and pk in refund_pubkeys:
+            result[pk][1] = make_ptlc_lock(
+                pk, refund_pubkeys[pk], timeout=timeout, sigflags=sigflags)
+        result[pk] = tuple(result[pk])
     result['key'] = AMHL.setup_for(setup, n)[-1]
     return result
 
