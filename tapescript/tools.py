@@ -4,10 +4,12 @@ from .errors import tert, vert, yert
 from .parsing import (
     compile_script,
     decompile_script,
-    add_opcode_parsing_handlers
+    add_opcode_parsing_handlers,
+    is_hex,
 )
 from .functions import (
     opcodes_inverse,
+    opcode_aliases,
     nopcodes_inverse,
     run_script,
     run_tape,
@@ -26,9 +28,11 @@ from .functions import (
     H_small,
 )
 from hashlib import sha256, shake_256
+from sys import argv
 from time import time
 from typing import Callable
 import nacl.bindings
+import json
 
 
 def _combine_two(branch_a: str, branch_b: str) -> list[str]:
@@ -141,14 +145,29 @@ def _format_function_doc(function: Callable) -> str:
     val += f'`\n\n{docstring}'
     return val
 
+def _get_op_aliases() -> dict[str, list[str]]:
+    """Find and return all aliases for all ops."""
+    aliases = {
+        opname: []
+        for opname in opcodes_inverse
+    }
+    for alias in opcode_aliases:
+        aliases[opcode_aliases[alias]].append(alias)
+    return aliases
+
 def generate_docs() -> list[str]:
     """Generates the docs file using annotations and docstrings."""
     data = {}
+    aliases = _get_op_aliases()
+    alias_lists = {
+        opname: 'Aliases:\n' + '\n- '.join(aliases[opname])
+        for opname in aliases
+    }
 
     for opname in opcodes_inverse:
         number = opcodes_inverse[opname][0]
         doc = opcodes_inverse[opname][1].__doc__
-        data[number] = (opname, doc)
+        data[number] = (opname, doc, aliases[opname])
 
     nop_doc = None
     min_nop_number, max_nop_number = 255, 0
@@ -175,7 +194,7 @@ def generate_docs() -> list[str]:
     for number in data:
         line = f'\n## {data[number][0]} - {number} - x{number.to_bytes(1, "big").hex().upper()}\n\n'
         docstring = _format_docstring(data[number][1])
-        paragraphs.append(line + docstring + '\n')
+        paragraphs.append(line + docstring + f'\n{alias_lists[data[number][0]]}\n')
 
     paragraphs.append(f"\n## NOP Codes - {nop_code_snippet}\n\n" +
                       _format_docstring(nop_doc) + '\n')
@@ -746,3 +765,113 @@ def release_left_amhl_lock(adapter_witness: bytes, signature: bytes, y: bytes) -
     s = signature[32:]
     t = nacl.bindings.crypto_core_ed25519_scalar_sub(s, sa) # s = sa + t
     return AMHL.release(t, y)
+
+def cli_help() -> str:
+    """Return CLI help text."""
+    name = argv[0]
+    return '\n'.join([
+        f'Usage: {name} [method] [options]',
+        '\tcompile src_file bin_file -- compiles the source code into bytecode '
+        'and writes it to bin_file',
+        '\tdecompile binary_file -- decompiles the bytecode and outputs to stdout',
+        '\trun bin_file [cache_file] -- runs tapescript bytecode and prints the '
+        'resulting cache and queue',
+        '\tauth bin_file [cache_file] -- runs tapescript bytecode as auth script'
+        ' and prints true if it was successful or false otherwise\n',
+        'The optional cache_file parameter must be a json file with the '
+        'following format:',
+        '{', '\t"type:name": [type, value]', '}\n',
+        'The type must be one of "string", "str", "number", "bytes". All bytes '
+        'values must be hexadecimal strings. For example:',
+        '{', '\t["number", 78]: ["bytes", "d13f398b5bacf525"]', '}'
+    ])
+
+def _clert(condition: bool, message: str = ''):
+    if not condition:
+        message = f'{message}\n{cli_help()}' if message else cli_help()
+        print(message)
+        exit(1)
+
+def _parse_cache_json_part(part: list, errmsg: str):
+    match part[0]:
+        case 'string'|'str':
+            _clert(type(part[1]) is str, errmsg)
+            return part[1]
+        case 'number':
+            _clert(type(part[1]) in (int, float), errmsg)
+            return part[1]
+        case 'bytes':
+            _clert(type(part[1]) is str and is_hex(part[1]), errmsg)
+            return bytes.fromhex(part[1])
+
+def _parse_cache_json(fname: str) -> dict:
+    errmsg = 'JSON file format is {"type:name": [type, value], ...}. ' + \
+        'The type must be "string", "str", "number", or "bytes". Bytes ' + \
+        'values must be hexadecimal. If type is "string" or "str", the ' + \
+        'associated name or value must be a string. If type is "number", ' + \
+        'the associated name or value must be a number.'
+    with open(fname, 'r') as f:
+        cache = {}
+        data: dict = json.loads(f.read())
+        _clert(type(data) is dict, errmsg)
+        for k, v in data.items():
+            k = k.split(':')
+            k = [k[0], ':'.join(k[1:])] if len(k) > 2 else k
+            _clert(type(k) is list and len(k) == 2, f'{k} is invalid. {errmsg}')
+            _clert(k[0] in ('string', 'str', 'number', 'bytes'), f'{k[0]} is invalid. {errmsg}')
+            _clert(type(v) is list and len(v) == 2, f'{v} is invalid. {errmsg}')
+            _clert(v[0] in ('string', 'str', 'number', 'bytes'), f'{v[0]} is invalid. {errmsg}')
+            key = _parse_cache_json_part(k, errmsg)
+            value = _parse_cache_json_part(v, errmsg)
+            cache[key] = value
+        return cache
+
+def run_cli() -> None:
+    """Run the simple CLI tool. More advanced functionality requires
+        programmatic access.
+    """
+    _clert(len(argv) >= 2)
+    method = argv[1]
+    match method:
+        case 'compile':
+            _clert(len(argv) >= 4, 'Must supply src_file and bin_file parameters.')
+            src_fname = argv[2]
+            bin_fname = argv[3]
+            data = b''
+            with open(src_fname, 'r') as f:
+                data = compile_script(f.read())
+            with open(bin_fname, 'wb') as f:
+                f.write(data)
+        case 'decompile':
+            _clert(len(argv) >= 3, 'Missing bin_file parameter.')
+            bin_fname = argv[2]
+            with open(bin_fname, 'rb') as f:
+                data = f.read()
+                print(decompile_script(data))
+        case 'run':
+            _clert(len(argv) >= 3, 'Must supply bin_file parameter.')
+            bin_fname, script, cache = argv[2], b'', {}
+            with open(bin_fname, 'rb') as f:
+                script = f.read()
+            if len(argv) > 3:
+                cache = _parse_cache_json(argv[3])
+            _, queue, cache = run_script(script, cache)
+            items = []
+            while queue.qsize():
+                items.append(queue.get(False).hex())
+            items.reverse()
+            cache = {
+                (f'bytes:{k.hex()}' if type(k) is bytes else k):
+                f'bytes:{v.hex()}' if type(v) is bytes else v
+                for k, v in cache.items()
+            }
+            print(f'queue:\n' + '\n'.join(items))
+            print(f'cache:\n{cache}')
+        case 'auth':
+            _clert(len(argv) >= 3, 'Must supply bin_file parameter.')
+            bin_fname, script, cache = argv[2], b'', {}
+            with open(bin_fname, 'rb') as f:
+                script = f.read()
+            if len(argv) > 3:
+                cache = _parse_cache_json(argv[3])
+            print('true' if run_auth_script(script, cache) else 'false')
