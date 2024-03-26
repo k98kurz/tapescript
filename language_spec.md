@@ -524,3 +524,54 @@ returned for any of them will result in `False` placed onto the queue. Then,
 the result for the destination will be taken out of the result of that function
 call; if it is equal to or greater than the `amount` and all proofs were valid,
 it puts `True` onto the queue, else it puts `False` onto the queue.
+
+### `OP_INVOKE`
+
+Takes an item from the queue as `contract_id`; takes a uint from the queue as
+`argcount`; takes `argcount` items from the queue as arguments; tries to invoke
+the contract's `abi` method, passing it the arguments; puts any return values
+onto the queue. Raises `ScriptExecutionError` if the contract is missing or does
+not implement the `CanBeInvoked` interface. Raises `TypeError` if the return
+value type is not bytes or NoneType. If allowed by tape.flag[0], will put any
+return values into cache at key b'IR'.
+
+Example:
+
+```python
+# file somecontract.py
+from tapescript import int_to_bytes
+
+class SomeContract:
+    def abi(self, args: list[bytes]) -> list[bytes]:
+        if not len(args):
+            return [b'\x00']
+        avg_size = sum([len(a) for a in args]) / len(args)
+        return [int_to_bytes(int(avg_size))]
+
+# file bootstrap.py
+from hashlib import shake_256
+from inspect import getsource
+import somecontract
+
+def boot():
+    contract_id = shake_256(bytes(getsource(somecontract), 'utf-8')).digest(20)
+    add_contract(contract_id, somecontract.SomeContract)
+
+# file test.py
+from bootstrap import boot
+from tapescript import compile_script, run_script, bytes_to_int
+
+boot()
+
+script = '''
+push xfeedbeef
+push s"yellow submarine"
+push d2
+push x66b58394825b07bc65e504697654d7dd43640f26
+invoke
+'''
+
+_, queue, cache = run_script(compile_script(script))
+assert queue.qsize() == 1
+assert bytes_to_int(queue.get(False)) == 10
+```

@@ -1448,17 +1448,19 @@ def OP_DECRYPT_ADAPTER_SIG(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     queue.put(RT)
 
 def OP_INVOKE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Takes an item from the queue as a contract ID; takes a uint from
-        the queue as argcount; takes argcount items from the queue as
-        arguments; tries to invoke the contract's abi method, passing it
-        the arguments; puts any return values onto the queue. Raises
-        ScriptExecutionError if the contract is missing. Raises
-        TypeError if the return value type is not bytes or NoneType. If
-        allowed by tape.flag[0], will put any return values into cache
-        at key b'IR'.
+    """Takes an item from the queue as `contract_id`; takes an int from
+        the queue as `argcount`; takes `argcount` items from the queue
+        as arguments; tries to invoke the contract's abi method, passing
+        it the arguments; puts any return values onto the queue. Raises
+        ScriptExecutionError if the argcount is negative, contract is
+        missing, or the contract does not implement the `CanBeInvoked`
+        interface. Raises TypeError if the return value type is not
+        bytes or NoneType. If allowed by tape.flag[0], will put any
+        return values into cache at key b'IR'.
     """
     contract_id = queue.get(False)
-    argcount = int.from_bytes(queue.get(False), 'big')
+    argcount = bytes_to_int(queue.get(False))
+    sert(argcount >= 0, 'OP_INVOKE invalid argcount encountered')
     args = []
     for _ in range(argcount):
         args.append(queue.get(False))

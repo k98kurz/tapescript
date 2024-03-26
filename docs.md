@@ -794,12 +794,13 @@ Aliases:
 
 ## OP_INVOKE - 85 - x55
 
-Takes an item from the queue as a contract ID; takes a uint from the queue as
-argcount; takes argcount items from the queue as arguments; tries to invoke the
-contract's abi method, passing it the arguments; puts any return values onto the
-queue. Raises ScriptExecutionError if the contract is missing. Raises TypeError
-if the return value type is not bytes or NoneType. If allowed by tape.flag[0],
-will put any return values into cache at key b'IR'.
+Takes an item from the queue as `contract_id`; takes an int from the queue as
+`argcount`; takes `argcount` items from the queue as arguments; tries to invoke
+the contract's abi method, passing it the arguments; puts any return values onto
+the queue. Raises ScriptExecutionError if the argcount is negative, contract is
+missing, or the contract does not implement the `CanBeInvoked` interface. Raises
+TypeError if the return value type is not bytes or NoneType. If allowed by
+tape.flag[0], will put any return values into cache at key b'IR'.
 
 Aliases:
 - INVOKE
