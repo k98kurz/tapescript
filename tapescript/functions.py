@@ -9,7 +9,7 @@ from nacl.signing import SigningKey, VerifyKey
 from queue import LifoQueue
 from secrets import token_bytes
 from time import time
-from typing import Callable, Protocol, _ProtocolMeta
+from typing import Callable, _ProtocolMeta
 import nacl.bindings
 import struct
 
@@ -173,15 +173,13 @@ def OP_TRUE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     queue.put(b'\x01')
 
 def OP_PUSH0(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Read the next byte from the tape; put it onto the queue; and
-        advance the pointer appropriately.
+    """Read the next byte from the tape; put it onto the queue.
     """
     queue.put(tape.read(1))
 
 def OP_PUSH1(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int;
-        take that many bytes from the tape; put them onto the queue; and
-        advance the pointer appropriately.
+        take that many bytes from the tape; put them onto the queue.
     """
     size = int.from_bytes(tape.read(1), 'big')
     queue.put(tape.read(size))
@@ -189,7 +187,7 @@ def OP_PUSH1(tape: Tape, queue: LifoQueue, cache: dict) -> None:
 def OP_PUSH2(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Read the next 2 bytes from the tape, interpreting as an unsigned
         int; take that many bytes from the tape; put them onto the
-        queue; and advance the pointer appropriately.
+        queue.
     """
     size = int.from_bytes(tape.read(2), 'big')
     queue.put(tape.read(size))
@@ -197,19 +195,21 @@ def OP_PUSH2(tape: Tape, queue: LifoQueue, cache: dict) -> None:
 def OP_PUSH4(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Read the next 4 bytes from the tape, interpreting as an unsigned
         int; take that many bytes from the tape; put them onto the
-        queue; and advance the pointer appropriately.
+        queue.
     """
     size = int.from_bytes(tape.read(4), 'big')
     queue.put(tape.read(size))
 
 def OP_POP0(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Remove the first item from the queue and put it in the cache."""
+    """Remove the first item from the queue and put it in the cache at
+        key b'P' (can be put back onto the queue with @P).
+    """
     cache[b'P'] = [queue.get(False)]
 
 def OP_POP1(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int;
-        remove that many items from the queue and put them in the cache;
-        advance the pointer appropriately.
+        remove that many items from the queue and put them in the cache
+        at key b'P' (can be put back onto the queue with @P).
     """
     size = int.from_bytes(tape.read(1), 'big')
     items = []
@@ -229,8 +229,7 @@ def OP_WRITE_CACHE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int;
         read that many bytes from tape as cache key; read another byte
         from the tape, interpreting as an int; read that many items from
-        the queue and write them to the cache; advance the pointer
-        appropriately.
+        the queue and write them to the cache.
     """
     size = int.from_bytes(tape.read(1), 'big')
     key = tape.read(size)
@@ -245,8 +244,7 @@ def OP_WRITE_CACHE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
 def OP_READ_CACHE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int;
         read that many bytes from tape as cache key; read those values
-        from the cache and place them onto the queue; advance the
-        pointer.
+        from the cache and place them onto the queue.
     """
     size = int.from_bytes(tape.read(1), 'big')
     key = tape.read(size)
@@ -260,7 +258,7 @@ def OP_READ_CACHE_SIZE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int;
         read that many bytes from tape as cache key; count how many
         values exist at that point in the cache and place that int onto
-        the queue; advance the pointer.
+        the queue.
     """
     size = int.from_bytes(tape.read(1), 'big')
     key = tape.read(size)
@@ -297,7 +295,7 @@ def OP_ADD_INTS(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned
         int; pull that many values from the queue, interpreting them as
         signed ints; add them together; put the result back onto the
-        queue; advance the pointer appropriately.
+        queue.
     """
     size = int.from_bytes(tape.read(1), 'big')
     total = 0
@@ -327,7 +325,7 @@ def OP_MULT_INTS(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned
         int; pull that many values from the queue, interpreting them as
         signed ints; multiply them together; put the result back onto
-        the queue; advance the pointer appropriately.
+        the queue.
     """
     size = int.from_bytes(tape.read(1), 'big')
     total = bytes_to_int(queue.get(False))
@@ -342,8 +340,7 @@ def OP_DIV_INT(tape: Tape, queue: LifoQueue, cache: dict) -> None:
         int; read that many bytes from the tape, interpreting as a
         signed int divisor (denominator); pull a value from the queue,
         interpreting as a signed int dividend (numerator); divide the
-        dividend by the divisor; put the result onto the queue; advance
-        the pointer.
+        dividend by the divisor; put the result onto the queue.
     """
     size = int.from_bytes(tape.read(1), 'big')
     divisor = bytes_to_int(tape.read(size))
@@ -363,7 +360,7 @@ def OP_MOD_INT(tape: Tape, queue: LifoQueue, cache: dict) -> None:
         int; read that many bytes from the tape, interpreting as a
         signed int divisor; pull a value from the queue, interpreting
         as a signed int dividend; perform integer modulus: dividend %
-        divisor; put the result onto the queue; advance the tape.
+        divisor; put the result onto the queue.
     """
     size = int.from_bytes(tape.read(1), 'big')
     divisor = bytes_to_int(tape.read(size))
@@ -382,8 +379,7 @@ def OP_MOD_INTS(tape: Tape, queue: LifoQueue, cache: dict) -> None:
 def OP_ADD_FLOATS(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int;
         pull that many values from the queue, interpreting them as
-        floats; add them together; put the result back onto the queue;
-        advance the pointer appropriately.
+        floats; add them together; put the result back onto the queue.
     """
     size = int.from_bytes(tape.read(1), 'big')
     total = 0.0
@@ -403,7 +399,7 @@ def OP_SUBTRACT_FLOATS(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int;
         pull that many values from the queue, interpreting them as
         floats; subtract them from the first one; put the result back
-        onto the queue; advance the pointer appropriately.
+        onto the queue.
     """
     size = int.from_bytes(tape.read(1), 'big')
     item = queue.get(False)
@@ -426,7 +422,7 @@ def OP_DIV_FLOAT(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Read the next 4 bytes from the tape, interpreting as a float
         divisor; pull a value from the queue, interpreting as a float
         dividend; divide the dividend by the divisor; put the result
-        onto the queue; advance the pointer.
+        onto the queue.
     """
     item = queue.get(False)
     tert(type(item) is bytes and len(item) == 4,
@@ -457,7 +453,7 @@ def OP_MOD_FLOAT(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Read the next 4 bytes from the tape, interpreting as a float
         divisor; pull a value from the queue, interpreting as a float
         dividend; perform float modulus: dividend % divisor; put the
-        result onto the queue; advance the pointer.
+        result onto the queue.
     """
     item = queue.get(False)
     tert(type(item) is bytes and len(item) == 4, 'OP_MOD_FLOAT malformed float')
@@ -486,8 +482,7 @@ def OP_MOD_FLOATS(tape: Tape, queue: LifoQueue, cache: dict) -> None:
 def OP_ADD_POINTS(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int;
         pull that many values from the queue; add them together using
-        ed25519 point addition; replace the result onto the queue;
-        advance the pointer appropriately.
+        ed25519 point addition; replace the result onto the queue.
     """
     count = int.from_bytes(tape.read(1), 'big')
     points = []
@@ -512,7 +507,7 @@ def OP_COPY(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int;
         pull a value from the queue; place that value and a number of
         copies corresponding to the int from the tape back onto the
-        queue; advance the pointer appropriately.
+        queue.
     """
     n_copies = int.from_bytes(tape.read(1), 'big')
     item = queue.get(False)
@@ -538,7 +533,7 @@ def OP_SHA256(tape: Tape, queue: LifoQueue, cache: dict) -> None:
 def OP_SHAKE256(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int;
         pull an item from the queue; put its shake_256 hash of the
-        spcified length back onto the queue; advance pointer.
+        spcified length back onto the queue.
     """
     size = int.from_bytes(tape.read(1), 'big')
     item = queue.get(False)
@@ -711,8 +706,7 @@ def OP_CHECK_EPOCH_VERIFY(tape: Tape, queue: LifoQueue, cache: dict) -> None:
 def OP_DEF(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Read the next byte from the tape as the definition number; read
         the next 2 bytes from the tape, interpreting as an unsigned int;
-        read that many bytes from the tape as the subroutine definition;
-        advance the pointer appropriately.
+        read that many bytes from the tape as the subroutine definition.
     """
     def_handle = tape.read(1)
     def_size = int.from_bytes(tape.read(2), 'big')
@@ -750,8 +744,7 @@ def OP_IF(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Read the next 2 bytes from the tape, interpreting as an unsigned
         int; read that many bytes from the tape as a subroutine
         definition; pull a value from the queue and evaluate as a bool;
-        if it is true, run the subroutine; advance the pointer
-        appropriately.
+        if it is true, run the subroutine.
     """
     def_size = int.from_bytes(tape.read(2), 'big')
 
@@ -776,7 +769,7 @@ def OP_IF_ELSE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
         an unsigned int; read that many bytes from the tape as the ELSE
         subroutine definition; pull a value from the queue and evaluate
         as a bool; if it is true, run the IF subroutine; else run the
-        ELSE subroutine; advance the pointer appropriately.
+        ELSE subroutine.
     """
     if_def_size = int.from_bytes(tape.read(2), 'big')
     if_def_data = tape.read(if_def_size)
@@ -834,7 +827,7 @@ def OP_NOT(tape: Tape, queue: LifoQueue, cache: dict) -> None:
 
 def OP_RANDOM(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int;
-        put that many random bytes onto the queue; advance the pointer.
+        put that many random bytes onto the queue.
     """
     size = int.from_bytes(tape.read(1), 'big')
     queue.put(token_bytes(size), False)
@@ -846,8 +839,7 @@ def OP_RETURN(tape: Tape, queue: LifoQueue, cache: dict) -> None:
 
 def OP_SET_FLAG(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int;
-        read that many bytes from the tape as a flag; set that flag;
-        advance the pointer appropriately.
+        read that many bytes from the tape as a flag; set that flag.
     """
     size = int.from_bytes(tape.read(1), 'big')
     flag = tape.read(size)
@@ -856,8 +848,7 @@ def OP_SET_FLAG(tape: Tape, queue: LifoQueue, cache: dict) -> None:
 
 def OP_UNSET_FLAG(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int;
-        read that many bytes from the tape as a flag; unset that flag;
-        advance the pointer appropriately.
+        read that many bytes from the tape as a flag; unset that flag.
     """
     size = int.from_bytes(tape.read(1), 'big')
     flag = tape.read(size)
@@ -870,8 +861,7 @@ def OP_DEPTH(tape: Tape, queue: LifoQueue, cache: dict) -> None:
 
 def OP_SWAP(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Read the next 2 bytes from the tape, interpreting as unsigned
-        ints; swap the queue items at those depths; advance the pointer
-        appropriately.
+        ints; swap the queue items at those depths.
     """
     first_idx = int.from_bytes(tape.read(1), 'big')
     second_idx = int.from_bytes(tape.read(1), 'big')
@@ -909,8 +899,8 @@ def OP_REVERSE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     queue.queue[-count:] = items
 
 def OP_CONCAT(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Pull two items from the queue; concatenate them; put the result
-        onto the queue.
+    """Pull two items from the queue; concatenate them first+second; put
+        the result onto the queue.
     """
     first = queue.get(False)
     second = queue.get(False)
@@ -920,7 +910,7 @@ def OP_SPLIT(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int
         index; pull an item from the queue; split the item bytes at the
         index; put the second byte sequence onto the queue, then put the
-        first byte sequence onto the queue; advance pointer.
+        first byte sequence onto the queue.
     """
     index = int.from_bytes(tape.read(1), 'big')
     item = queue.get(False)
@@ -942,7 +932,7 @@ def OP_SPLIT_STR(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int
         index; pull an item from the queue, interpreting as a UTF-8 str;
         split the item str at the index, then put the first str onto
-        the queue; put the second str onto the queue; advance the pointer.
+        the queue; put the second str onto the queue.
     """
     index = int.from_bytes(tape.read(1), 'big')
     item = str(queue.get(False), 'utf-8')
@@ -1682,6 +1672,18 @@ opcode_aliases = {
     k[3:]: k for k, _ in opcodes_inverse.items()
 }
 
+opcode_aliases['OP_RCS'] = 'OP_READ_CACHE_SIZE'
+opcode_aliases['RCS'] = 'OP_READ_CACHE_SIZE'
+opcode_aliases['OP_RCQ'] = 'OP_READ_CACHE_Q'
+opcode_aliases['OP_SUBF'] = 'OP_SUBTRACT_FLOATS'
+opcode_aliases['SUBF'] = 'OP_SUBTRACT_FLOATS'
+opcode_aliases['OP_MODF'] = 'OP_MOD_FLOAT'
+opcode_aliases['MODF'] = 'OP_MOD_FLOAT'
+opcode_aliases['OP_MODFS'] = 'OP_MOD_FLOATS'
+opcode_aliases['MODFS'] = 'OP_MOD_FLOATS'
+opcode_aliases['RCQ'] = 'OP_READ_CACHE_Q'
+opcode_aliases['OP_RCQS'] = 'OP_READ_CACHE_Q_SIZE'
+opcode_aliases['RCQS'] = 'OP_READ_CACHE_Q_SIZE'
 opcode_aliases['OP_LEQ'] = 'OP_LESS_OR_EQUAL'
 opcode_aliases['LEQ'] = 'OP_LESS_OR_EQUAL'
 opcode_aliases['OP_VAL'] = 'OP_GET_VALUE'
@@ -1694,10 +1696,28 @@ opcode_aliases['OP_I2F'] = 'OP_INT_TO_FLOAT'
 opcode_aliases['I2F'] = 'OP_INT_TO_FLOAT'
 opcode_aliases['OP_F2I'] = 'OP_FLOAT_TO_INT'
 opcode_aliases['F2I'] = 'OP_FLOAT_TO_INT'
+opcode_aliases['OP_CTV'] = 'OP_CHECK_TIMESTAMP_VERIFY'
+opcode_aliases['CTV'] = 'OP_CHECK_TIMESTAMP_VERIFY'
+opcode_aliases['OP_CEV'] = 'OP_CHECK_EPOCH_VERIFY'
+opcode_aliases['CEV'] = 'OP_CHECK_EPOCH_VERIFY'
+opcode_aliases['OP_CSV'] = 'OP_CHECK_SIG_VERIFY'
+opcode_aliases['CSV'] = 'OP_CHECK_SIG_VERIFY'
 opcode_aliases['OP_CMS'] = 'OP_CHECK_MULTISIG'
 opcode_aliases['CMS'] = 'OP_CHECK_MULTISIG'
 opcode_aliases['OP_CMSV'] = 'OP_CHECK_MULTISIG_VERIFY'
 opcode_aliases['CMSV'] = 'OP_CHECK_MULTISIG_VERIFY'
+opcode_aliases['OP_CSQ'] = 'OP_CHECK_SIG_QUEUE'
+opcode_aliases['CSQ'] = 'OP_CHECK_SIG_QUEUE'
+opcode_aliases['OP_MASU'] = 'OP_MAKE_ADAPTER_SIG_PUBLIC'
+opcode_aliases['MASU'] = 'OP_MAKE_ADAPTER_SIG_PUBLIC'
+opcode_aliases['OP_MASV'] = 'OP_MAKE_ADAPTER_SIG_PRIVATE'
+opcode_aliases['MASV'] = 'OP_MAKE_ADAPTER_SIG_PRIVATE'
+opcode_aliases['OP_CAS'] = 'OP_CHECK_ADAPTER_SIG'
+opcode_aliases['CAS'] = 'OP_CHECK_ADAPTER_SIG'
+opcode_aliases['OP_DAS'] = 'OP_DECRYPT_ADAPTER_SIG'
+opcode_aliases['DAS'] = 'OP_DECRYPT_ADAPTER_SIG'
+opcode_aliases['OP_MSG'] = 'OP_GET_MESSAGE'
+opcode_aliases['MSG'] = 'OP_GET_MESSAGE'
 
 nopcodes_inverse = {
     nopcodes[key][0]: (key, nopcodes[key][1]) for key in nopcodes

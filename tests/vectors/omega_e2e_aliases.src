@@ -69,9 +69,9 @@ call d1
 size
 write_cache s"size" d1
 read_cache s"size"
-read_cache_size s"size"
-read_cache_q
-read_cache_q_size
+rcs s"size"
+rcq
+rcqs
 add_ints d12
 subtract_ints d21
 mult_ints d2
@@ -80,7 +80,7 @@ div_ints
 mod_int d10
 mod_ints
 add_floats d2
-subtract_floats d2
+subf d2
 div_float x3c4985f0
 div_floats
 mod_float x3c4985f0
@@ -94,11 +94,11 @@ verify
 equal
 equal_verify
 check_sig x22
-check_sig_verify x33
+csv x33
 check_timestamp
-check_timestamp_verify
+ctv
 check_epoch
-check_epoch_verify
+cev
 eval
 not
 random d32
@@ -143,22 +143,22 @@ cms x00 d2 d2
 cmsv x00 d2 d3
 sign x00
 sign_queue
-check_sig_queue
+csq
 derive_scalar
 clamp_scalar d1
 add_scalars d3
 subtract_scalars d2
 derive_point
 subtract_points d4
-make_adapter_sig_public
-make_adapter_sig_private
-check_adapter_sig
-decrypt_adapter_sig
+masu
+masv
+cas
+das
 invoke
 xor
 or
 and
-get_message x00
+msg x00
 nop90 d1
 nop91 d1
 nop92 d1
