@@ -361,8 +361,8 @@ if the signature validated or `False` if it did not
 takes a timestamp from the cache at "timestamp", compares the timestamp to the
 constraint, and puts `False` onto the queue if the timestamp is less than the
 constraint or if the "ts_threshold" flag was set and exceeded by the difference
-between the timestamp and the current time and puts `True` onto the queue
-otherwise
+between the timestamp and the current time (i.e. if the timestamp is more than
+ts_threshold into the future) and puts `True` onto the queue otherwise
 - `OP_CHECK_TIMESTAMP_VERIFY` - calls `OP_CHECK_TIMESTAMP` then `OP_VERIFY`
 - `OP_CHECK_EPOCH` - takes an unsigned int from the queue as a constraint,
 subtracts the current time from the constraint, and puts `False` onto the queue

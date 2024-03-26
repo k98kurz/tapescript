@@ -773,7 +773,7 @@ def cli_help() -> str:
         f'Usage: {name} [method] [options]',
         '\tcompile src_file bin_file -- compiles the source code into bytecode '
         'and writes it to bin_file',
-        '\tdecompile binary_file -- decompiles the bytecode and outputs to stdout',
+        '\tdecompile bin_file -- decompiles the bytecode and outputs to stdout',
         '\trun bin_file [cache_file] -- runs tapescript bytecode and prints the '
         'resulting cache and queue',
         '\tauth bin_file [cache_file] -- runs tapescript bytecode as auth script'

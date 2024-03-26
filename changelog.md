@@ -51,6 +51,10 @@ more ed25519 maths.
 - Added `OP_MAKE_ADAPTER_SIG_PUBLIC`, `OP_MAKE_ADAPTER_SIG_PRIVATE`,
 `OP_CHECK_ADAPTER_SIG`, and `OP_DECRYPT_ADAPTER_SIG` to allow easier use of
 adapter signatures.
+- Added `OP_INVOKE` and associated `CanBeInvoked` interface for more flexible
+contracts that can be invoked with `OP_INVOKE`.
+- Added a simple CLI and a bunch of new tools for using adapter signatures,
+HTLCs, PTLCs, and AMHLs.
 
 ## 0.3.1
 
