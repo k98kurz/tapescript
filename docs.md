@@ -842,9 +842,10 @@ Aliases:
 
 ## NOP Codes - 90-255 (x5A-FF)
 
-Codes in 90-255 (x5A-FF) Read the next byte from the tape, interpreting as an
-unsigned int and pull that many values from the queue. Does nothing with the
-values. Useful for later soft-forks by redefining byte codes.
+Codes in 90-255 (x5A-FF) Read the next byte from the tape, interpreting as a
+signed int and pull that many values from the queue. Does nothing with the
+values. Useful for later soft-forks by redefining byte codes. Raises
+ScriptExecutionError if count is negative.
 
 
 # Other interpreter functions
