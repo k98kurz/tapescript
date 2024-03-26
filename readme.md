@@ -185,9 +185,9 @@ signatures:
 - `make_adapter_lock_pub`
 - `make_adapter_lock_prv`
 - `make_adapter_locks_pub`
+- `make_adapter_locks_prv`
 - `make_adapter_decrypt`
 - `decrypt_adapter`
-- `make_adapter_locks_prv`
 - `make_adapter_witness`
 - `clamp_scalar`
 - `derive_key_from_seed`
@@ -203,8 +203,8 @@ are unlocked. See [the original paper](https://secpriv.wien/fulltext/publik_2784
 for a full explanation of the mathematics of the AMHL. Tapescript provides the
 following tools for using AMHLs:
 
-- `tools.setup_amhl`
-- `tools.release_left_amhl_lock`
+- `setup_amhl`
+- `release_left_amhl_lock`
 
 The `setup_amhl` tool constructs adapter signature locking scripts, `check_sig`
 locks, and intermediate values, and it will provide PTLCs in lieu of `check_sig`
@@ -290,13 +290,16 @@ call `add_contract_interface` and pass a `runtime_checkable` subclass of
 To add a contract, use `add_contract(contract_id: bytes, contract: object)`. To
 remove a contract, use `remove_contract(contract_id: bytes)`.
 
-Each contract will be checked against each interface when added (it must meet at
-least one) and again at runtime when an op that uses a contract is executed. All
-contracts added via the `add_contract` function will be included in the runtime
-environment of scripts run thereafter. Additionally, contracts can be passed
-into the `run_script` and `run_auth_script` functions, and these will override
-any contracts in the global runtime environment in case of a contract_id
-conflict.
+Each contract will be checked against each interface when added (it must
+implement at least one) and again at runtime when an op that uses a contract is
+executed. All contracts added via the `add_contract` function will be included
+in the runtime environment of scripts run thereafter. Additionally, contracts
+can be passed into the `run_script` and `run_auth_script` functions, and these
+will override any contracts in the global runtime environment in case of a
+contract_id conflict. The contract_id should be a cryptographic hash of the
+contract's source code; it is called a contract rather than a module because the
+users of a system must commit to running the same code, and this forms a
+contractual relationship between users.
 
 To use a contract in a custom op, find it in the `tape.contracts` dict by its
 contract_id.
@@ -327,7 +330,7 @@ support in mind, and the helper function `add_soft_fork` is included to
 streamline the process and reduce the use of boilerplate.
 
 To enable a soft fork, a NOP code must be replaced with an op that reads the
-next byte as an unsigned int, pulls that many values from the queue, runs any
+next byte as a signed int, pulls that many values from the queue, runs any
 checks on the data, and raises an error in case any check fails. This maintains
 the behavior of the original NOP such that any nodes that did not activate the
 soft fork will not have any errors parsing scripts using the new OP.
@@ -338,17 +341,19 @@ Example soft fork:
 from tapescript import (
     Tape,
     ScriptExecutionError,
-    add_soft_fork
+    add_soft_fork,
+    bytes_to_int,
 )
 from queue import LifoQueue
 
 
 def OP_CHECK_ALL_EQUAL_VERIFY(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Replacement for NOP255: read the next byte as uint count, take
+    """Replacement for NOP255: read the next byte an int count, take
         that many items from queue, run checks, and raise an error if
         any check fails.
     """
-    count = tape.read(1)[0]
+    count = bytes_to_int(tape.read(1))
+    assert count >= 0
     items = []
     for i in range(count):
         items.append(queue.get(False))

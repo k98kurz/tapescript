@@ -1557,13 +1557,15 @@ def OP_GET_MESSAGE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     queue.put(message)
 
 def NOP(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Read the next byte from the tape, interpreting as an unsigned int
+    """Read the next byte from the tape, interpreting as a signed int
         and pull that many values from the queue. Does nothing with the
         values. Useful for later soft-forks by redefining byte codes.
+        Raises ScriptExecutionError if count is negative.
     """
-    size = int.from_bytes(tape.read(1), 'big')
+    count = bytes_to_int(tape.read(1))
+    sert(count >= 0, 'NOP count must not be negative')
 
-    for _ in range(size):
+    for _ in range(count):
         queue.get(False)
 
 
