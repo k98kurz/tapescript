@@ -23,7 +23,7 @@ controls in a distributed system.
 - [x] Macros and variables
 - [x] Loops
 - [x] HTLCs, AMHLs, adapter signatures, delegated key scripts
-- [x] Simple CLI: compile, decompile, run, and auth functionality
+- [x] Simple CLI: compile, decompile, run, and auth
 - [ ] Rewrite `OP_MERKLEVAL` and tools to use root=xor(hash(hash(branch)), hash(hash(branch)))
 
 ## Usage
@@ -48,11 +48,12 @@ As of version 0.4.0, a simple CLI has been included with the following features:
 - `run bin_file [cache_file]` -- runs Tapescript bytecode and prints the cache
 and queue
 - `auth bin_file [cache_file]` -- runs the Tapescript bytecode as an auth script
-and prints "true" or "false
+and prints "true" if it succeeded and "false" otherwise
 
 Passing the optional `cache_file` parameter will set specific cache values after
 parsing the `cache_file`, which must adhere to a specific format. The intent of
-this CLI is to make it easy to experiment and/or debug Tapescript scripts.
+this CLI is to make it easy to experiment and/or debug Tapescript scripts. Run
+the command `tapescript` to get the help text.
 
 ### Write, compile, decompile
 
@@ -66,6 +67,18 @@ function to turn it into the byte code that the interpreter runs. Note that each
 `OP_` function has an alias that excludes the `OP_` prefix; e.g. `OP_PUSH d1`
 can also be written `PUSH d1`. Op names are not case-sensitive, and several ops
 have additional aliases. Variable and macro names are case-sensitive.
+
+The following functions are also available for VM-compatible serialization:
+- `bytes_to_int`
+- `int_to_bytes`
+- `uint_to_bytes`
+- `bytes_to_bool`
+- `bytes_to_float`
+- `float_to_bytes`
+
+And these functions are available for convenience:
+- `xor`
+- `bytes_are_same`
 
 #### Variables and Macros
 
@@ -145,37 +158,42 @@ constructed either by adding `X1` and `X2` or by first adding `x1` and `x2`
 before multiplying by the base/generator point; i.e. `X1+X2 = (x1+x2)*G`.
 Additionally, it is computationally infeasible to find the scalar that matches a
 given point; i.e. the function `oneway(x) -> x*G` cannot be reversed. This
-enables novel and inventive cryptographic systems to be built using Ed25519
-cryptographic primitives. Tapescript provides the following ops for use with
-novel cryptographic systems using the Ed25519 primitives:
+enables powerful cryptographic systems to be built using Ed25519 cryptographic
+primitives. Tapescript provides the following ops for use with novel
+cryptographic systems using the Ed25519 primitives:
 
-- `OP_ADD_POINTS`
 - `OP_DERIVE_SCALAR`
 - `OP_CLAMP_SCALAR`
 - `OP_ADD_SCALARS`
 - `OP_SUBTRACT_SCALARS`
 - `OP_DERIVE_POINT`
+- `OP_ADD_POINTS`
 - `OP_SUBTRACT_POINTS`
 
 One such system is the adapter signature. See
 [here](https://medium.com/crypto-garage/adaptor-signature-schnorr-signature-and-ecdsa-da0663c2adc4)
-for an introduction to how the adapter signature works. The basic summary is
-that an additional "tweak" point, `T=t*G`, and associated scalar "tweak" value,
-`t`, can be used to create verifiable encrypted signatures and decrypt them,
+for an introduction to how adapter signatures work. The basic summary is that an
+additional "tweak" point, `T=t*G`, and associated scalar "tweak" value, `t`, can
+be used to create verifiable encrypted signatures and decrypt them,
 respectively. Tapescript provides the following ops and tools for using adapter
 signatures:
 
-- `functions.OP_MAKE_ADAPTER_SIG_PUBLIC`
-- `functions.OP_MAKE_ADAPTER_SIG_PRIVATE`
-- `functions.OP_CHECK_ADAPTER_SIG`
-- `functions.OP_DECRYPT_ADAPTER_SIG`
-- `tools.make_adapter_lock_pub`
-- `tools.make_adapter_lock_prv`
-- `tools.make_adapter_locks_pub`
-- `tools.make_adapter_decrypt`
-- `tools.decrypt_adapter`
-- `tools.make_adapter_locks_prv`
-- `tools.make_adapter_witness`
+- `OP_MAKE_ADAPTER_SIG_PUBLIC`
+- `OP_MAKE_ADAPTER_SIG_PRIVATE`
+- `OP_CHECK_ADAPTER_SIG`
+- `OP_DECRYPT_ADAPTER_SIG`
+- `make_adapter_lock_pub`
+- `make_adapter_lock_prv`
+- `make_adapter_locks_pub`
+- `make_adapter_decrypt`
+- `decrypt_adapter`
+- `make_adapter_locks_prv`
+- `make_adapter_witness`
+- `clamp_scalar`
+- `derive_key_from_seed`
+- `derive_point_from_scalar`
+- `aggregate_points`
+- `aggregate_scalars`
 
 Another system is the anonymous multi-hop lock (AMHL), which allows for a chain
 of related transactions to be constructed in such a way that unlocking one of
@@ -188,9 +206,12 @@ following tools for using AMHLs:
 - `tools.setup_amhl`
 - `tools.release_left_amhl_lock`
 
-The `setup_amhl` tools constructs adapter signature locking scripts and will
-provide PTLCs for any pubkey for which a corresponding entry is found in the
-optional `refund_pubkeys` argument.
+The `setup_amhl` tool constructs adapter signature locking scripts, `check_sig`
+locks, and intermediate values, and it will provide PTLCs in lieu of `check_sig`
+locks for any pubkey for which a corresponding entry is found in the optional
+`refund_pubkeys` argument. The paper authors envision its use with MuSig/MuSig2
+aggregated keys in a "scriptless script" setting, but MuSig and MuSig2 are
+beyond the scope of this project.
 
 These may be changed or more ops/tools added in the future as the technology is
 tested in specific applications.
@@ -203,14 +224,16 @@ or `run_auth_script(script: bytes, cache_vals: dict = {}, contracts: dict = {})`
 The `run_script` function returns `tuple` of length 3 containing a `Tape`, a
 `LifoQueue`, and the final state of the `cache` dict. The `run_auth_script`
 instead returns a bool that is `True` if the script ran without error and
-resulted in a single `True` value on the queue; otherwise it returns `False`.
+resulted in a single `0x01` value on the queue; otherwise it returns `False`.
 
 In the case where a signature is expected to be validated, the message parts for
 the signature must be passed in via the `cache_vals` dict at keys `sigfield[1-8]`.
-In the case where `OP_CHECK_TRANSFER` might be called, the contracts must be
-passed in via the `contracts` dict. See the
-[section in the language_spec.md](https://github.com/k98kurz/tapescript/blob/master/language_spec.md#op_check_transfer)
-file for more informaiton about `OP_CHECK_TRANSFER`.
+In the case where `OP_CHECK_TRANSFER` or `OP_INVOKE` might be called, the
+contracts must be passed in via the `contracts` dict. See the
+[check_transfer](https://github.com/k98kurz/tapescript/blob/master/language_spec.md#op_check_transfer)
+and
+[INVOKE](https://github.com/k98kurz/tapescript/blob/master/language_spec.md#op_invoke)
+section in the language_spec.md file for more informaiton about these two ops.
 
 #### Changing flags
 
@@ -403,7 +426,7 @@ python test/test_tools.py
 python test/test_e2e_eltoo.py
 ```
 
-There are currently 223 tests and 37 test vectors used for validating the
+There are currently 223 tests and 104 test vectors used for validating the
 compiler, decompiler, and script running functions. This includes 3 tests for a
 proof-of-concept implementation of the eltoo payment channel protocol, a test
 proving the one-way homomorphic quality of ed25519, and e2e tests combining the
