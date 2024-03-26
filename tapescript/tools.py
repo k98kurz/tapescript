@@ -160,7 +160,7 @@ def generate_docs() -> list[str]:
     data = {}
     aliases = _get_op_aliases()
     alias_lists = {
-        opname: 'Aliases:\n' + '\n- '.join(aliases[opname])
+        opname: 'Aliases:\n- ' + '\n- '.join(aliases[opname])
         for opname in aliases
     }
 
@@ -188,13 +188,14 @@ def generate_docs() -> list[str]:
         'All `OP_` functions have the following signature:\n\n'
         '```python\n'
         'def OP_WHATEVER(tape: Tape, queue: LifoQueue, cache: dict) -> None:\n'
-        '    ...\n```\n'
+        '    ...\n```\n\n'
+        'All OPs advance the Tape pointer by the amount they read.\n'
     ]
 
     for number in data:
         line = f'\n## {data[number][0]} - {number} - x{number.to_bytes(1, "big").hex().upper()}\n\n'
         docstring = _format_docstring(data[number][1])
-        paragraphs.append(line + docstring + f'\n{alias_lists[data[number][0]]}\n')
+        paragraphs.append(line + docstring + f'\n\n{alias_lists[data[number][0]]}\n')
 
     paragraphs.append(f"\n## NOP Codes - {nop_code_snippet}\n\n" +
                       _format_docstring(nop_doc) + '\n')
@@ -217,7 +218,7 @@ def generate_docs() -> list[str]:
     paragraphs.append(_format_function_doc(generate_docs))
     paragraphs.append(_format_function_doc(add_soft_fork) + '\n\n')
 
-    with open('notes.md', 'r') as f:
+    with open('tapescript/notes.md', 'r') as f:
         paragraphs.append(f.read())
 
     return paragraphs
