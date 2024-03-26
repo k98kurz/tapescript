@@ -81,7 +81,7 @@ def create_merklized_script(branches: list[str], levels: list = None) -> tuple[s
 
     if len(branches) == 1:
         branches.append('OP_FALSE') # filler branch
-    levels = [] if not levels else levels
+    levels = levels or []
 
     # combine final 2 branches
     scripts = _combine_two(branches[-2], branches[-1])

@@ -1164,7 +1164,7 @@ class TestFunctions(unittest.TestCase):
         self.tape.contracts[b'contractid'] = InvalidContract(10)
         with self.assertRaises(errors.ScriptExecutionError) as e:
             functions.OP_CHECK_TRANSFER(self.tape, self.queue, self.cache)
-        assert str(e.exception) == 'contract does not fulfill at least one interface'
+        assert str(e.exception) == 'contract must implement the CanCheckTransfer interface'
 
     def test_OP_CHECK_TRANSFER_works(self):
         def setup_transfer():

@@ -40,3 +40,13 @@ class CanCheckTransfer(Protocol):
             the aggregate for that address.
         """
         ...
+
+
+@runtime_checkable
+class CanBeInvoked(Protocol):
+    def abi(self, args: list[bytes]) -> list[bytes]|None:
+        """Allow the contract to be called by OP_INVOKE. ABI=Application
+            Binary Interface. Takes a list of bytes as args and returns
+            either a list of bytes or None.
+        """
+        ...

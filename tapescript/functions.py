@@ -1,7 +1,7 @@
 from __future__ import annotations
 from .classes import Tape
 from .errors import tert, vert, sert
-from .interfaces import CanCheckTransfer
+from .interfaces import CanCheckTransfer, CanBeInvoked
 from hashlib import sha256, shake_256, sha512
 from math import ceil, floor, isnan, log2
 from nacl.exceptions import BadSignatureError
@@ -986,7 +986,8 @@ def OP_CHECK_TRANSFER(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     # check contract is loaded and has required functions
     sert(contract_id in tape.contracts,
         'OP_CHECK_TRANSFER missing contract')
-    _check_contract(tape.contracts[contract_id])
+    sert(isinstance(tape.contracts[contract_id], CanCheckTransfer),
+         'contract must implement the CanCheckTransfer interface')
 
     verify_txn_proof = tape.contracts[contract_id].verify_txn_proof
     verify_transfer = tape.contracts[contract_id].verify_transfer
@@ -1474,8 +1475,8 @@ def OP_INVOKE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
 
     sert(contract_id in tape.contracts, 'OP_INVOKE unknown contract')
     contract = tape.contracts[contract_id]
-    vert(hasattr(contract, 'abi'), 'invalid contract: missing the abi callable')
-    vert(callable(getattr(contract, 'abi')), 'invalid contract: abi must be callable')
+    sert(isinstance(contract, CanBeInvoked),
+        'contract must implement the CanBeInvoked interface')
     result = getattr(contract, 'abi')(args)
     tert(type(result) in (tuple, list, type(None)),
          'invalid contract: abi return value must be tuple[bytes] or None')
@@ -1736,7 +1737,8 @@ flags_to_set = [
 # contracts are intended for use with OP_CHECK_TRANSFER
 _contracts = {}
 _contract_interfaces = {
-    CanCheckTransfer.__name__: CanCheckTransfer
+    CanCheckTransfer.__name__: CanCheckTransfer,
+    CanBeInvoked.__name__: CanBeInvoked,
 }
 
 
