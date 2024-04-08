@@ -100,7 +100,7 @@ class TestParsing(unittest.TestCase):
 
         with self.assertRaises(errors.SyntaxError) as e:
             parsing.compile_script('OP_DEF 0 { OP_PUSH 123 }')
-        assert str(e.exception) == 'values for OP_PUSH must be prefaced with d, x, or s'
+        assert 'values for OP_PUSH must be prefaced with' in str(e.exception)
 
         with self.assertRaises(ValueError) as e:
             parsing.compile_script('OP_DEF 0 { OP_PUSH dabc }')
@@ -108,11 +108,11 @@ class TestParsing(unittest.TestCase):
 
         with self.assertRaises(errors.SyntaxError) as e:
             parsing.compile_script('OP_DEF 0 { OP_PUSH1 asd }')
-        assert 'values for OP_PUSH1 must be prefaced with d, x, or s' in str(e.exception)
+        assert 'values for OP_PUSH1 must be prefaced with' in str(e.exception)
 
         with self.assertRaises(ValueError) as e:
             parsing.compile_script('OP_DEF 0 { OP_PUSH1 dnotnumeric }')
-        assert 'value prefaced by d must be decimal int or float' in str(e.exception)
+        assert 'value prefaced by d must be decimal int' in str(e.exception)
 
         with self.assertRaises(errors.SyntaxError) as e:
             parsing.compile_script('OP_DEF 0 { OP_PUSH0 asd }')
@@ -128,7 +128,7 @@ class TestParsing(unittest.TestCase):
 
         with self.assertRaises(errors.SyntaxError) as e:
             parsing.compile_script('OP_DEF 0 { OP_PUSH2 asd }')
-        assert 'values for OP_PUSH2 must be prefaced with d, x, or s' in str(e.exception)
+        assert 'values for OP_PUSH2 must be prefaced with' in str(e.exception)
 
         with self.assertRaises(ValueError) as e:
             parsing.compile_script('OP_DEF 0 { OP_PUSH2 dnotnumeric }')
@@ -136,7 +136,7 @@ class TestParsing(unittest.TestCase):
 
         with self.assertRaises(errors.SyntaxError) as e:
             parsing.compile_script('OP_DEF 0 { OP_PUSH4 asd }')
-        assert 'values for OP_PUSH4 must be prefaced with d, x, or s' in str(e.exception)
+        assert 'values for OP_PUSH4 must be prefaced with' in str(e.exception)
 
         with self.assertRaises(ValueError) as e:
             parsing.compile_script('OP_DEF 0 { OP_PUSH4 dnotnumeric }')
@@ -144,11 +144,12 @@ class TestParsing(unittest.TestCase):
 
         with self.assertRaises(errors.SyntaxError) as e:
             parsing.compile_script('OP_DEF 0 { OP_DIV_FLOAT asd }')
-        assert 'numeric args must be prefaced with d or x' in str(e.exception)
+        assert 'numeric args must be prefaced with' in str(e.exception)
 
         with self.assertRaises(ValueError) as e:
-            parsing.compile_script('OP_DEF 0 { OP_DIV_FLOAT dnotnumeric }')
-        assert 'value prefaced by d must be decimal float' in str(e.exception)
+            parsing.compile_script('OP_DEF 0 { OP_DIV_FLOAT fnotnumeric }')
+        assert 'value prefaced by' in str(e.exception)
+        assert 'must be decimal float' in str(e.exception)
 
         with self.assertRaises(ValueError) as e:
             parsing.compile_script('OP_DEF 0 { OP_MOD_FLOAT x123456 }')

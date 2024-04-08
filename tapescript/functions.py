@@ -135,6 +135,13 @@ def aggregate_scalars(scalars: list[bytes]) -> bytes:
 
     return sum
 
+def not_bytes(b1: bytes) -> bytes:
+    """Perform a bitwise NOT operation. Implementation is specific to
+        the Python memory model.
+    """
+    n_bits = len(b1)*8
+    return ((1 << n_bits) - 1 - int.from_bytes(b1, 'big')).to_bytes(n_bits//8, 'big')
+
 def xor(b1: bytes, b2: bytes) -> bytes:
     """XOR two equal-length byte strings together."""
     b3 = bytearray()
@@ -169,8 +176,8 @@ def OP_FALSE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     queue.put(b'\x00')
 
 def OP_TRUE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Puts a 0x01 byte onto the queue."""
-    queue.put(b'\x01')
+    """Puts a 0xFF byte onto the queue."""
+    queue.put(b'\xff')
 
 def OP_PUSH0(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Read the next byte from the tape; put it onto the queue.
@@ -550,7 +557,7 @@ def OP_EQUAL(tape: Tape, queue: LifoQueue, cache: dict) -> None:
         onto the queue.
     """
     item1, item2 = queue.get(False), queue.get(False)
-    queue.put(b'\x01' if bytes_are_same(item1, item2) else b'\x00')
+    queue.put(b'\xff' if bytes_are_same(item1, item2) else b'\x00')
 
 def OP_EQUAL_VERIFY(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Runs OP_EQUAL then OP_VERIFY."""
@@ -629,7 +636,7 @@ def OP_CHECK_SIG(tape: Tape, queue: LifoQueue, cache: dict) -> None:
 
     try:
         vkey.verify(message, sig)
-        queue.put(b'\x01')
+        queue.put(b'\xff')
     except BadSignatureError:
         queue.put(b'\x00')
 
@@ -668,7 +675,7 @@ def OP_CHECK_TIMESTAMP(tape: Tape, queue: LifoQueue, cache: dict) -> None:
         tape.flags['ts_threshold'] > 0:
         queue.put(b'\x00')
     else:
-        queue.put(b'\x01')
+        queue.put(b'\xff')
 
 def OP_CHECK_TIMESTAMP_VERIFY(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Runs OP_CHECK_TIMESTAMP, then OP_VERIFY."""
@@ -696,7 +703,7 @@ def OP_CHECK_EPOCH(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     if constraint - int(time()) >= tape.flags['epoch_threshold']:
         queue.put(b'\x00')
     else:
-        queue.put(b'\x01')
+        queue.put(b'\xff')
 
 def OP_CHECK_EPOCH_VERIFY(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Runs OP_CHECK_EPOCH, then OP_VERIFY."""
@@ -819,11 +826,11 @@ def OP_EVAL(tape: Tape, queue: LifoQueue, cache: dict) -> None:
             del cache['returned']
 
 def OP_NOT(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Pulls a value from the queue, interpreting as a bool; performs
-        logical NOT operation; puts that value onto the queue.
+    """Pulls a value from the queue; performs bitwise NOT operation;
+        puts result onto the queue.
     """
     item = queue.get(False)
-    queue.put(b'\x01' if item == b'\x00' else b'\x00')
+    queue.put(not_bytes(item))
 
 def OP_RANDOM(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int;
@@ -996,7 +1003,7 @@ def OP_CHECK_TRANSFER(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     # calculate aggregate
     aggregate = calc_txn_aggregates(txn_proofs, scope=destination)[destination]
 
-    queue.put(b'\x01' if all_proofs_valid and amount <= aggregate else b'\x00')
+    queue.put(b'\xff' if all_proofs_valid and amount <= aggregate else b'\x00')
 
 def OP_MERKLEVAL(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Read 32 bytes from the tape as the root digest; pull a bool from
@@ -1063,7 +1070,7 @@ def OP_LESS(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """
     val1 = bytes_to_int(queue.get(False))
     val2 = bytes_to_int(queue.get(False))
-    queue.put(b'\x01' if val1 < val2 else b'\x00')
+    queue.put(b'\xff' if val1 < val2 else b'\x00')
 
 def OP_LESS_OR_EQUAL(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Pull two signed ints val1 and val2 from queue; put (v1<=v2) onto
@@ -1071,7 +1078,7 @@ def OP_LESS_OR_EQUAL(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """
     val1 = bytes_to_int(queue.get(False))
     val2 = bytes_to_int(queue.get(False))
-    queue.put(b'\x01' if val1 <= val2 else b'\x00')
+    queue.put(b'\xff' if val1 <= val2 else b'\x00')
 
 def OP_GET_VALUE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Read one byte from the tape as uint size; read size bytes from
@@ -1096,13 +1103,13 @@ def OP_FLOAT_LESS(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Pull two floats val1 and val2 from queue; put (v1<v2) onto queue."""
     val1 = bytes_to_float(queue.get(False))
     val2 = bytes_to_float(queue.get(False))
-    queue.put(b'\x01' if val1 < val2 else b'\x00')
+    queue.put(b'\xff' if val1 < val2 else b'\x00')
 
 def OP_FLOAT_LESS_OR_EQUAL(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Pull two floats val1 and val2 from queue; put (v1<=v2) onto queue."""
     val1 = bytes_to_float(queue.get(False))
     val2 = bytes_to_float(queue.get(False))
-    queue.put(b'\x01' if val1 <= val2 else b'\x00')
+    queue.put(b'\xff' if val1 <= val2 else b'\x00')
 
 def OP_INT_TO_FLOAT(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Pull a signed int from the queue and put it back as a float."""
@@ -1170,7 +1177,7 @@ def OP_CHECK_MULTISIG(tape: Tape, queue: LifoQueue, cache: dict) -> None:
                 break
 
     if len(confirmed) == len(sigs):
-        queue.put(b'\x01')
+        queue.put(b'\xff')
     else:
         queue.put(b'\x00')
 
@@ -1425,7 +1432,7 @@ def OP_CHECK_ADAPTER_SIG(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     ca = clamp_scalar(H_small(RT, X, m)) # H(R + T || X || m)
     caX = nacl.bindings.crypto_scalarmult_ed25519_noclamp(ca, X) # X^H(R + T || X || m)
     RcaX = aggregate_points((R, caX)) # R + X^H(R + T || X || m)
-    queue.put(b'\x01' if bytes_are_same(sa_G, RcaX) else b'\x00')
+    queue.put(b'\xff' if bytes_are_same(sa_G, RcaX) else b'\x00')
 
 def OP_DECRYPT_ADAPTER_SIG(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     """Takes tweak scalar t, nonce point R, and signature adapter sa
@@ -1860,16 +1867,15 @@ def run_tape(tape: Tape, queue: LifoQueue, cache: dict,
 
 def run_auth_script(script: bytes, cache_vals: dict = {}, contracts: dict = {}) -> bool:
     """Run the given auth script byte code. Returns True iff the queue
-        has a single \\x01 value after script execution and no errors were
+        has a single \\xff value after script execution and no errors were
         raised; otherwise, returns False.
     """
     try:
         tape, queue, cache = run_script(script, cache_vals, contracts)
         assert tape.has_terminated()
-        assert not queue.empty()
+        assert queue.qsize() == 1
         item = queue.get(False)
-        assert item == b'\x01'
-        assert queue.empty()
+        assert item == b'\xff'
         return True
     except BaseException as e:
         return False

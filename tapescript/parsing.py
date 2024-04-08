@@ -198,14 +198,10 @@ def _get_OP_PUSH_args(
 
     match val[0].lower():
         case 'd':
-            vert(val[1:].isnumeric(),
+            vert(val[1:].isnumeric() or (val[1] == '-' and val[2:].isnumeric()),
                 'value prefaced by d must be decimal int')
-            if '.' in val:
-                val = int(val[1:].split('.')[0])
-            else:
-                val = int(val[1:])
-            size = ceil(log2(val+1)/8) or 1
-            val = val.to_bytes(size, 'big')
+            val = int(val[1:].split('.')[0])
+            val = int_to_bytes(val)
         case 'x':
             val = bytes.fromhex(val[1:])
         case 's':
@@ -294,12 +290,11 @@ def _get_OP_PUSH0_type_args(
 
     match val[0].lower():
         case 'd':
-            vert(val[1:].isnumeric(),
+            vert(val[1:].lstrip('+-').isnumeric(),
                 f'{opname} - value prefaced by d must be decimal int; {val} is invalid - symbol {symbol_index}')
-            if '.' in val:
-                args.append(int(val[1:].split('.')[0]).to_bytes(1, 'big'))
-            else:
-                args.append(int(val[1:]).to_bytes(1, 'big'))
+            val = int_to_bytes(int(val[1:].split('.')[0]))
+            assert len(val) == 1, 'value overflow'
+            args.append(val)
         case 'x':
             vert(len(val[1:]) <= 2,
                 f'{opname} - value must be at most 1 byte long; {val} is invalid - symbol {symbol_index}')
@@ -328,19 +323,23 @@ def _get_OP_PUSH1_type_args(
         symbols_to_advance += 1
         val = symbols[0]
 
-    yert(val[0].lower() in ('d', 'x', 's'),
-        f'values for {opname} must be prefaced with d, x, or s; {val} is invalid - symbol {symbol_index}')
+    yert(val[0].lower() in ('d', 'f', 'x', 's'),
+        f'values for {opname} must be prefaced with d, x, or s; {val} is invalid'
+        f' - symbol {symbol_index}')
     match val[0].lower():
         case 'd':
-            vert(val[1:].lstrip('+-').isnumeric(),
-                f'{opname} - value prefaced by d must be decimal int or float; {val} is invalid - symbol {symbol_index}')
-            if '.' in val:
-                args.append((4).to_bytes(1, 'big'))
-                args.append(struct.pack('!f', float(val[1:])))
-            else:
-                val = int_to_bytes(int(val[1:]))
-                args.append(len(val).to_bytes(1, 'big'))
-                args.append(val)
+            vert(val[1:].lstrip('+-').replace('.','').isnumeric(),
+                f'{opname} - value prefaced by d must be decimal int; '
+                f'{val} is invalid - symbol {symbol_index}')
+            val = int_to_bytes(int(val[1:].split('.')[0]))
+            args.append(len(val).to_bytes(1, 'big'))
+            args.append(val)
+        case 'f':
+            vert(val[1:].lstrip('+-').replace('.','').isnumeric(),
+                f'{opname} - value prefaced by f must be decimal float; '
+                f'{val} is invalid - symbol {symbol_index}')
+            args.append((4).to_bytes(1, 'big'))
+            args.append(struct.pack('!f', float(val[1:])))
         case 'x':
             val = bytes.fromhex(val[1:])
             args.append(len(val).to_bytes(1, 'big'))
@@ -380,8 +379,9 @@ def _get_OP_PUSH2_args(
         symbols_to_advance += 1
         val = symbols[0]
 
-    yert(val[0].lower() in ('d', 'x', 's'),
-        f'{opname} - values for OP_PUSH2 must be prefaced with d, x, or s; {val} is invalid - symbol {symbol_index}')
+    yert(val[0].lower() in ('d', 'f', 'x', 's'),
+        f'{opname} - values for OP_PUSH2 must be prefaced with d, f, x, or s; '
+        f'{val} is invalid - symbol {symbol_index}')
 
     match val[0].lower():
         case 's':
@@ -395,16 +395,22 @@ def _get_OP_PUSH2_args(
                 val = bytes(val[1:], 'utf-8')
         case 'd':
             vert(val[1:].lstrip('+-').isnumeric(),
-                f'{opname} - value prefaced by d must be decimal int; {val} is invalid - symbol {symbol_index}')
-            if '.' in val:
-                val = int_to_bytes(int(val[1:].split('.')[0]))
-            else:
-                val = int_to_bytes(int(val[1:]))
-            vert(len(val) < 65_536, f'OP_PUSH2 value overflow; {val} is invalid - symbol {symbol_index}')
+                f'{opname} - value prefaced by d must be decimal int; {val} is '
+                f'invalid - symbol {symbol_index}')
+            val = int_to_bytes(int(val[1:].split('.')[0]))
+            vert(len(val) < 65_536, f'OP_PUSH2 value overflow; {bytes_to_int(val)}'
+                 f' is invalid - symbol {symbol_index}')
+        case 'f':
+            vert(val[1:].lstrip('+-').replace('.','').isnumeric(),
+                f'{opname} - value prefaced by f must be decimal float; '
+                f'{val} is invalid - symbol {symbol_index}')
+            args.append((4).to_bytes(1, 'big'))
+            args.append(struct.pack('!f', float(val[1:])))
         case 'x':
             val = bytes.fromhex(val[1:])
             vert(len(val) < 65_536,
-                f'x-value for OP_PUSH2 must be at most 65_535 bytes long - symbol {symbol_index}')
+                f'x-value for OP_PUSH2 must be at most 65_535 bytes long - '
+                f'symbol {symbol_index}')
     args.append(len(val).to_bytes(2, 'big'))
     args.append(val)
     return (symbols_to_advance, args)
@@ -452,6 +458,12 @@ def _get_OP_PUSH4_args(
                 val = int_to_bytes(int(val[1:].split('.')[0]))
             else:
                 val = int_to_bytes(int(val[1:]))
+        case 'f':
+            vert(val[1:].lstrip('+-').replace('.','').isnumeric(),
+                f'{opname} - value prefaced by f must be decimal float; '
+                f'{val} is invalid - symbol {symbol_index}')
+            args.append((4).to_bytes(1, 'big'))
+            args.append(struct.pack('!f', float(val[1:])))
         case 'x':
             val = bytes.fromhex(val[1:])
             vert(len(val) < 2**32,
@@ -467,13 +479,13 @@ def _get_OP_DIV_FLOAT_args(
     args = []
     symbols_to_advance += 1
     val = symbols[0]
-    yert(val[0].lower() in ('d', 'x'),
-        f'{opname} - numeric args must be prefaced with d or x; {val} is invalid - symbol {symbol_index}')
+    yert(val[0].lower() in ('f', 'x'),
+        f'{opname} - numeric args must be prefaced with f or x; {val} is invalid - symbol {symbol_index}')
 
     match val[0].lower():
-        case 'd':
+        case 'f':
             vert(val[1:].lstrip('+-').isnumeric(),
-                f'{opname} - value prefaced by d must be decimal float; {val} is invalid - symbol {symbol_index}')
+                f'{opname} - value prefaced by f must be decimal float; {val} is invalid - symbol {symbol_index}')
             args.append(struct.pack('!f', float(val[1:])))
         case 'x':
             vert(len(val[1:]) == 8,
@@ -598,7 +610,7 @@ def get_args(
             'OP_SPLIT' | 'OP_SPLIT_STR' | 'OP_CHECK_SIG' | 'OP_SIGN' | \
             'OP_CHECK_SIG_VERIFY' | 'OP_CLAMP_SCALAR' | 'OP_ADD_SCALARS' | \
             'OP_SUBTRACT_SCALARS' | 'OP_SUBTRACT_POINTS' | 'OP_GET_MESSAGE':
-            # ops that have tape argument of form [0-255]
+            # ops that have tape argument of form [-128 to 127]
             # human-readable syntax of OP_[whatever] [int]
             return _get_OP_PUSH0_type_args(opname, symbols, symbols_to_advance, symbol_index)
         case 'OP_PUSH2':
@@ -1158,7 +1170,7 @@ def decompile_script(script: bytes, indent: int = 0) -> list[str]:
                 'OP_ADD_SCALARS' | 'OP_SUBTRACT_SCALARS' | 'OP_SUBTRACT_POINTS':
                 # ops that have tape argument of form [0-255]
                 # human-readable syntax of OP_[whatever] [int]
-                val = tape.read(1)[0]
+                val = bytes_to_int(tape.read(1))
                 add_line(f'{op_name} d{val}')
             case 'OP_CHECK_SIG' | 'OP_CHECK_SIG_VERIFY' | 'OP_SIGN' | 'OP_GET_MESSAGE':
                 # ops that have tape argument of form x[00-ff]
@@ -1168,13 +1180,13 @@ def decompile_script(script: bytes, indent: int = 0) -> list[str]:
             case 'OP_PUSH2':
                 # ops that have tape argument of form [0-65535] [val]
                 # human-readable syntax of simply OP_PUSH2 [val]
-                size = int.from_bytes(tape.read(2), 'big')
+                size = bytes_to_int(tape.read(2))
                 val = tape.read(size)
                 add_line(f'{op_name} d{size} x{val.hex()}')
             case 'OP_PUSH4':
                 # ops that have tape argument of form [0-4_294_967_295] [val]
                 # human-readable syntax of simply OP_PUSH4 [val]
-                size = int.from_bytes(tape.read(4), 'big')
+                size = bytes_to_int(tape.read(4))
                 val = tape.read(size)
                 add_line(f'{op_name} d{size} x{val.hex()}')
             case 'OP_DIV_FLOAT' | 'OP_MOD_FLOAT':

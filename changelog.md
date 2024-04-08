@@ -1,3 +1,10 @@
+## 0.4.1
+
+- Fixed `OP_NOT` to do a proper bitwise `NOT` operation.
+- Switched the `true` value from `0x01` to `0xff` for compatibility with `FALSE NOT`
+- Fixed compiler to handle negative ints.
+- Added 32-bit float type to arg parsing forsome args: preface the value with `f`.
+
 ## 0.4.0
 
 - Changed `OP_CHECK_TRANSFER` to pull the `count` parameter from the queue.

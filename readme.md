@@ -1,8 +1,8 @@
 # Tapescript
 
-Simple script system loosely inspired by Bitcoin script but also hopefully more
+Simple DSL and VM loosely inspired by Bitcoin script but also hopefully more
 useful for other applications. The idea is to programmatically ensure access
-controls in a distributed system.
+controls in a distributed system using cryptography.
 
 ## Status
 
@@ -431,7 +431,7 @@ python test/test_tools.py
 python test/test_e2e_eltoo.py
 ```
 
-There are currently 223 tests and 104 test vectors used for validating the
+There are currently 225 tests and 106 test vectors used for validating the
 compiler, decompiler, and script running functions. This includes 3 tests for a
 proof-of-concept implementation of the eltoo payment channel protocol, a test
 proving the one-way homomorphic quality of ed25519, and e2e tests combining the
