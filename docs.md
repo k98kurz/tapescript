@@ -20,7 +20,7 @@ Aliases:
 
 ## OP_TRUE - 1 - x01
 
-Puts a 0x01 byte onto the queue.
+Puts a 0xFF byte onto the queue.
 
 Aliases:
 - TRUE
@@ -423,8 +423,8 @@ Aliases:
 
 ## OP_NOT - 46 - x2E
 
-Pulls a value from the queue, interpreting as a bool; performs logical NOT
-operation; puts that value onto the queue.
+Pulls a value from the queue; performs bitwise NOT operation; puts result onto
+the queue.
 
 Aliases:
 - NOT
@@ -861,7 +861,7 @@ Run the given tape using the queue and cache.
 ## `run_auth_script(script: bytes, cache_vals: dict = {}, contracts: dict = {}): -> bool`
 
 Run the given auth script byte code. Returns True iff the queue has a single
-\x01 value after script execution and no errors were raised; otherwise, returns
+\xff value after script execution and no errors were raised; otherwise, returns
 False.
 
 ## `add_opcode(code: int, name: str, function: Callable): -> None`
