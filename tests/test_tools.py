@@ -360,6 +360,47 @@ class TestTools(unittest.TestCase):
             {**sigfields}
         )
 
+    def test_double_tweak_adapters_e2e(self):
+        t1 = functions.clamp_scalar(token_bytes(32))
+        t2 = functions.clamp_scalar(token_bytes(32))
+        T1 = functions.derive_point_from_scalar(t1)
+        T2 = functions.derive_point_from_scalar(t2)
+        tt = functions.aggregate_scalars([t1, t2])
+        TT = functions.aggregate_points([T1, T2])
+        assert TT == functions.derive_point_from_scalar(tt)
+
+        scripts1 = tools.make_adapter_locks_pub(bytes(self.pubkeyA), TT)
+        scripts2 = tools.make_adapter_locks_pub(bytes(self.pubkeyB), TT)
+
+        verify_adapter_1 = parsing.compile_script(scripts1[0])
+        verify_signature_1 = parsing.compile_script(scripts1[1])
+        verify_adapter_2 = parsing.compile_script(scripts2[0])
+        verify_signature_2 = parsing.compile_script(scripts2[1])
+
+        sigfields = {'sigfield1': b'we both get what we want'}
+        adapter_witness1_src = tools.make_adapter_witness(bytes(self.prvkeyA), TT, sigfields)
+        adapter_witness1 = parsing.compile_script(adapter_witness1_src)
+        adapter_witness2_src = tools.make_adapter_witness(bytes(self.prvkeyB), TT, sigfields)
+        adapter_witness2 = parsing.compile_script(adapter_witness2_src)
+
+        # verify adapters
+        assert functions.run_auth_script(adapter_witness1 + verify_adapter_1, sigfields)
+        assert functions.run_auth_script(adapter_witness2 + verify_adapter_2, sigfields)
+
+        # decrypt signatures
+        sig1 = tools.decrypt_adapter(adapter_witness1, tt)
+        sig2 = tools.decrypt_adapter(adapter_witness2, tt)
+
+        # verify signatures
+        assert functions.run_auth_script(
+            parsing.compile_script(f'push x{sig1.hex()}') + verify_signature_1,
+            sigfields
+        )
+        assert functions.run_auth_script(
+            parsing.compile_script(f'push x{sig2.hex()}') + verify_signature_2,
+            sigfields
+        )
+
     def test_make_single_sig_lock_and_make_single_sig_witness_e2e(self):
         # make lock
         sigfields = {'sigfield1': b'hello world'}
