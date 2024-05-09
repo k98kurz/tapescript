@@ -2,7 +2,9 @@
 
 Simple DSL and VM loosely inspired by Bitcoin script but also hopefully more
 useful for other applications. The idea is to programmatically ensure access
-controls in a distributed system using cryptography.
+controls in a distributed system using cryptography. Unlike Java or WASM VMs,
+many op codes do complex things rather than simple/primitive ones, e.g.
+`OP_MERKLEVAL` and `OP_CHECK_MULTISIG`.
 
 ## Status
 
@@ -55,6 +57,9 @@ Passing the optional `cache_file` parameter will set specific cache values after
 parsing the `cache_file`, which must adhere to a specific format. The intent of
 this CLI is to make it easy to experiment and/or debug Tapescript scripts. Run
 the command `tapescript` to get the help text.
+
+Note that the CLI does not currently include support for soft-forks, contracts,
+or plugins.
 
 ### Write, compile, decompile
 
@@ -321,6 +326,31 @@ a `ScriptExecutionError` will be raised.
 These also apply to the `OP_CHECK_MULTI_SIG` and `OP_CHECK_MULTI_SIG_VERIFY`
 operations. See the language spec and docs files for more detailed information
 about how `CMS` and `CMSV` work.
+
+#### Signature Extension Plugins
+
+As of 0.4.2, the following OPs can be slightly modified with a plugin system:
+`CHECK_SIG`, `CHECK_MULTISIG`, `SIGN`, and `GET_MESSAGE`. Signature extension
+plugins can be managed with the following functions:
+- `add_signature_extension(plugin: Callable[[Tape, LifoQueue, dict], None])`
+- `remove_signature_extension(plugin: Callable[[Tape, LifoQueue, dict], None])`
+- `reset_signature_extensions()`
+
+Additionally, plugins can be injected when calling `run_script` or
+`run_auth_script` the same way as contracts. The underlying plugin system uses
+string scopes, and the signature extension plugins have the scope of
+"signature_extensions". For example:
+
+```python
+t, q, c = run_script(script, plugins={
+    'signature_extensions': [some_plugin_function]
+})
+```
+
+Plugin functions must take a Tape, LifoQueue, and dict (i.e. the runtime data)
+as arguments, and they must do all of their work on them. (Technically, they
+are procedures with side-effects.) For signature extension, the sigfields in the
+dict cache are the most likely target for alteration.
 
 ### Soft Forks
 
