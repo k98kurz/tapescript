@@ -1895,13 +1895,14 @@ def run_tape(tape: Tape, queue: LifoQueue, cache: dict,
             op = nopcodes[op_code][1]
         op(tape, queue, cache)
 
-def run_auth_script(script: bytes, cache_vals: dict = {}, contracts: dict = {}) -> bool:
+def run_auth_script(script: bytes, cache_vals: dict = {}, contracts: dict = {},
+                    plugins: dict = {}) -> bool:
     """Run the given auth script byte code. Returns True iff the queue
         has a single \\xff value after script execution and no errors were
         raised; otherwise, returns False.
     """
     try:
-        tape, queue, cache = run_script(script, cache_vals, contracts)
+        tape, queue, cache = run_script(script, cache_vals, contracts, plugins=plugins)
         assert tape.has_terminated()
         assert queue.qsize() == 1
         item = queue.get(False)
