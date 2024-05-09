@@ -573,6 +573,7 @@ def OP_CHECK_SIG(tape: Tape, queue: LifoQueue, cache: dict) -> None:
         queue if verification succeeds, otherwise put False onto the
         queue.
     """
+    run_sig_extensions(tape, queue, cache)
     allowable_flags = tape.read(1)[0]
     vkey = queue.get(False)
     sig = queue.get(False)
@@ -615,24 +616,8 @@ def OP_CHECK_SIG(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     if sig_flag8:
         sert(allowable_flags & 0b10000000, 'disallowed sigflag')
 
-    message = b''
-
-    if 'sigfield1' in cache and not sig_flag1:
-        message += cache['sigfield1']
-    if 'sigfield2' in cache and not sig_flag2:
-        message += cache['sigfield2']
-    if 'sigfield3' in cache and not sig_flag3:
-        message += cache['sigfield3']
-    if 'sigfield4' in cache and not sig_flag4:
-        message += cache['sigfield4']
-    if 'sigfield5' in cache and not sig_flag5:
-        message += cache['sigfield5']
-    if 'sigfield6' in cache and not sig_flag6:
-        message += cache['sigfield6']
-    if 'sigfield7' in cache and not sig_flag7:
-        message += cache['sigfield7']
-    if 'sigfield8' in cache and not sig_flag8:
-        message += cache['sigfield8']
+    OP_GET_MESSAGE(Tape(sig_flag.to_bytes(1, 'big')), queue, cache)
+    message = queue.get(False)
 
     try:
         vkey.verify(message, sig)
@@ -1157,6 +1142,7 @@ def OP_CHECK_MULTISIG(tape: Tape, queue: LifoQueue, cache: dict) -> None:
         any vkey is used more than once; puts true onto the queue
         otherwise.
     """
+    run_sig_extensions(tape, queue, cache)
     subtape = Tape(tape.read(1))
     m = tape.read(1)[0]
     n = tape.read(1)[0]
@@ -1192,39 +1178,15 @@ def OP_SIGN(tape: Tape, queue: LifoQueue, cache: dict) -> None:
         using the correct sigfields; puts the signature onto the queue.
         Raises ValueError for invalid key seed length.
     """
+    run_sig_extensions(tape, queue, cache)
     sig_flag = tape.read(1)[0]
     skey_seed = queue.get(False)
     vert(len(skey_seed) == nacl.bindings.crypto_sign_SEEDBYTES,
          'invalid signing key; must be ' +
          f'{nacl.bindings.crypto_sign_SEEDBYTES} bytes')
 
-    sig_flag1 = sig_flag & 0b00000001
-    sig_flag2 = sig_flag & 0b00000010
-    sig_flag3 = sig_flag & 0b00000100
-    sig_flag4 = sig_flag & 0b00001000
-    sig_flag5 = sig_flag & 0b00010000
-    sig_flag6 = sig_flag & 0b00100000
-    sig_flag7 = sig_flag & 0b01000000
-    sig_flag8 = sig_flag & 0b10000000
-
-    message = b''
-
-    if 'sigfield1' in cache and not sig_flag1:
-        message += cache['sigfield1']
-    if 'sigfield2' in cache and not sig_flag2:
-        message += cache['sigfield2']
-    if 'sigfield3' in cache and not sig_flag3:
-        message += cache['sigfield3']
-    if 'sigfield4' in cache and not sig_flag4:
-        message += cache['sigfield4']
-    if 'sigfield5' in cache and not sig_flag5:
-        message += cache['sigfield5']
-    if 'sigfield6' in cache and not sig_flag6:
-        message += cache['sigfield6']
-    if 'sigfield7' in cache and not sig_flag7:
-        message += cache['sigfield7']
-    if 'sigfield8' in cache and not sig_flag8:
-        message += cache['sigfield8']
+    OP_GET_MESSAGE(Tape(sig_flag.to_bytes(1, 'big')), queue, cache)
+    message = queue.get(False)
 
     skey = SigningKey(skey_seed)
     sig = skey.sign(message).signature
@@ -1531,6 +1493,7 @@ def OP_GET_MESSAGE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
         that will be used by OP_SIGN and OP_CHECK_SIG/_VERIFY from the
         sigfields; puts the result onto the queue.
     """
+    run_sig_extensions(tape, queue, cache)
     sig_flag = int.from_bytes(tape.read(1), 'big')
 
     sig_flag1 = sig_flag & 0b00000001
@@ -1773,6 +1736,14 @@ _contract_interfaces = {
 }
 
 
+# plugins
+_plugins: dict[str, list[Callable]] = {}
+
+# signature extension plugin funcs are called at the beginning of CHECK_SIG,
+# CHECK_MULTISIG, SIGN, and GET_MESSAGE and take the same arguments as an op
+_plugins['signature_extensions'] = []
+
+
 def _check_contract(contract: object) -> None:
     """Check a contract against required interfaces. Raise
         ScriptExecutionError if it does not match at least one.
@@ -1830,6 +1801,63 @@ def add_opcode(code: int, name: str, function: Callable) -> None:
         del nopcodes[code]
         del nopcodes_inverse[nopname]
 
+def add_plugin(scope: str, plugin: Callable[[Tape, LifoQueue, dict], None]) -> None:
+    """Adds a plugin for the given scope."""
+    tert(type(scope) is str, 'scope must be str')
+    tert(callable(plugin), f'plugin (for {scope}) must be Callable[[Tape, LifoQueue, dict], None]')
+
+    if scope not in _plugins:
+        _plugins[scope] = []
+
+    if plugin not in _plugins[scope]:
+        _plugins[scope].append(plugin)
+
+def remove_plugin(scope: str, plugin: Callable[[Tape, LifoQueue, dict], None]) -> None:
+    """Removes a plugin for the given scope."""
+    tert(type(scope) is str, 'scope must be str')
+    if scope not in _plugins:
+        return
+    if plugin in _plugins[scope]:
+        _plugins[scope].remove(plugin)
+
+def reset_plugins(scope: str) -> None:
+    """Removes all plugins for the given scope."""
+    tert(type(scope) is str, 'scope must be str')
+    if scope not in _plugins:
+        return
+    [
+        remove_plugin(scope, plugin)
+        for plugin in _plugins[scope]
+    ]
+
+def run_plugins(scope: str, tape: Tape, queue: LifoQueue, cache: dict) -> None:
+    """Runs all plugins of the given scope."""
+    if scope not in tape.plugins:
+        return
+    for plugin in tape.plugins[scope]:
+        plugin(tape, queue, cache)
+
+def add_signature_extension(plugin: Callable[[Tape, LifoQueue, dict], None]) -> None:
+    """Adds a signature extension plugin to be run before the following
+        ops: CHECK_SIG, CHECK_MULTISIG, SIGN, and GET_MESSAGE.
+    """
+    add_plugin('signature_extensions', plugin)
+
+def remove_signature_extension(plugin: Callable[[Tape, LifoQueue, dict], None]) -> None:
+    """Removes a signature extension plugin from the list of plugins to
+        be run before the following ops: CHECK_SIG, CHECK_MULTISIG, SIGN,
+        and GET_MESSAGE.
+    """
+    remove_plugin('signature_extensions', plugin)
+
+def reset_signature_extensions() -> None:
+    """Removes all signature extension plugins."""
+    reset_plugins('signature_extensions')
+
+def run_sig_extensions(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+    """Runs all signature extension plugins."""
+    run_plugins('signature_extensions', tape, queue, cache)
+
 def set_tape_flags(tape: Tape, additional_flags: dict = {}) -> Tape:
     """Sets flags included in flags_to_set and any additional_flags for
         the tape.
@@ -1844,12 +1872,14 @@ def set_tape_flags(tape: Tape, additional_flags: dict = {}) -> Tape:
 
 def run_script(script: bytes, cache_vals: dict = {},
                contracts: dict = {},
-               additional_flags: dict = {}) -> tuple[Tape, LifoQueue, dict]:
+               additional_flags: dict = {},
+               plugins: dict = {}) -> tuple[Tape, LifoQueue, dict]:
     """Run the given script byte code. Returns a tape, queue, and dict."""
     tape = Tape(script)
     queue = LifoQueue()
     cache = {'timestamp': int(time()), **cache_vals}
     tape.contracts = {**_contracts, **contracts}
+    tape.plugins = {**_plugins, **plugins}
     run_tape(tape, queue, cache, additional_flags=additional_flags)
     return (tape, queue, cache)
 

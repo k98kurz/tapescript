@@ -24,6 +24,7 @@ controls in a distributed system using cryptography.
 - [x] Loops
 - [x] HTLCs, AMHLs, adapter signatures, delegated key scripts
 - [x] Simple CLI: compile, decompile, run, and auth
+- [ ] Document plugin system and signature extensions
 - [ ] Rewrite `OP_MERKLEVAL` and tools to use root=xor(hash(hash(branch)), hash(hash(branch)))
 
 ## Usage

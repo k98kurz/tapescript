@@ -1,3 +1,16 @@
+## 0.4.2
+
+- Signature extension system: call a plugin at the beginning of each of the
+following ops, passing it the runtime: `CHECK_SIG`, `CHECK_MULTISIG`, `SIGN`,
+and `GET_MESSAGE`. Each plugin function must have this signature:
+`Callable[[Tape, LifoQueue, dict], None]`
+- Example sig extension implementation using values in cache key b'sigext'
+- Signature extension system uses an underlying scoped plugin system. In the
+future, additional OPs may get plugin hooks using this system.
+- Slightly simplified `CHECK_SIG` and `SIGN` to now use `GET_MESSAGE` instead of
+repeating that message construction logic. To avoid calling plugins twice, a new
+Tape containing only the sigflag is passed to `GET_MESSAGE` by these calls.
+
 ## 0.4.1
 
 - Fixed `OP_NOT` to do a proper bitwise `NOT` operation.

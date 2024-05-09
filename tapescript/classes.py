@@ -1,5 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
+from typing import Callable
 from .errors import sert
 
 
@@ -13,6 +14,7 @@ class Tape:
     definitions: dict = field(default_factory=dict)
     flags: dict[str|int, int|bool] = field(default_factory=dict)
     contracts: dict[bytes, object] = field(default_factory=dict)
+    plugins: dict[str, list[Callable]] = field(default_factory=list)
 
     def read(self, size: int, move_pointer: bool = True) -> bytes:
         """Read symbols from the data."""
