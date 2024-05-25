@@ -215,7 +215,9 @@ def _get_OP_PUSH_args(
             else:
                 val = bytes(val[1:], 'utf-8')
 
-    if 1 < len(val) < 256:
+    if len(val) == 1:
+        ...
+    elif 1 < len(val) < 256:
         # tape syntax of OP_PUSH1 [size 0-255] [val]
         # human-readable decompiled syntax of OP_PUSH1 val
         args.append(len(val).to_bytes(1, 'big'))
@@ -223,10 +225,8 @@ def _get_OP_PUSH_args(
         # tape syntax of OP_PUSH2 [size 0-65_535] [val]
         # human-readable decompiled syntax of OP_PUSH2 val
         args.append(len(val).to_bytes(2, 'big'))
-    elif 65_535 < len(val) < 4_294_967_296:
-        # tape syntax of OP_PUSH4 [size 0-4_294_967_295] [val]
-        # human-readable decompiled syntax of OP_PUSH4 val
-        args.append(len(val).to_bytes(4, 'big'))
+    else:
+        raise ValueError(f'size of value too large for OP_PUSH: {len(val)}')
     args.append(val)
     return (symbols_to_advance, args)
 
@@ -417,64 +417,6 @@ def _get_OP_PUSH2_args(
     args.append(val)
     return (symbols_to_advance, args)
 
-def _get_OP_PUSH4_args(
-        opname: str, symbols: list[str], symbols_to_advance: int,
-        symbol_index: int
-    ) -> tuple[int, tuple[bytes]]:
-    args = []
-    val = None
-
-    if opname == 'OP_PUSH4':
-        # human-readable syntax of OP_PUSH4 [size] [val] or OP_PUSH4 [val]
-        if (len(symbols[1]) < 3 or symbols[1][:3] != 'OP_') and \
-            symbols[1] not in opcodes_inverse and symbols[1] not in nopcodes_inverse and \
-            symbols[1] not in opcode_aliases and symbols[1] not in _special_symbols:
-            symbols_to_advance += 2
-            val = symbols[1]
-        else:
-            symbols_to_advance += 1
-            val = symbols[0]
-    else:
-        # human-readable syntax of OP_[whatever] [key]
-        symbols_to_advance += 1
-        val = symbols[0]
-
-    yert(val[0].lower() in ('d', 'x', 's'), \
-        f'{opname} - values for {opname} must be prefaced with d, x, or s - symbol {symbol_index}')
-
-    match val[0].lower():
-        case 's':
-            if val[1] == '"' and '"' in val[2:]:
-                last_idx = val[2:].index('"')
-                val = bytes(val[2:last_idx+2], 'utf-8')
-            elif val[1] == "'" and "'" in val[2:]:
-                last_idx = val[2:].index("'")
-                val = bytes(val[2:last_idx+2], 'utf-8')
-            else:
-                val = bytes(val[1:], 'utf-8')
-            vert(len(val) < 2**32,
-                f's-value for {opname} must be at most 4_294_967_295 bytes long - symbol {symbol_index}')
-        case 'd':
-            vert(val[1:].lstrip('+-').isnumeric(),
-                f'{opname} - value prefaced by d must be decimal int - symbol {symbol_index}')
-            if '.' in val:
-                val = int_to_bytes(int(val[1:].split('.')[0]))
-            else:
-                val = int_to_bytes(int(val[1:]))
-        case 'f':
-            vert(val[1:].lstrip('+-').replace('.','').isnumeric(),
-                f'{opname} - value prefaced by f must be decimal float; '
-                f'{val} is invalid - symbol {symbol_index}')
-            args.append((4).to_bytes(1, 'big'))
-            args.append(struct.pack('!f', float(val[1:])))
-        case 'x':
-            val = bytes.fromhex(val[1:])
-            vert(len(val) < 2**32,
-                f'x-value for {opname} must be at most 4_294_967_295 bytes long - symbol {symbol_index}')
-    args.append(len(val).to_bytes(4, 'big'))
-    args.append(val)
-    return (symbols_to_advance, args)
-
 def _get_OP_DIV_FLOAT_args(
         opname: str, symbols: list[str], symbols_to_advance: int,
         symbol_index: int
@@ -620,10 +562,6 @@ def get_args(
             # ops that have tape argument of form [0-65535] [val]
             # human-readable syntax of simply OP_PUSH2 [val]
             return _get_OP_PUSH2_args(opname, symbols, symbols_to_advance, symbol_index)
-        case 'OP_PUSH4':
-            # ops that have tape argument of form [0-4_294_967_295] [val]
-            # human-readable syntax of simply OP_PUSH4 [val]
-            return _get_OP_PUSH4_args(opname, symbols, symbols_to_advance, symbol_index)
         case 'OP_DIV_FLOAT' | 'OP_MOD_FLOAT':
             # ops that have tape argument of form [4-byte float]
             # human-readable syntax of OP_[DIV|MOD]_FLOAT [val]
@@ -1012,8 +950,6 @@ def parse_next(
                 parts.append(opcodes_inverse['OP_PUSH1'][0].to_bytes(1, 'big'))
             elif len(args[0]) == 2:
                 parts.append(opcodes_inverse['OP_PUSH2'][0].to_bytes(1, 'big'))
-            elif len(args[0]) == 4:
-                parts.append(opcodes_inverse['OP_PUSH4'][0].to_bytes(1, 'big'))
         elif current_symbol[:3] == 'NOP':
             parts.append(nopcodes_inverse[current_symbol][0].to_bytes(1, 'big'))
         else:
@@ -1184,12 +1120,6 @@ def decompile_script(script: bytes, indent: int = 0) -> list[str]:
                 # ops that have tape argument of form [0-65535] [val]
                 # human-readable syntax of simply OP_PUSH2 [val]
                 size = bytes_to_int(tape.read(2))
-                val = tape.read(size)
-                add_line(f'{op_name} d{size} x{val.hex()}')
-            case 'OP_PUSH4':
-                # ops that have tape argument of form [0-4_294_967_295] [val]
-                # human-readable syntax of simply OP_PUSH4 [val]
-                size = bytes_to_int(tape.read(4))
                 val = tape.read(size)
                 add_line(f'{op_name} d{size} x{val.hex()}')
             case 'OP_DIV_FLOAT' | 'OP_MOD_FLOAT':

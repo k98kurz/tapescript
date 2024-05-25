@@ -135,14 +135,6 @@ class TestParsing(unittest.TestCase):
         assert 'value prefaced by d must be decimal int' in str(e.exception)
 
         with self.assertRaises(errors.SyntaxError) as e:
-            parsing.compile_script('OP_DEF 0 { OP_PUSH4 asd }')
-        assert 'values for OP_PUSH4 must be prefaced with' in str(e.exception)
-
-        with self.assertRaises(ValueError) as e:
-            parsing.compile_script('OP_DEF 0 { OP_PUSH4 dnotnumeric }')
-        assert 'value prefaced by d must be decimal int' in str(e.exception)
-
-        with self.assertRaises(errors.SyntaxError) as e:
             parsing.compile_script('OP_DEF 0 { OP_DIV_FLOAT asd }')
         assert 'numeric args must be prefaced with' in str(e.exception)
 
@@ -231,8 +223,7 @@ class TestParsing(unittest.TestCase):
             'new_ops_0.4.0.src': 'new_ops_0.4.0.hex',
             'new_if_hoist_syntax_0.4.0.src': 'new_if_hoist_syntax_0.4.0.hex',
         }
-        vectors = {}
-        names = {}
+        vectors = []
         errors = []
 
         for src_fname, hex_fname in vector_files.items():
@@ -240,20 +231,21 @@ class TestParsing(unittest.TestCase):
                 with open(f'tests/vectors/{hex_fname}', 'r') as fhex:
                     src = fsrc.read()
                     hex = ''.join(fhex.read().split())
-                    vectors[src] = hex
-                    names[hex] = src_fname
+                    vectors.append((src, hex, src_fname))
 
-        for src, hex in vectors.items():
+        for vector in vectors:
+            src, hex, name = vector
             expected = hex
-            current = names[hex]
+            if name == 'omega_e2e.src':
+                ...
             try:
                 observed = parsing.compile_script(src).hex()
             except BaseException as e:
-                errors.append(f"test_compile_script_e2e_vector: error with {current}: {e}")
+                errors.append(f"test_compile_script_e2e_vector: error with {name}: {e}")
                 continue
             if expected != observed:
                 # just to make it easier to step through the broken test vectors
-                print(f"{names[hex]} compilation failed")
+                print(f"{name} compilation failed")
                 observed = parsing.compile_script(src).hex()
                 print(expected)
                 print(observed)
@@ -279,10 +271,13 @@ class TestParsing(unittest.TestCase):
                             bytes.fromhex(observed)
                         ).hex()
                     )
-            assert expected == observed
+            assert expected == observed, \
+                f'{name}\nobserved\n{observed}\n\nexpected\n{expected}' + \
+                f'\n\ndiff\n' + \
+                self.bytes_xor(bytes.fromhex(expected), bytes.fromhex(observed)).hex()
 
         assert len(errors) == 0, f'errors encountered: {errors}'
-        print(f'{len(vectors.items())} vectors tested for compile_script')
+        print(f'{len(vectors)} vectors tested for compile_script')
 
     def test_decompile_script_returns_list_of_str(self):
         code = parsing.decompile_script(b'\x00')
@@ -548,12 +543,13 @@ class TestParsing(unittest.TestCase):
 
         return bytes(result)
 
-    def line_diff(self, first: str, second: str) -> None:
+    def line_diff(self, first: str, second: str) -> str:
         diff = ''
         if len(first) > len(second):
             for i in range(len(first)):
                 if i >= len(second):
                     diff += first[i]
+        return diff
 
 
 if __name__ == '__main__':
