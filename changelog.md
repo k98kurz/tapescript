@@ -25,6 +25,13 @@ with changed `CONCAT`.
   - `OP_CHECK_SIG_QUEUE` -> `OP_CHECK_SIG_STACK`
   - `OP_READ_CACHE_Q` -> `OP_READ_CACHE_STACK`
   - `OP_READ_CACHE_Q_SIZE` -> `OP_READ_CACHE_STACK_SIZE`
+- Changed aliases:
+  - `OP_RCS` (`RCS`) -> `OP_RCZ` (`RCZ`)
+  - `OP_RCQ` (`RCQ`) -> `OP_RCS` (`RCS`)
+  - `OP_RCQS` (`RCQS`) -> `OP_RCSZ` (`RCSZ`)
+  - `OP_CSQ` (`CSQ`) -> `OP_CSS` (`CSS`)
+- Added `OP_CAT` alias for `OP_CONCAT`
+- Added `OP_CATS` alias for `OP_CONCAT_STR`
 
 ## 0.4.1
 

@@ -69,9 +69,9 @@ call d1
 size
 write_cache s"size" d1
 read_cache s"size"
-rcs s"size"
-rcq
-rcqs
+rcz s"size"
+rcs
+rcsz
 add_ints d12
 subtract_ints d21
 mult_ints d2
@@ -109,9 +109,9 @@ depth
 swap d12 d21
 swap2
 reverse d12
-concat
+cat
 split d12
-concat_str
+cats
 split_str d21
 check_transfer
 merkleval xfeedbeeffeedbeeffeedbeeffeedbeeffeedbeeffeedbeeffeedbeeffeedbeef
@@ -143,7 +143,7 @@ cms x00 d2 d2
 cmsv x00 d2 d3
 sign x00
 sign_stack
-csq
+css
 derive_scalar
 clamp_scalar d1
 add_scalars d3
