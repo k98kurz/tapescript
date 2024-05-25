@@ -90,7 +90,7 @@ class TestTools(unittest.TestCase):
         tape, stack, cache = functions.run_script(unlocking_script + locking_script)
         assert tape.has_terminated()
         assert not stack.empty()
-        assert int.from_bytes(stack.get(False), 'big') == 123
+        assert int.from_bytes(stack.get(), 'big') == 123
         assert stack.empty()
 
     def test_create_merklized_script_2_branches_e2e(self):
@@ -102,13 +102,13 @@ class TestTools(unittest.TestCase):
         tape, stack, cache = functions.run_script(unlocking_scripts[0] + locking_script)
         assert tape.has_terminated()
         assert not stack.empty()
-        assert int.from_bytes(stack.get(False), 'big') == 123
+        assert int.from_bytes(stack.get(), 'big') == 123
         assert stack.empty()
 
         tape, stack, cache = functions.run_script(unlocking_scripts[1] + locking_script)
         assert tape.has_terminated()
         assert not stack.empty()
-        assert stack.get(False) == b'\x01\x23'
+        assert stack.get() == b'\x01\x23'
         assert stack.empty()
 
     def test_create_merklized_script_3_branches_e2e(self):
@@ -122,19 +122,19 @@ class TestTools(unittest.TestCase):
         tape, stack, cache = functions.run_script(unlocking_scripts[0] + locking_script)
         assert tape.has_terminated()
         assert not stack.empty()
-        assert int.from_bytes(stack.get(False), 'big') == 123
+        assert int.from_bytes(stack.get(), 'big') == 123
         assert stack.empty()
 
         tape, stack, cache = functions.run_script(unlocking_scripts[1] + locking_script)
         assert tape.has_terminated()
         assert not stack.empty()
-        assert stack.get(False) == b'\x01\x23'
+        assert stack.get() == b'\x01\x23'
         assert stack.empty()
 
         tape, stack, cache = functions.run_script(unlocking_scripts[2] + locking_script)
         assert tape.has_terminated()
         assert not stack.empty()
-        assert str(stack.get(False), 'utf-8') == 'hello world'
+        assert str(stack.get(), 'utf-8') == 'hello world'
         assert stack.empty()
 
     def test_create_merklized_script_20_branches_e2e(self):
@@ -148,7 +148,7 @@ class TestTools(unittest.TestCase):
             tape, stack, cache = functions.run_script(unlocking_scripts[i] + locking_script)
             assert tape.has_terminated()
             assert not stack.empty()
-            assert int.from_bytes(stack.get(False), 'big') == i
+            assert int.from_bytes(stack.get(), 'big') == i
             assert stack.empty()
 
     def test_add_soft_fork_e2e(self):
@@ -165,7 +165,7 @@ class TestTools(unittest.TestCase):
             count = tape.read(1)[0]
             items = []
             for i in range(count):
-                items.append(stack.get(False))
+                items.append(stack.get())
 
             compare = items.pop()
             while len(items):
@@ -203,7 +203,7 @@ class TestTools(unittest.TestCase):
             count = tape.read(1)[0]
             items = []
             for i in range(count):
-                items.append(stack.get(False))
+                items.append(stack.get())
 
             compare = items.pop()
             while len(items):
@@ -284,8 +284,8 @@ class TestTools(unittest.TestCase):
         # run witness script
         _, stack, _ = functions.run_script(witness, sigfields)
         assert stack.size() == 2
-        R = stack.get(False)
-        sa = stack.get(False)
+        R = stack.get()
+        sa = stack.get()
         assert nacl.bindings.crypto_core_ed25519_is_valid_point(R)
         assert len(sa) == 32
 
@@ -301,8 +301,8 @@ class TestTools(unittest.TestCase):
             sigfields
         )
         assert stack.size() == 2
-        RT = stack.get(False)
-        s = stack.get(False)
+        RT = stack.get()
+        s = stack.get()
 
         # decrypt method 2
         assert tools.decrypt_adapter(witness, tweak) == RT + s
@@ -346,9 +346,9 @@ class TestTools(unittest.TestCase):
         # run witness script
         _, stack, _ = functions.run_script(witness, {**sigfields})
         assert stack.size() == 3
-        R = stack.get(False)
-        sa = stack.get(False)
-        t = stack.get(False)
+        R = stack.get()
+        sa = stack.get()
+        t = stack.get()
         assert nacl.bindings.crypto_core_ed25519_is_valid_point(R)
         assert len(sa) == 32
         assert t == tweak

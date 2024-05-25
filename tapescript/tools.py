@@ -322,7 +322,7 @@ def make_single_sig_witness(
         compile_script(f'push x{prvkey.hex()} sign x{sigflags}'),
         {**sigfields}
     )
-    sig = stack.get(False)
+    sig = stack.get()
     return f'push x{sig.hex()}'
 
 def make_single_sig_witness2(
@@ -340,8 +340,8 @@ def make_single_sig_witness2(
         '''),
         {**sigfields}
     )
-    sig = stack.get(False)
-    pubkey = stack.get(False)
+    sig = stack.get()
+    pubkey = stack.get()
     return f'push x{sig.hex()} push x{pubkey.hex()}'
 
 def make_multisig_lock(
@@ -393,8 +393,8 @@ def decrypt_adapter(adapter_witness: bytes, tweak: bytes) -> bytes:
         adapter_witness +
         compile_script(make_adapter_decrypt(tweak))
     )
-    RT = stack.get(False)
-    s = stack.get(False)
+    RT = stack.get()
+    s = stack.get()
     return RT + s
 
 def make_adapter_locks_prv(
@@ -431,8 +431,8 @@ def make_adapter_witness(
         '''),
         {**sigfields}
     )
-    sa = stack.get(False)
-    R = stack.get(False)
+    sa = stack.get()
+    R = stack.get()
 
     return f'''
         push x{sa.hex()}
@@ -478,7 +478,7 @@ def make_delegate_key_cert_sig(
         push x{root_skey.hex()} sign_queue
     '''))
     assert stack.size() == 1
-    return stack.get(False)
+    return stack.get()
 
 def make_delegate_key_unlock(
         prvkey: bytes, pubkey: bytes, begin_ts: int, end_ts: int,
@@ -489,7 +489,7 @@ def make_delegate_key_unlock(
         sigfields
     )
     assert stack.size() == 1
-    sig = stack.get(False)
+    sig = stack.get()
     return f'''
         push x{sig.hex()}
         push x{pubkey.hex()}
@@ -557,7 +557,7 @@ def make_htlc_witness(
         compile_script(f'push x{prvkey.hex()} sign x{sigflags}'),
         {**sigfields}
     )
-    sig = stack.get(False)
+    sig = stack.get()
     return f'''
         push x{sig.hex()}
         push x{preimage.hex()}
@@ -657,8 +657,8 @@ def make_htlc2_witness(
         '''),
         {**sigfields}
     )
-    sig = stack.get(False)
-    pubkey = stack.get(False)
+    sig = stack.get()
+    pubkey = stack.get()
     return f'''
         push x{sig.hex()}
         push x{pubkey.hex()}
@@ -700,7 +700,7 @@ def make_ptlc_witness(
     if tweak_scalar:
         # create signature manually
         _, stack, _ = run_script(compile_script(f'get_message x{sigflags}'), {**sigfields})
-        m = stack.get(False)
+        m = stack.get()
         x = aggregate_scalars([derive_key_from_seed(prvkey), tweak_scalar])
         X = nacl.bindings.crypto_scalarmult_ed25519_base_noclamp(x) # G^x
         r = clamp_scalar(H_small(H_big(prvkey)[32:], m))
@@ -859,7 +859,7 @@ def run_cli() -> None:
             _, stack, cache = run_script(script, cache)
             items = []
             while stack.size():
-                items.append(stack.get(False).hex())
+                items.append(stack.get().hex())
             items.reverse()
             cache = {
                 (f'bytes:{k.hex()}' if type(k) is bytes else k):

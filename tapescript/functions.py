@@ -210,7 +210,7 @@ def OP_POP0(tape: Tape, stack: Stack, cache: dict) -> None:
     """Remove the first item from the stack and put it in the cache at
         key b'P' (can be put back onto the stack with @P).
     """
-    cache[b'P'] = [stack.get(False)]
+    cache[b'P'] = [stack.get()]
 
 def OP_POP1(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int;
@@ -221,7 +221,7 @@ def OP_POP1(tape: Tape, stack: Stack, cache: dict) -> None:
     items = []
 
     for _ in range(size):
-        items.append(stack.get(False))
+        items.append(stack.get())
 
     cache[b'P'] = items
 
@@ -229,7 +229,7 @@ def OP_SIZE(tape: Tape, stack: Stack, cache: dict) -> None:
     """Pull a value from the stack; put the size of the value onto the
         stack as signed int.
     """
-    stack.put(int_to_bytes(len(stack.get(False))))
+    stack.put(int_to_bytes(len(stack.get())))
 
 def OP_WRITE_CACHE(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int;
@@ -243,7 +243,7 @@ def OP_WRITE_CACHE(tape: Tape, stack: Stack, cache: dict) -> None:
     items = []
 
     for _ in range(n_items):
-        items.append(stack.get(False))
+        items.append(stack.get())
 
     cache[key] = items
 
@@ -278,7 +278,7 @@ def OP_READ_CACHE_Q(tape: Tape, stack: Stack, cache: dict) -> None:
     """Pull a value from the stack as a cache key; put those values from
         the cache onto the stack.
     """
-    key = stack.get(False)
+    key = stack.get()
     sert(key in cache, 'OP_READ_CACHE_Q key not in cache')
     items = cache[key] if type(cache[key]) in (list, tuple) else [cache[key]]
 
@@ -290,7 +290,7 @@ def OP_READ_CACHE_Q_SIZE(tape: Tape, stack: Stack, cache: dict) -> None:
         values in the cache at that key; put the result onto the stack
         as a signed int.
     """
-    key = stack.get(False)
+    key = stack.get()
 
     if key not in cache:
         return stack.put(int_to_bytes(0))
@@ -307,7 +307,7 @@ def OP_ADD_INTS(tape: Tape, stack: Stack, cache: dict) -> None:
     total = 0
 
     for _ in range(size):
-        total += bytes_to_int(stack.get(False))
+        total += bytes_to_int(stack.get())
 
     stack.put(int_to_bytes(total))
 
@@ -318,10 +318,10 @@ def OP_SUBTRACT_INTS(tape: Tape, stack: Stack, cache: dict) -> None:
         the result onto the stack.
     """
     count = int.from_bytes(tape.read(1), 'big')
-    total = bytes_to_int(stack.get(False))
+    total = bytes_to_int(stack.get())
 
     for _ in range(count-1):
-        item = stack.get(False)
+        item = stack.get()
         number = bytes_to_int(item)
         total -= number
 
@@ -334,10 +334,10 @@ def OP_MULT_INTS(tape: Tape, stack: Stack, cache: dict) -> None:
         the stack.
     """
     size = int.from_bytes(tape.read(1), 'big')
-    total = bytes_to_int(stack.get(False))
+    total = bytes_to_int(stack.get())
 
     for _ in range(size-1):
-        total *= bytes_to_int(stack.get(False))
+        total *= bytes_to_int(stack.get())
 
     stack.put(int_to_bytes(total))
 
@@ -350,15 +350,15 @@ def OP_DIV_INT(tape: Tape, stack: Stack, cache: dict) -> None:
     """
     size = int.from_bytes(tape.read(1), 'big')
     divisor = bytes_to_int(tape.read(size))
-    dividend = bytes_to_int(stack.get(False))
+    dividend = bytes_to_int(stack.get())
     stack.put(int_to_bytes(dividend // divisor))
 
 def OP_DIV_INTS(tape: Tape, stack: Stack, cache: dict) -> None:
     """Pull two values from the stack, interpreting as signed ints;
         divide the first by the second; put the result onto the stack.
     """
-    dividend = bytes_to_int(stack.get(False))
-    divisor = bytes_to_int(stack.get(False))
+    dividend = bytes_to_int(stack.get())
+    divisor = bytes_to_int(stack.get())
     stack.put(int_to_bytes(dividend // divisor))
 
 def OP_MOD_INT(tape: Tape, stack: Stack, cache: dict) -> None:
@@ -370,7 +370,7 @@ def OP_MOD_INT(tape: Tape, stack: Stack, cache: dict) -> None:
     """
     size = int.from_bytes(tape.read(1), 'big')
     divisor = bytes_to_int(tape.read(size))
-    dividend = bytes_to_int(stack.get(False))
+    dividend = bytes_to_int(stack.get())
     stack.put(int_to_bytes(dividend % divisor))
 
 def OP_MOD_INTS(tape: Tape, stack: Stack, cache: dict) -> None:
@@ -378,8 +378,8 @@ def OP_MOD_INTS(tape: Tape, stack: Stack, cache: dict) -> None:
         perform integer modulus: first % second; put the result onto the
         stack.
     """
-    dividend = bytes_to_int(stack.get(False))
-    divisor = bytes_to_int(stack.get(False))
+    dividend = bytes_to_int(stack.get())
+    divisor = bytes_to_int(stack.get())
     stack.put(int_to_bytes(dividend % divisor))
 
 def OP_ADD_FLOATS(tape: Tape, stack: Stack, cache: dict) -> None:
@@ -391,7 +391,7 @@ def OP_ADD_FLOATS(tape: Tape, stack: Stack, cache: dict) -> None:
     total = 0.0
 
     for _ in range(size):
-        item = stack.get(False)
+        item = stack.get()
         tert(type(item) is bytes and len(item) == 4,
             'OP_ADD_FLOATS malformed float')
         item, = struct.unpack('!f', item)
@@ -408,13 +408,13 @@ def OP_SUBTRACT_FLOATS(tape: Tape, stack: Stack, cache: dict) -> None:
         onto the stack.
     """
     size = int.from_bytes(tape.read(1), 'big')
-    item = stack.get(False)
+    item = stack.get()
     tert(type(item) is bytes and len(item) == 4,
         'OP_SUBTRACT_FLOATS malformed float')
     total, = struct.unpack('!f', item)
 
     for _ in range(size-1):
-        item = stack.get(False)
+        item = stack.get()
         tert(type(item) is bytes and len(item) == 4,
             'OP_SUBTRACT_FLOATS malformed float')
         number, = struct.unpack('!f', item)
@@ -430,7 +430,7 @@ def OP_DIV_FLOAT(tape: Tape, stack: Stack, cache: dict) -> None:
         dividend; divide the dividend by the divisor; put the result
         onto the stack.
     """
-    item = stack.get(False)
+    item = stack.get()
     tert(type(item) is bytes and len(item) == 4,
         'OP_DIV_FLOAT malformed float')
     dividend, = struct.unpack('!f', item)
@@ -443,11 +443,11 @@ def OP_DIV_FLOATS(tape: Tape, stack: Stack, cache: dict) -> None:
     """Pull two values from the stack, interpreting as floats; divide
         the second by the first; put the result onto the stack.
     """
-    item = stack.get(False)
+    item = stack.get()
     tert(type(item) is bytes and len(item) == 4, 'OP_DIV_FLOATS malformed float')
     divisor, = struct.unpack('!f', item)
 
-    item = stack.get(False)
+    item = stack.get()
     tert(type(item) is bytes and len(item) == 4, 'OP_DIV_FLOATS malformed float')
     dividend, = struct.unpack('!f', item)
 
@@ -461,7 +461,7 @@ def OP_MOD_FLOAT(tape: Tape, stack: Stack, cache: dict) -> None:
         dividend; perform float modulus: dividend % divisor; put the
         result onto the stack.
     """
-    item = stack.get(False)
+    item = stack.get()
     tert(type(item) is bytes and len(item) == 4, 'OP_MOD_FLOAT malformed float')
     dividend, = struct.unpack('!f', item)
     divisor, = struct.unpack('!f', tape.read(4))
@@ -473,11 +473,11 @@ def OP_MOD_FLOATS(tape: Tape, stack: Stack, cache: dict) -> None:
     """Pull two values from the stack, interpreting as floats; perform
         float modulus: second % first; put the result onto the stack.
     """
-    item = stack.get(False)
+    item = stack.get()
     tert(type(item) is bytes and len(item) == 4, 'OP_MOD_FLOATS malformed float')
     divisor, = struct.unpack('!f', item)
 
-    item = stack.get(False)
+    item = stack.get()
     tert(type(item) is bytes and len(item) == 4, 'OP_MOD_FLOATS malformed float')
     dividend, = struct.unpack('!f', item)
 
@@ -494,7 +494,7 @@ def OP_ADD_POINTS(tape: Tape, stack: Stack, cache: dict) -> None:
     points = []
 
     for _ in range(count):
-        points.append(stack.get(False))
+        points.append(stack.get())
         tert(type(points[-1]) in (bytes, VerifyKey),
             'OP_ADD_POINTS non-point value encountered')
 
@@ -516,7 +516,7 @@ def OP_COPY(tape: Tape, stack: Stack, cache: dict) -> None:
         stack.
     """
     n_copies = int.from_bytes(tape.read(1), 'big')
-    item = stack.get(False)
+    item = stack.get()
 
     for _ in range(n_copies + 1):
         stack.put(item)
@@ -525,7 +525,7 @@ def OP_DUP(tape: Tape, stack: Stack, cache: dict) -> None:
     """OP_COPY but with only 1 copy and no reading from the tape or
         advancing the pointer. Equivalent to OP_DUP in Bitcoin script.
     """
-    item = stack.get(False)
+    item = stack.get()
     stack.put(item)
     stack.put(item)
 
@@ -533,7 +533,7 @@ def OP_SHA256(tape: Tape, stack: Stack, cache: dict) -> None:
     """Pull an item from the stack and put its sha256 hash back onto
         the stack.
     """
-    item = stack.get(False)
+    item = stack.get()
     stack.put(sha256(item).digest())
 
 def OP_SHAKE256(tape: Tape, stack: Stack, cache: dict) -> None:
@@ -542,20 +542,20 @@ def OP_SHAKE256(tape: Tape, stack: Stack, cache: dict) -> None:
         spcified length back onto the stack.
     """
     size = int.from_bytes(tape.read(1), 'big')
-    item = stack.get(False)
+    item = stack.get()
     stack.put(shake_256(item).digest(size))
 
 def OP_VERIFY(tape: Tape, stack: Stack, cache: dict) -> None:
     """Pull a value from the stack; evaluate it as a bool; and raise a
         ScriptExecutionError if it is False.
     """
-    sert(bytes_to_bool(stack.get(False)), 'OP_VERIFY check failed')
+    sert(bytes_to_bool(stack.get()), 'OP_VERIFY check failed')
 
 def OP_EQUAL(tape: Tape, stack: Stack, cache: dict) -> None:
     """Pull 2 items from the stack; compare them; put the bool result
         onto the stack.
     """
-    item1, item2 = stack.get(False), stack.get(False)
+    item1, item2 = stack.get(), stack.get()
     stack.put(b'\xff' if bytes_are_same(item1, item2) else b'\x00')
 
 def OP_EQUAL_VERIFY(tape: Tape, stack: Stack, cache: dict) -> None:
@@ -574,8 +574,8 @@ def OP_CHECK_SIG(tape: Tape, stack: Stack, cache: dict) -> None:
     """
     run_sig_extensions(tape, stack, cache)
     allowable_flags = tape.read(1)[0]
-    vkey = stack.get(False)
-    sig = stack.get(False)
+    vkey = stack.get()
+    sig = stack.get()
 
     vert((type(vkey) is bytes and len(vkey) == nacl.bindings.crypto_sign_PUBLICKEYBYTES)
         or type(vkey) is VerifyKey,
@@ -616,7 +616,7 @@ def OP_CHECK_SIG(tape: Tape, stack: Stack, cache: dict) -> None:
         sert(allowable_flags & 0b10000000, 'disallowed sigflag')
 
     OP_GET_MESSAGE(Tape(sig_flag.to_bytes(1, 'big')), stack, cache)
-    message = stack.get(False)
+    message = stack.get()
 
     try:
         vkey.verify(message, sig)
@@ -638,7 +638,7 @@ def OP_CHECK_TIMESTAMP(tape: Tape, stack: Stack, cache: dict) -> None:
         stack. If the ts_threshold flag is <= 0, that check will be
         skipped.
     """
-    constraint = stack.get(False)
+    constraint = stack.get()
     sert(type(constraint) is bytes and len(constraint) > 0,
         'OP_CHECK_TIMESTAMP malformed constraint encountered')
     constraint = int.from_bytes(constraint, 'big')
@@ -672,7 +672,7 @@ def OP_CHECK_EPOCH(tape: Tape, stack: Stack, cache: dict) -> None:
         current time is less than the stack time, put False onto the
         stack; otherwise, put True onto the stack.
     """
-    constraint = stack.get(False)
+    constraint = stack.get()
     sert(type(constraint) is bytes and len(constraint) > 0,
         'OP_CHECK_EPOCH malformed constraint encountered')
     constraint = int.from_bytes(constraint, 'big')
@@ -741,7 +741,7 @@ def OP_IF(tape: Tape, stack: Stack, cache: dict) -> None:
 
     def_data = tape.read(def_size)
 
-    if bytes_to_bool(stack.get(False)):
+    if bytes_to_bool(stack.get()):
         subtape = Tape(
             def_data,
             callstack_limit=tape.callstack_limit,
@@ -769,7 +769,7 @@ def OP_IF_ELSE(tape: Tape, stack: Stack, cache: dict) -> None:
     else_def_data = tape.read(else_def_size)
 
     subtape = Tape(
-        if_def_data if bytes_to_bool(stack.get(False)) else else_def_data,
+        if_def_data if bytes_to_bool(stack.get()) else else_def_data,
         callstack_limit=tape.callstack_limit,
         callstack_count=tape.callstack_count,
         definitions={**tape.definitions},
@@ -788,7 +788,7 @@ def OP_EVAL(tape: Tape, stack: Stack, cache: dict) -> None:
         all loaded contracts.
     """
     sert('disallow_OP_EVAL' not in tape.flags, 'OP_EVAL disallowed')
-    script = stack.get(False)
+    script = stack.get()
     vert(len(script) > 0, 'OP_EVAL encountered empty script')
 
     # setup
@@ -813,7 +813,7 @@ def OP_NOT(tape: Tape, stack: Stack, cache: dict) -> None:
     """Pulls a value from the stack; performs bitwise NOT operation;
         puts result onto the stack.
     """
-    item = stack.get(False)
+    item = stack.get()
     stack.put(not_bytes(item))
 
 def OP_RANDOM(tape: Tape, stack: Stack, cache: dict) -> None:
@@ -821,7 +821,7 @@ def OP_RANDOM(tape: Tape, stack: Stack, cache: dict) -> None:
         put that many random bytes onto the stack.
     """
     size = int.from_bytes(tape.read(1), 'big')
-    stack.put(token_bytes(size), False)
+    stack.put(token_bytes(size))
 
 def OP_RETURN(tape: Tape, stack: Stack, cache: dict) -> None:
     """Ends the script."""
@@ -874,8 +874,8 @@ def OP_SWAP(tape: Tape, stack: Stack, cache: dict) -> None:
 
 def OP_SWAP2(tape: Tape, stack: Stack, cache: dict) -> None:
     """Swap the order of the top two items of the stack."""
-    first = stack.get(False)
-    second = stack.get(False)
+    first = stack.get()
+    second = stack.get()
     stack.put(first)
     stack.put(second)
 
@@ -892,8 +892,8 @@ def OP_CONCAT(tape: Tape, stack: Stack, cache: dict) -> None:
     """Pull two items from the stack; concatenate them first+second; put
         the result onto the stack.
     """
-    first = stack.get(False)
-    second = stack.get(False)
+    first = stack.get()
+    second = stack.get()
     stack.put(first + second)
 
 def OP_SPLIT(tape: Tape, stack: Stack, cache: dict) -> None:
@@ -903,7 +903,7 @@ def OP_SPLIT(tape: Tape, stack: Stack, cache: dict) -> None:
         first byte sequence onto the stack.
     """
     index = int.from_bytes(tape.read(1), 'big')
-    item = stack.get(False)
+    item = stack.get()
     sert(index < len(item), 'OP_SPLIT item len exceeded by index')
     part0 = item[:index]
     part1 = item[index:]
@@ -914,8 +914,8 @@ def OP_CONCAT_STR(tape: Tape, stack: Stack, cache: dict) -> None:
     """Pull two items from the stack, interpreting as UTF-8 strings;
         concatenate them; put the result onto the stack.
     """
-    first = str(stack.get(False), 'utf-8')
-    second = str(stack.get(False), 'utf-8')
+    first = str(stack.get(), 'utf-8')
+    second = str(stack.get(), 'utf-8')
     stack.put(bytes(first + second, 'utf-8'))
 
 def OP_SPLIT_STR(tape: Tape, stack: Stack, cache: dict) -> None:
@@ -925,7 +925,7 @@ def OP_SPLIT_STR(tape: Tape, stack: Stack, cache: dict) -> None:
         the stack; put the second str onto the stack.
     """
     index = int.from_bytes(tape.read(1), 'big')
-    item = str(stack.get(False), 'utf-8')
+    item = str(stack.get(), 'utf-8')
     sert(index < len(item), 'OP_SPLIT_STR item len exceeded by index')
     part0 = item[:index]
     part1 = item[index:]
@@ -948,20 +948,20 @@ def OP_CHECK_TRANSFER(tape: Tape, stack: Stack, cache: dict) -> None:
         corresponding order.
     """
     # get parameters
-    contract_id = stack.get(False)
-    amount = bytes_to_int(stack.get(False))
-    constraint = stack.get(False)
-    destination = stack.get(False)
-    count = int.from_bytes(stack.get(False), 'big')
+    contract_id = stack.get()
+    amount = bytes_to_int(stack.get())
+    constraint = stack.get()
+    destination = stack.get()
+    count = int.from_bytes(stack.get(), 'big')
     sources = []
     txn_proofs = []
     all_proofs_valid = True
 
     for _ in range(count):
-        sources.append(stack.get(False))
+        sources.append(stack.get())
 
     for _ in range(count):
-        txn_proofs.append(stack.get(False))
+        txn_proofs.append(stack.get())
 
     # check contract is loaded and has required functions
     sert(contract_id in tape.contracts,
@@ -995,7 +995,7 @@ def OP_MERKLEVAL(tape: Tape, stack: Stack, cache: dict) -> None:
         hash onto the stack; call OP_EQUAL_VERIFY; call OP_EVAL.
     """
     root_hash = tape.read(32)
-    is_branch_A = bytes_to_bool(stack.get(False))
+    is_branch_A = bytes_to_bool(stack.get())
     OP_DUP(tape, stack, cache)
     OP_SHA256(tape, stack, cache)
     OP_SWAP(Tape(b'\x01\x02'), stack, cache)
@@ -1051,16 +1051,16 @@ def OP_LESS(tape: Tape, stack: Stack, cache: dict) -> None:
     """Pull two signed ints val1 and val2 from stack; put (v1<v2) onto
         stack.
     """
-    val1 = bytes_to_int(stack.get(False))
-    val2 = bytes_to_int(stack.get(False))
+    val1 = bytes_to_int(stack.get())
+    val2 = bytes_to_int(stack.get())
     stack.put(b'\xff' if val1 < val2 else b'\x00')
 
 def OP_LESS_OR_EQUAL(tape: Tape, stack: Stack, cache: dict) -> None:
     """Pull two signed ints val1 and val2 from stack; put (v1<=v2) onto
         stack.
     """
-    val1 = bytes_to_int(stack.get(False))
-    val2 = bytes_to_int(stack.get(False))
+    val1 = bytes_to_int(stack.get())
+    val2 = bytes_to_int(stack.get())
     stack.put(b'\xff' if val1 <= val2 else b'\x00')
 
 def OP_GET_VALUE(tape: Tape, stack: Stack, cache: dict) -> None:
@@ -1084,24 +1084,24 @@ def OP_GET_VALUE(tape: Tape, stack: Stack, cache: dict) -> None:
 
 def OP_FLOAT_LESS(tape: Tape, stack: Stack, cache: dict) -> None:
     """Pull two floats val1 and val2 from stack; put (v1<v2) onto stack."""
-    val1 = bytes_to_float(stack.get(False))
-    val2 = bytes_to_float(stack.get(False))
+    val1 = bytes_to_float(stack.get())
+    val2 = bytes_to_float(stack.get())
     stack.put(b'\xff' if val1 < val2 else b'\x00')
 
 def OP_FLOAT_LESS_OR_EQUAL(tape: Tape, stack: Stack, cache: dict) -> None:
     """Pull two floats val1 and val2 from stack; put (v1<=v2) onto stack."""
-    val1 = bytes_to_float(stack.get(False))
-    val2 = bytes_to_float(stack.get(False))
+    val1 = bytes_to_float(stack.get())
+    val2 = bytes_to_float(stack.get())
     stack.put(b'\xff' if val1 <= val2 else b'\x00')
 
 def OP_INT_TO_FLOAT(tape: Tape, stack: Stack, cache: dict) -> None:
     """Pull a signed int from the stack and put it back as a float."""
-    value = bytes_to_int(stack.get(False))
+    value = bytes_to_int(stack.get())
     stack.put(float_to_bytes(1.0 * value))
 
 def OP_FLOAT_TO_INT(tape: Tape, stack: Stack, cache: dict) -> None:
     """Pull a float from the stack and put it back as a signed int."""
-    value = bytes_to_float(stack.get(False))
+    value = bytes_to_float(stack.get())
     stack.put(int_to_bytes(int(value)))
 
 def OP_LOOP(tape: Tape, stack: Stack, cache: dict) -> None:
@@ -1112,7 +1112,7 @@ def OP_LOOP(tape: Tape, stack: Stack, cache: dict) -> None:
     """
     loop_size = int.from_bytes(tape.read(2), 'big')
     loop_def = tape.read(loop_size)
-    condition = stack.get(False)
+    condition = stack.get()
     stack.put(condition)
     count = 0
 
@@ -1128,7 +1128,7 @@ def OP_LOOP(tape: Tape, stack: Stack, cache: dict) -> None:
         run_tape(subtape, stack, cache)
         subtape.reset_pointer()
         count += 1
-        condition = stack.get(False)
+        condition = stack.get()
         stack.put(condition)
 
 def OP_CHECK_MULTISIG(tape: Tape, stack: Stack, cache: dict) -> None:
@@ -1144,8 +1144,8 @@ def OP_CHECK_MULTISIG(tape: Tape, stack: Stack, cache: dict) -> None:
     subtape = Tape(tape.read(1))
     m = tape.read(1)[0]
     n = tape.read(1)[0]
-    vkeys = [stack.get(False) for _ in range(n)]
-    sigs = [stack.get(False) for _ in range(m)]
+    vkeys = [stack.get() for _ in range(n)]
+    sigs = [stack.get() for _ in range(m)]
     confirmed = set()
 
     for sig in sigs:
@@ -1154,7 +1154,7 @@ def OP_CHECK_MULTISIG(tape: Tape, stack: Stack, cache: dict) -> None:
             stack.put(sig)
             stack.put(vkey)
             OP_CHECK_SIG(subtape, stack, cache)
-            result = bytes_to_bool(stack.get(False))
+            result = bytes_to_bool(stack.get())
             if result:
                 vkeys.remove(vkey)
                 confirmed.add(sig)
@@ -1178,13 +1178,13 @@ def OP_SIGN(tape: Tape, stack: Stack, cache: dict) -> None:
     """
     run_sig_extensions(tape, stack, cache)
     sig_flag = tape.read(1)[0]
-    skey_seed = stack.get(False)
+    skey_seed = stack.get()
     vert(len(skey_seed) == nacl.bindings.crypto_sign_SEEDBYTES,
          'invalid signing key; must be ' +
          f'{nacl.bindings.crypto_sign_SEEDBYTES} bytes')
 
     OP_GET_MESSAGE(Tape(sig_flag.to_bytes(1, 'big')), stack, cache)
-    message = stack.get(False)
+    message = stack.get()
 
     skey = SigningKey(skey_seed)
     sig = skey.sign(message).signature
@@ -1199,8 +1199,8 @@ def OP_SIGN_QUEUE(tape: Tape, stack: Stack, cache: dict) -> None:
         puts the signature onto the stack. Raises ValueError for invalid
         key seed length.
     """
-    seed = stack.get(False)
-    msg = stack.get(False)
+    seed = stack.get()
+    msg = stack.get()
     vert(len(seed) == nacl.bindings.crypto_sign_SEEDBYTES)
     skey = SigningKey(seed)
     sig = skey.sign(msg).signature
@@ -1216,11 +1216,11 @@ def OP_CHECK_SIG_QUEUE(tape: Tape, stack: Stack, cache: dict) -> None:
         puts False onto the stack. Raises ValueError for invalid vkey or
         signature.
     """
-    vkey = stack.get(False)
+    vkey = stack.get()
     vert(len(vkey) == nacl.bindings.crypto_core_ed25519_BYTES, 'invalid vkey')
-    sig = stack.get(False)
+    sig = stack.get()
     vert(len(sig) == nacl.bindings.crypto_sign_BYTES, 'invalid signature')
-    msg = stack.get(False)
+    msg = stack.get()
     try:
         VerifyKey(vkey).verify(msg, sig)
         OP_TRUE(tape, stack, cache)
@@ -1232,7 +1232,7 @@ def OP_DERIVE_SCALAR(tape: Tape, stack: Stack, cache: dict) -> None:
         the seed; puts the key scalar onto the stack. Sets cache key
         b'x' to x if allowed by tape.flags.
     """
-    seed = stack.get(False)
+    seed = stack.get()
     x = derive_key_from_seed(seed)
     if 1 in tape.flags and tape.flags[1]:
         cache[b'x'] = x
@@ -1245,7 +1245,7 @@ def OP_CLAMP_SCALAR(tape: Tape, stack: Stack, cache: dict) -> None:
         invalid value.
     """
     is_key = bytes_to_bool(tape.read(1))
-    value = stack.get(False)
+    value = stack.get()
     stack.put(clamp_scalar(value, is_key))
 
 def OP_ADD_SCALARS(tape: Tape, stack: Stack, cache: dict) -> None:
@@ -1257,7 +1257,7 @@ def OP_ADD_SCALARS(tape: Tape, stack: Stack, cache: dict) -> None:
     scalars = []
 
     for _ in range(count):
-        scalars.append(stack.get(False))
+        scalars.append(stack.get())
 
     # compute the sum
     sum = aggregate_scalars(scalars)
@@ -1272,10 +1272,10 @@ def OP_SUBTRACT_SCALARS(tape: Tape, stack: Stack, cache: dict) -> None:
         put the difference onto the stack.
     """
     size = int.from_bytes(tape.read(1), 'big')
-    total = stack.get(False)
+    total = stack.get()
 
     for _ in range(size-1):
-        item = stack.get(False)
+        item = stack.get()
         total = nacl.bindings.crypto_core_ed25519_scalar_sub(total, item)
 
     stack.put(total)
@@ -1286,7 +1286,7 @@ def OP_DERIVE_POINT(tape: Tape, stack: Stack, cache: dict) -> None:
         key b'X' to X if allowed by tape.flags (can be used in code with
         @X).
     """
-    x = stack.get(False)
+    x = stack.get()
     X = derive_point_from_scalar(x)
     if 2 in tape.flags and tape.flags[2]:
         cache[b'X'] = X
@@ -1299,10 +1299,10 @@ def OP_SUBTRACT_POINTS(tape: Tape, stack: Stack, cache: dict) -> None:
         result onto the stack.
     """
     size = int.from_bytes(tape.read(1), 'big')
-    total = stack.get(False)
+    total = stack.get()
 
     for _ in range(size-1):
-        item = stack.get(False)
+        item = stack.get()
         total = nacl.bindings.crypto_core_ed25519_sub(total, item)
 
     stack.put(total)
@@ -1314,9 +1314,9 @@ def OP_MAKE_ADAPTER_SIG_PUBLIC(tape: Tape, stack: Stack, cache: dict) -> None:
         cache keys b'R' to R, b'T' to T, and b'sa' to sa if allowed by
         tape.flags (can be used in code with @R, @T, and @sa).
     """
-    T = stack.get(False)
-    m = stack.get(False)
-    seed = stack.get(False)
+    T = stack.get()
+    m = stack.get()
+    seed = stack.get()
     x = derive_key_from_seed(seed)
     X = nacl.bindings.crypto_scalarmult_ed25519_base_noclamp(x) # G^x
     nonce = H_big(seed)[32:]
@@ -1351,9 +1351,9 @@ def OP_MAKE_ADAPTER_SIG_PRIVATE(tape: Tape, stack: Stack, cache: dict) -> None:
         and necessary for verification; t is used to decrypt the
         signature.
     """
-    seed = stack.get(False)
-    t = clamp_scalar(stack.get(False))
-    m = stack.get(False)
+    seed = stack.get()
+    t = clamp_scalar(stack.get())
+    m = stack.get()
     x = derive_key_from_seed(seed)
     X = nacl.bindings.crypto_scalarmult_ed25519_base_noclamp(x) # G^x
     T = nacl.bindings.crypto_scalarmult_ed25519_base_noclamp(t) # G^x
@@ -1382,11 +1382,11 @@ def OP_CHECK_ADAPTER_SIG(tape: Tape, stack: Stack, cache: dict) -> None:
         signature adapter sa from the stack; puts True onto stack
         if the signature adapter is valid and False otherwise.
     """
-    X = stack.get(False)
-    T = stack.get(False)
-    m = stack.get(False)
-    R = stack.get(False)
-    sa = stack.get(False)
+    X = stack.get()
+    T = stack.get()
+    m = stack.get()
+    R = stack.get()
+    sa = stack.get()
     sa_G = nacl.bindings.crypto_scalarmult_ed25519_base_noclamp(sa) # sa_G = G^sa
     RT = aggregate_points((R, T)) # R + T
     ca = clamp_scalar(H_small(RT, X, m)) # H(R + T || X || m)
@@ -1401,9 +1401,9 @@ def OP_DECRYPT_ADAPTER_SIG(tape: Tape, stack: Stack, cache: dict) -> None:
         to s if tape.flags[9] and b'RT' to RT if tape.flags[7] (can be
         used in code with @s and @RT).
     """
-    t = clamp_scalar(stack.get(False))
-    R = stack.get(False)
-    sa = stack.get(False)
+    t = clamp_scalar(stack.get())
+    R = stack.get()
+    sa = stack.get()
     T = derive_point_from_scalar(t)
     RT = aggregate_points((R, T)) # R + T
     s = nacl.bindings.crypto_core_ed25519_scalar_add(sa, t) # s = sa + t
@@ -1425,12 +1425,12 @@ def OP_INVOKE(tape: Tape, stack: Stack, cache: dict) -> None:
         bytes or NoneType. If allowed by tape.flag[0], will put any
         return values into cache at key b'IR'.
     """
-    contract_id = stack.get(False)
-    argcount = bytes_to_int(stack.get(False))
+    contract_id = stack.get()
+    argcount = bytes_to_int(stack.get())
     sert(argcount >= 0, 'OP_INVOKE invalid argcount encountered')
     args = []
     for _ in range(argcount):
-        args.append(stack.get(False))
+        args.append(stack.get())
 
     sert(contract_id in tape.contracts, 'OP_INVOKE unknown contract')
     contract = tape.contracts[contract_id]
@@ -1451,8 +1451,8 @@ def OP_XOR(tape: Tape, stack: Stack, cache: dict) -> None:
     """Takes two values from the stack; XORs them together; puts result
         onto the stack. Pads the shorter length value with x00.
     """
-    item1 = stack.get(False)
-    item2 = stack.get(False)
+    item1 = stack.get()
+    item2 = stack.get()
     while len(item1) < len(item2):
         item1 += b'\x00'
     while len(item1) > len(item2):
@@ -1464,8 +1464,8 @@ def OP_OR(tape: Tape, stack: Stack, cache: dict) -> None:
     """Takes two values from the stack; ORs them together; puts result
         onto the stack. Pads the shorter length value with x00.
     """
-    item1 = stack.get(False)
-    item2 = stack.get(False)
+    item1 = stack.get()
+    item2 = stack.get()
     while len(item1) < len(item2):
         item1 += b'\x00'
     while len(item1) > len(item2):
@@ -1477,8 +1477,8 @@ def OP_AND(tape: Tape, stack: Stack, cache: dict) -> None:
     """Takes two values from the stack; ANDs them together; puts result
         onto the stack. Pads the shorter length value with x00.
     """
-    item1 = stack.get(False)
-    item2 = stack.get(False)
+    item1 = stack.get()
+    item2 = stack.get()
     while len(item1) < len(item2):
         item1 += b'\x00'
     while len(item1) > len(item2):
@@ -1534,7 +1534,7 @@ def NOP(tape: Tape, stack: Stack, cache: dict) -> None:
     sert(count >= 0, 'NOP count must not be negative')
 
     for _ in range(count):
-        stack.get(False)
+        stack.get()
 
 
 opcodes = [
@@ -1903,7 +1903,7 @@ def run_auth_script(script: bytes, cache_vals: dict = {}, contracts: dict = {},
         tape, stack, cache = run_script(script, cache_vals, contracts, plugins=plugins)
         assert tape.has_terminated()
         assert stack.size() == 1
-        item = stack.get(False)
+        item = stack.get()
         assert item == b'\xff'
         return True
     except BaseException as e:

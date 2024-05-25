@@ -64,13 +64,13 @@ class Stack:
         self.max_item_size = max_item_size
         self.deque = deque(maxlen=self.max_items)
 
-    def get(self, _sync: bool = False) -> bytes:
+    def get(self) -> bytes:
         """Get the top item of the Stack. Raises IndexError if the deque
             is empty.
         """
         return self.deque.pop()
 
-    def put(self, item: bytes, _: bool = False) -> None:
+    def put(self, item: bytes) -> None:
         """Put an item onto the Stack. Raises ScriptExecutionError if
             the item is too large or if the Stack is full.
         """

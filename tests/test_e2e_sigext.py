@@ -1,11 +1,7 @@
 from __future__ import annotations
 from context import functions, parsing, classes, tools
-from dataclasses import dataclass, field
 from hashlib import sha256
-from nacl.signing import SigningKey, VerifyKey
-from queue import LifoQueue
-from time import time
-import struct
+from nacl.signing import SigningKey
 import unittest
 
 
@@ -13,7 +9,7 @@ import unittest
     b'sigext' cache location.
 '''
 
-def hash_sigfields(tape: classes.Tape, queue: LifoQueue, cache: dict) -> None:
+def hash_sigfields(tape: classes.Tape, stack: classes.Stack, cache: dict) -> None:
     """When called for the first time, backup the original sigfields to
         a new cache location, then transform the sigfields not excluded.
         When called subsequently, replace the sigfields with the backup
@@ -123,29 +119,29 @@ class TestSigExt(unittest.TestCase):
         sigwit1_src = tools.make_single_sig_witness(self.prvkeyA, sigfields)
         sigwit1_bin = parsing.compile_script(sigwit1_src)
         functions.add_signature_extension(hash_sigfields)
-        _, queue, _ = functions.run_script(
+        _, stack, _ = functions.run_script(
             parsing.compile_script(f'@= sigext [ x02 ] push x{self.prvkeyA.hex()} sign x00'),
             {**sigfields}
         )
-        sig: bytes = queue.get(False)
+        sig: bytes = stack.get()
         sigwit2_src = f'push x{sig.hex()}'
         sigwit2_bin = parsing.compile_script(sigwit2_src)
 
         functions.reset_signature_extensions()
-        _, queue, _ = functions.run_script(
+        _, stack, _ = functions.run_script(
             parsing.compile_script(f'msg x00 push x{self.prvkeyB.hex()} sign_queue'),
             {**sigfields}
         )
-        sig = queue.get(False)
+        sig = stack.get()
         multiwit1_src = f'{sigwit1_src} push x{sig.hex()}'
         multiwit1_bin = parsing.compile_script(multiwit1_src)
 
         functions.add_signature_extension(hash_sigfields)
-        _, queue, _ = functions.run_script(
+        _, stack, _ = functions.run_script(
             parsing.compile_script(f'@= sigext [ x02 ] push x{self.prvkeyB.hex()} sign x00'),
             {**sigfields}
         )
-        sig = queue.get(False)
+        sig = stack.get()
         multiwit2_src = f'{sigwit2_src} push x{sig.hex()}'
         multiwit2_bin = parsing.compile_script(multiwit2_src)
 
