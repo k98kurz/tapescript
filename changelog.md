@@ -23,6 +23,8 @@ with changed `CONCAT`.
 - Renamed ops:
   - `OP_SIGN_QUEUE` -> `OP_SIGN_STACK`
   - `OP_CHECK_SIG_QUEUE` -> `OP_CHECK_SIG_STACK`
+  - `OP_READ_CACHE_Q` -> `OP_READ_CACHE_STACK`
+  - `OP_READ_CACHE_Q_SIZE` -> `OP_READ_CACHE_STACK_SIZE`
 
 ## 0.4.1
 

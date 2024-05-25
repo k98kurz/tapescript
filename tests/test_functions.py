@@ -259,28 +259,28 @@ class TestFunctions(unittest.TestCase):
         assert self.stack.empty()
         assert item == functions.int_to_bytes(2)
 
-    def test_OP_READ_CACHE_Q_reads_cache_key_from_stack_and_moves_items_from_cache_to_stack(self):
+    def test_OP_READ_CACHE_STACK_reads_cache_key_from_stack_and_moves_items_from_cache_to_stack(self):
         self.cache[b'test'] = [b'2', b'1']
         assert self.stack.empty()
         self.stack.put(b'test')
-        functions.OP_READ_CACHE_Q(self.tape, self.stack, self.cache)
+        functions.OP_READ_CACHE_STACK(self.tape, self.stack, self.cache)
         assert not self.stack.empty()
         assert self.cache[b'test'] == [b'2', b'1']
         items = [self.stack.get(), self.stack.get()]
         assert self.stack.empty()
         assert items == [b'1', b'2']
 
-    def test_OP_READ_CACHE_Q_raises_ScriptExecutionError_for_missing_cache_key(self):
+    def test_OP_READ_CACHE_STACK_raises_ScriptExecutionError_for_missing_cache_key(self):
         self.stack.put(b'test')
         with self.assertRaises(errors.ScriptExecutionError) as e:
-            functions.OP_READ_CACHE_Q(self.tape, self.stack, self.cache)
-        assert str(e.exception) == 'OP_READ_CACHE_Q key not in cache'
+            functions.OP_READ_CACHE_STACK(self.tape, self.stack, self.cache)
+        assert str(e.exception) == 'OP_READ_CACHE_STACK key not in cache'
 
-    def test_OP_READ_CACHE_Q_SIZE_reads_cache_key_from_stack_and_puts_size_of_cache_on_stack(self):
+    def test_OP_READ_CACHE_STACK_SIZE_reads_cache_key_from_stack_and_puts_size_of_cache_on_stack(self):
         self.cache[b'test'] = [b'2', b'1']
         assert self.stack.empty()
         self.stack.put(b'test')
-        functions.OP_READ_CACHE_Q_SIZE(self.tape, self.stack, self.cache)
+        functions.OP_READ_CACHE_STACK_SIZE(self.tape, self.stack, self.cache)
         assert not self.stack.empty()
         assert self.cache[b'test'] == [b'2', b'1']
         item = self.stack.get()

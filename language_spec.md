@@ -311,9 +311,9 @@ stack and stores them at `cache_key`; `size` must be the length of `cache_key`
 and puts them onto the stack; `size` must be the length of `cache_key`
 - `OP_READ_CACHE_SIZE size cache_key` - counts the number of items in the cache
 at `cache_key`; `size` must be the length of `cache_key`
-- `OP_READ_CACHE_Q` - takes an item from the stack as a cache_key, reads the
+- `OP_READ_CACHE_STACK` - takes an item from the stack as a cache_key, reads the
 items in the cache at that location, and puts them onto the stack
-- `OP_READ_CACHE_Q_SIZE` - takes an item from the stack as a cache_key, counts the
+- `OP_READ_CACHE_STACK_SIZE` - takes an item from the stack as a cache_key, counts the
 number of items in the cache at that location, and puts the count onto the stack
 - `OP_ADD_INTS count` - takes `count` number of ints from the stack, adds them
 together, and puts the sum onto the stack

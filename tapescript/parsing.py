@@ -521,7 +521,7 @@ def get_args(
 
     match opname:
         case 'OP_FALSE' | 'OP_TRUE' | 'OP_POP0' | 'OP_SIZE' | \
-            'OP_READ_CACHE_Q' | 'OP_READ_CACHE_Q_SIZE' | 'OP_DIV_INTS' | \
+            'OP_READ_CACHE_STACK' | 'OP_READ_CACHE_STACK_SIZE' | 'OP_DIV_INTS' | \
             'OP_MOD_INTS' | 'OP_DIV_FLOATS' | 'OP_MOD_FLOATS' | 'OP_DUP' | \
             'OP_SHA256' | 'OP_VERIFY' | 'OP_EQUAL' | 'OP_EQUAL_VERIFY' | \
             'OP_CHECK_TIMESTAMP' | 'OP_CHECK_TIMESTAMP_VERIFY' | \
@@ -1062,7 +1062,7 @@ def decompile_script(script: bytes, indent: int = 0) -> list[str]:
                 code_lines.extend(loop_lines)
                 add_line('}')
             case 'OP_FALSE' | 'OP_TRUE' | 'OP_POP0' | 'OP_SIZE' | \
-                'OP_READ_CACHE_Q' | 'OP_READ_CACHE_Q_SIZE' | 'OP_DIV_INTS' | \
+                'OP_READ_CACHE_STACK' | 'OP_READ_CACHE_STACK_SIZE' | 'OP_DIV_INTS' | \
                 'OP_MOD_INTS' | 'OP_DIV_FLOATS' | 'OP_MOD_FLOATS' | 'OP_DUP' | \
                 'OP_SHA256' | 'OP_VERIFY' | 'OP_EQUAL' | 'OP_EQUAL_VERIFY' | \
                 'OP_CHECK_TIMESTAMP' | 'OP_CHECK_TIMESTAMP_VERIFY' | \

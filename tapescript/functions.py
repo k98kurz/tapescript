@@ -266,18 +266,18 @@ def OP_READ_CACHE_SIZE(tape: Tape, stack: Stack, cache: dict) -> None:
 
     stack.put(int_to_bytes(len(cache[key])))
 
-def OP_READ_CACHE_Q(tape: Tape, stack: Stack, cache: dict) -> None:
+def OP_READ_CACHE_STACK(tape: Tape, stack: Stack, cache: dict) -> None:
     """Pull a value from the stack as a cache key; put those values from
         the cache onto the stack.
     """
     key = stack.get()
-    sert(key in cache, 'OP_READ_CACHE_Q key not in cache')
+    sert(key in cache, 'OP_READ_CACHE_STACK key not in cache')
     items = cache[key] if type(cache[key]) in (list, tuple) else [cache[key]]
 
     for item in items:
         stack.put(item)
 
-def OP_READ_CACHE_Q_SIZE(tape: Tape, stack: Stack, cache: dict) -> None:
+def OP_READ_CACHE_STACK_SIZE(tape: Tape, stack: Stack, cache: dict) -> None:
     """Pull a value from the stack as a cache key; count the number of
         values in the cache at that key; put the result onto the stack
         as a signed int.
@@ -1542,8 +1542,8 @@ opcodes = [
     ('OP_WRITE_CACHE', OP_WRITE_CACHE),
     ('OP_READ_CACHE', OP_READ_CACHE),
     ('OP_READ_CACHE_SIZE', OP_READ_CACHE_SIZE),
-    ('OP_READ_CACHE_Q', OP_READ_CACHE_Q),
-    ('OP_READ_CACHE_Q_SIZE', OP_READ_CACHE_Q_SIZE),
+    ('OP_READ_CACHE_STACK', OP_READ_CACHE_STACK),
+    ('OP_READ_CACHE_STACK_SIZE', OP_READ_CACHE_STACK_SIZE),
     ('OP_ADD_INTS', OP_ADD_INTS),
     ('OP_SUBTRACT_INTS', OP_SUBTRACT_INTS),
     ('OP_MULT_INTS', OP_MULT_INTS),
@@ -1637,16 +1637,16 @@ opcode_aliases = {
 
 opcode_aliases['OP_RCS'] = 'OP_READ_CACHE_SIZE'
 opcode_aliases['RCS'] = 'OP_READ_CACHE_SIZE'
-opcode_aliases['OP_RCQ'] = 'OP_READ_CACHE_Q'
+opcode_aliases['OP_RCQ'] = 'OP_READ_CACHE_STACK'
 opcode_aliases['OP_SUBF'] = 'OP_SUBTRACT_FLOATS'
 opcode_aliases['SUBF'] = 'OP_SUBTRACT_FLOATS'
 opcode_aliases['OP_MODF'] = 'OP_MOD_FLOAT'
 opcode_aliases['MODF'] = 'OP_MOD_FLOAT'
 opcode_aliases['OP_MODFS'] = 'OP_MOD_FLOATS'
 opcode_aliases['MODFS'] = 'OP_MOD_FLOATS'
-opcode_aliases['RCQ'] = 'OP_READ_CACHE_Q'
-opcode_aliases['OP_RCQS'] = 'OP_READ_CACHE_Q_SIZE'
-opcode_aliases['RCQS'] = 'OP_READ_CACHE_Q_SIZE'
+opcode_aliases['RCQ'] = 'OP_READ_CACHE_STACK'
+opcode_aliases['OP_RCQS'] = 'OP_READ_CACHE_STACK_SIZE'
+opcode_aliases['RCQS'] = 'OP_READ_CACHE_STACK_SIZE'
 opcode_aliases['OP_LEQ'] = 'OP_LESS_OR_EQUAL'
 opcode_aliases['LEQ'] = 'OP_LESS_OR_EQUAL'
 opcode_aliases['OP_VAL'] = 'OP_GET_VALUE'
