@@ -53,11 +53,13 @@ def bytes_to_bool(val: bytes) -> bool:
     return int.from_bytes(val, 'big') > 0
 
 def bytes_to_float(number: bytes) -> float:
+    """Converts bytes into a 32-bit float."""
     tert(type(number) is bytes, 'number must be 4 bytes')
     vert(len(number) == 4, 'number must be 4 bytes')
     return struct.unpack('!f', number)[0]
 
 def float_to_bytes(number: float) -> bytes:
+    """Converts a float into 4 bytes."""
     tert(type(number) is float, 'number must be float')
     return struct.pack('!f', number)
 

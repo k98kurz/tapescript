@@ -12,7 +12,7 @@ class Tape:
     pointer: int = field(default=0)
     callstack_limit: int = field(default=64)
     callstack_count: int = field(default=0)
-    definitions: dict = field(default_factory=dict)
+    definitions: dict[bytes, Tape] = field(default_factory=dict)
     flags: dict[str|int, int|bool] = field(default_factory=dict)
     contracts: dict[bytes, object] = field(default_factory=dict)
     plugins: dict[str, list[Callable]] = field(default_factory=list)
@@ -72,7 +72,8 @@ class Stack:
 
     def put(self, item: bytes) -> None:
         """Put an item onto the Stack. Raises ScriptExecutionError if
-            the item is too large or if the Stack is full.
+            the item is too large or if the Stack is full; raises
+            TypeError if the item is not bytes.
         """
         tert(type(item) is bytes, 'Stack item must be bytes')
         sert(len(item) <= self.max_item_size, 'Stack item size too large')
@@ -88,6 +89,7 @@ class Stack:
         return len(self.deque)
 
     def list(self) -> list:
+        """Returns a list containing the Stack items."""
         return list(self.deque)
 
     def empty(self) -> bool:
