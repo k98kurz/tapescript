@@ -142,7 +142,7 @@ loop {
 cms x00 d2 d2
 cmsv x00 d2 d3
 sign x00
-sign_queue
+sign_stack
 csq
 derive_scalar
 clamp_scalar d1

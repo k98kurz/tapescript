@@ -20,6 +20,9 @@ queue by `CHECK_SIG_QUEUE` to make it equivalent to the `OP_CSFS` BIP.
 - Reversed the order of `CONCAT` to make it equivalent to the `OP_CAT` BIP.
 - Reversed the order of outputs of `DECRYPT_ADAPTER_SIG` to for compatability
 with changed `CONCAT`.
+- Renamed ops:
+  - `OP_SIGN_QUEUE` -> `OP_SIGN_STACK`
+  - `OP_CHECK_SIG_QUEUE` -> `OP_CHECK_SIG_STACK`
 
 ## 0.4.1
 

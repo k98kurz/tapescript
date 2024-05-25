@@ -529,8 +529,8 @@ def get_args(
             'OP_NOT' | 'OP_RETURN' | 'OP_DEPTH' | 'OP_SWAP2' | \
             'OP_CONCAT' | 'OP_CONCAT_STR' | 'OP_CHECK_TRANSFER' | 'OP_LESS' | \
             'OP_LESS_OR_EQUAL' | 'OP_FLOAT_LESS' | 'OP_FLOAT_LESS_OR_EQUAL' | \
-            'OP_INT_TO_FLOAT' | 'OP_FLOAT_TO_INT' | 'OP_SIGN_QUEUE' | \
-            'OP_CHECK_SIG_QUEUE' | 'OP_DERIVE_SCALAR' | 'OP_DERIVE_POINT' | \
+            'OP_INT_TO_FLOAT' | 'OP_FLOAT_TO_INT' | 'OP_SIGN_STACK' | \
+            'OP_CHECK_SIG_STACK' | 'OP_DERIVE_SCALAR' | 'OP_DERIVE_POINT' | \
             'OP_MAKE_ADAPTER_SIG_PUBLIC' | 'OP_MAKE_ADAPTER_SIG_PRIVATE' | \
             'OP_CHECK_ADAPTER_SIG' | 'OP_DECRYPT_ADAPTER_SIG' | 'OP_INVOKE' | \
             'OP_XOR' | 'OP_OR' | 'OP_AND':
@@ -1071,7 +1071,7 @@ def decompile_script(script: bytes, indent: int = 0) -> list[str]:
                 'OP_CONCAT' | 'OP_CONCAT_STR' | 'OP_CHECK_TRANSFER' | \
                 'OP_LESS' | 'OP_LESS_OR_EQUAL' | 'OP_FLOAT_LESS' | \
                 'OP_FLOAT_LESS_OR_EQUAL' | 'OP_INT_TO_FLOAT' | \
-                'OP_FLOAT_TO_INT' | 'OP_SIGN_QUEUE' | 'OP_CHECK_SIG_QUEUE' | \
+                'OP_FLOAT_TO_INT' | 'OP_SIGN_STACK' | 'OP_CHECK_SIG_STACK' | \
                 'OP_DERIVE_SCALAR' | 'OP_DERIVE_POINT' | \
                 'OP_MAKE_ADAPTER_SIG_PUBLIC' | 'OP_MAKE_ADAPTER_SIG_PRIVATE' | \
                 'OP_CHECK_ADAPTER_SIG' | 'OP_DECRYPT_ADAPTER_SIG' | 'OP_XOR' | \

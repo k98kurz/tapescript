@@ -1185,7 +1185,7 @@ def OP_SIGN(tape: Tape, stack: Stack, cache: dict) -> None:
         cache[b's'] = sig
     stack.put(sig)
 
-def OP_SIGN_QUEUE(tape: Tape, stack: Stack, cache: dict) -> None:
+def OP_SIGN_STACK(tape: Tape, stack: Stack, cache: dict) -> None:
     """Pulls a value from the stack, interpreting as a SigningKey; pulls
         a message from the stack; signs the message with the SigningKey;
         puts the signature onto the stack. Raises ValueError for invalid
@@ -1200,7 +1200,7 @@ def OP_SIGN_QUEUE(tape: Tape, stack: Stack, cache: dict) -> None:
         cache[b's'] = sig
     stack.put(sig)
 
-def OP_CHECK_SIG_QUEUE(tape: Tape, stack: Stack, cache: dict) -> None:
+def OP_CHECK_SIG_STACK(tape: Tape, stack: Stack, cache: dict) -> None:
     """Pulls a value from the stack, interpreting as a VerifyKey; pulls
         a message from the stack; pulls a value from the stack,
         interpreting as a signature; puts True onto the stack if the
@@ -1603,8 +1603,8 @@ opcodes = [
     ('OP_CHECK_MULTISIG', OP_CHECK_MULTISIG),
     ('OP_CHECK_MULTISIG_VERIFY', OP_CHECK_MULTISIG_VERIFY),
     ('OP_SIGN', OP_SIGN),
-    ('OP_SIGN_QUEUE', OP_SIGN_QUEUE),
-    ('OP_CHECK_SIG_QUEUE', OP_CHECK_SIG_QUEUE),
+    ('OP_SIGN_STACK', OP_SIGN_STACK),
+    ('OP_CHECK_SIG_STACK', OP_CHECK_SIG_STACK),
     ('OP_DERIVE_SCALAR', OP_DERIVE_SCALAR),
     ('OP_CLAMP_SCALAR', OP_CLAMP_SCALAR),
     ('OP_ADD_SCALARS', OP_ADD_SCALARS),
@@ -1669,8 +1669,8 @@ opcode_aliases['OP_CMS'] = 'OP_CHECK_MULTISIG'
 opcode_aliases['CMS'] = 'OP_CHECK_MULTISIG'
 opcode_aliases['OP_CMSV'] = 'OP_CHECK_MULTISIG_VERIFY'
 opcode_aliases['CMSV'] = 'OP_CHECK_MULTISIG_VERIFY'
-opcode_aliases['OP_CSQ'] = 'OP_CHECK_SIG_QUEUE'
-opcode_aliases['CSQ'] = 'OP_CHECK_SIG_QUEUE'
+opcode_aliases['OP_CSQ'] = 'OP_CHECK_SIG_STACK'
+opcode_aliases['CSQ'] = 'OP_CHECK_SIG_STACK'
 opcode_aliases['OP_MASU'] = 'OP_MAKE_ADAPTER_SIG_PUBLIC'
 opcode_aliases['MASU'] = 'OP_MAKE_ADAPTER_SIG_PUBLIC'
 opcode_aliases['OP_MASV'] = 'OP_MAKE_ADAPTER_SIG_PRIVATE'

@@ -464,7 +464,7 @@ def make_delegate_key_lock(root_pubkey: bytes, sigflags: str = '00') -> str:
         # cert form: delegate key + begin ts + expiry #
         @crt
         @dpk @bgn concat @exp concat
-        push x{root_pubkey.hex()} check_sig_queue verify
+        push x{root_pubkey.hex()} check_sig_stack verify
 
         @dpk check_sig x{sigflags}
     '''
@@ -478,7 +478,7 @@ def make_delegate_key_cert_sig(
         push x{delegate_pubkey.hex()}
         push d{begin_ts} concat
         push d{end_ts} concat
-        push x{root_skey.hex()} sign_queue
+        push x{root_skey.hex()} sign_stack
     '''))
     assert stack.size() == 1
     return stack.get()

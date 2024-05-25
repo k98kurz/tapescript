@@ -1697,17 +1697,17 @@ class TestFunctions(unittest.TestCase):
             functions.OP_SIGN(self.tape, self.stack, self.cache)
         assert 'invalid' in str(e.exception)
 
-    def test_OP_SIGN_QUEUE_signs_message_from_stack_using_skey_seed_from_stack(self):
+    def test_OP_SIGN_STACK_signs_message_from_stack_using_skey_seed_from_stack(self):
         seed = token_bytes(nacl.bindings.crypto_sign_SEEDBYTES)
         msg = b'hello world'
         self.stack.put(msg)
         self.stack.put(seed)
-        functions.OP_SIGN_QUEUE(self.tape, self.stack, self.cache)
+        functions.OP_SIGN_STACK(self.tape, self.stack, self.cache)
         sig = self.stack.get()
         assert len(sig) == nacl.bindings.crypto_sign_BYTES
         SigningKey(seed).verify_key.verify(msg, sig)
 
-    def test_OP_CHECK_SIG_QUEUE_raises_correct_errors(self):
+    def test_OP_CHECK_SIG_STACK_raises_correct_errors(self):
         seed = token_bytes(nacl.bindings.crypto_sign_SEEDBYTES)
         msg = b'hello world'
         skey = SigningKey(seed)
@@ -1717,17 +1717,17 @@ class TestFunctions(unittest.TestCase):
         self.stack.put(msg)
         self.stack.put(bytes(skey.verify_key)[:-1])
         with self.assertRaises(ValueError) as e:
-            functions.OP_CHECK_SIG_QUEUE(self.tape, self.stack, self.cache)
+            functions.OP_CHECK_SIG_STACK(self.tape, self.stack, self.cache)
         assert 'invalid vkey' in str(e.exception)
 
         self.stack.put(sig[:-1])
         self.stack.put(msg)
         self.stack.put(bytes(skey.verify_key))
         with self.assertRaises(ValueError) as e:
-            functions.OP_CHECK_SIG_QUEUE(self.tape, self.stack, self.cache)
+            functions.OP_CHECK_SIG_STACK(self.tape, self.stack, self.cache)
         assert 'invalid sig' in str(e.exception)
 
-    def test_OP_CHECK_SIG_QUEUE_puts_correct_bool_onto_stack(self):
+    def test_OP_CHECK_SIG_STACK_puts_correct_bool_onto_stack(self):
         seed = token_bytes(nacl.bindings.crypto_sign_SEEDBYTES)
         msg = b'hello world'
         skey = SigningKey(seed)
@@ -1736,14 +1736,14 @@ class TestFunctions(unittest.TestCase):
         self.stack.put(sig)
         self.stack.put(msg)
         self.stack.put(bytes(skey.verify_key))
-        functions.OP_CHECK_SIG_QUEUE(self.tape, self.stack, self.cache)
+        functions.OP_CHECK_SIG_STACK(self.tape, self.stack, self.cache)
         assert self.stack.size() == 1
         assert self.stack.get() == b'\xff'
 
         self.stack.put(sig[1:] + sig[:1])
         self.stack.put(msg)
         self.stack.put(bytes(skey.verify_key))
-        functions.OP_CHECK_SIG_QUEUE(self.tape, self.stack, self.cache)
+        functions.OP_CHECK_SIG_STACK(self.tape, self.stack, self.cache)
         assert self.stack.size() == 1
         assert self.stack.get() == b'\x00'
 
@@ -1860,7 +1860,7 @@ class TestFunctions(unittest.TestCase):
         self.stack.put(sig)
         self.stack.put(m)
         self.stack.put(X)
-        functions.OP_CHECK_SIG_QUEUE(self.tape, self.stack, self.cache)
+        functions.OP_CHECK_SIG_STACK(self.tape, self.stack, self.cache)
         assert self.stack.size() == 1
         assert self.stack.get() == b'\xff'
 

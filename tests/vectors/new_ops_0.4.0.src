@@ -13,8 +13,8 @@ end_loop
 check_multisig x00 d2 d2
 check_multisig_verify x00 d2 d3
 sign xdd
-sign_queue
-check_sig_queue
+sign_stack
+check_sig_stack
 derive_scalar
 clamp_scalar d1
 add_scalars d3

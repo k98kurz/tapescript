@@ -129,7 +129,7 @@ class TestSigExt(unittest.TestCase):
 
         functions.reset_signature_extensions()
         _, stack, _ = functions.run_script(
-            parsing.compile_script(f'msg x00 push x{self.prvkeyB.hex()} sign_queue'),
+            parsing.compile_script(f'msg x00 push x{self.prvkeyB.hex()} sign_stack'),
             {**sigfields}
         )
         sig = stack.get()
