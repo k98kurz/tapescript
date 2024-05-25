@@ -7,7 +7,5 @@ OP_IF {
     OP_PUSH1 d-5
     OP_PUSH2 d1
     OP_PUSH2 d-5
-    OP_PUSH4 d1
-    OP_PUSH4 d-5
     OP_PUSH1 f-1.23
 END_IF

@@ -61,6 +61,7 @@ def get_symbols(script: str) -> list[str]:
 
 
 additional_opcodes = {}
+_special_symbols = ('END_IF', 'END_DEF', 'ELSE', '(',')','{','}')
 
 def define_macro(symbols: list[str], macros: dict = {}) -> int:
     """Defines a macro. Code syntax is `!= name [ args ] { statements }`.
@@ -311,8 +312,9 @@ def _get_OP_PUSH1_type_args(
 
     if opname == 'OP_PUSH1':
         # human-readable syntax of OP_PUSH1 [size] [val] or OP_PUSH1 [val]
-        if symbols[1] not in ('(',')','{','}') and symbols[1][:3] != 'OP_' and \
-            symbols[1] not in ('END_IF', 'END_DEF', 'ELSE'):
+        if (len(symbols[1]) < 3 or symbols[1][:3] != 'OP_') and \
+            symbols[1] not in opcodes_inverse and symbols[1] not in nopcodes_inverse and \
+            symbols[1] not in opcode_aliases and symbols[1] not in _special_symbols:
             symbols_to_advance += 2
             val = symbols[1]
         else:
@@ -366,9 +368,9 @@ def _get_OP_PUSH2_args(
 
     if opname == 'OP_PUSH2':
         # human-readable syntax of OP_PUSH2 [size] [val] or OP_PUSH2 [val]
-        if symbols[1] not in ('(',')','{','}') and symbols[1] not in opcode_aliases and \
+        if (len(symbols[1]) < 3 or symbols[1][:3] != 'OP_') and \
             symbols[1] not in opcodes_inverse and symbols[1] not in nopcodes_inverse and \
-            symbols[1] not in ('END_IF', 'END_DEF', 'ELSE'):
+            symbols[1] not in opcode_aliases and symbols[1] not in _special_symbols:
             symbols_to_advance += 2
             val = symbols[1]
         else:
@@ -424,8 +426,9 @@ def _get_OP_PUSH4_args(
 
     if opname == 'OP_PUSH4':
         # human-readable syntax of OP_PUSH4 [size] [val] or OP_PUSH4 [val]
-        if symbols[1] not in ('(',')','{','}') and symbols[1][:3] != 'OP_' and \
-            symbols[1] not in ('END_IF', 'END_DEF', 'ELSE'):
+        if (len(symbols[1]) < 3 or symbols[1][:3] != 'OP_') and \
+            symbols[1] not in opcodes_inverse and symbols[1] not in nopcodes_inverse and \
+            symbols[1] not in opcode_aliases and symbols[1] not in _special_symbols:
             symbols_to_advance += 2
             val = symbols[1]
         else:

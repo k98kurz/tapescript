@@ -9,7 +9,7 @@ OP_DEF 1 {
         OP_PUSH1 d1 x22
     } ELSE {
         OP_PUSH2 d4 xfeedbeef
-        OP_PUSH4 d16 x79656c6c6f77207375626d6172696e65
+        OP_PUSH1 d16 x79656c6c6f77207375626d6172696e65
     }
 }
 OP_DEF 2 {

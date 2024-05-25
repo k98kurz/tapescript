@@ -7,7 +7,5 @@ OP_IF {
     OP_PUSH1 d1 xfb
     OP_PUSH2 d1 x01
     OP_PUSH2 d1 xfb
-    OP_PUSH4 d1 x01
-    OP_PUSH4 d1 xfb
     OP_PUSH1 d4 xbf9d70a4
 }

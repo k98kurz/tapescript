@@ -16,7 +16,7 @@ OP_DEF 1 {
     } ELSE {
         # comment within else #
         OP_PUSH2 xfeedbeef
-        OP_PUSH4 s"yellow submarine"
+        OP_PUSH s"yellow submarine"
     }
 }
 

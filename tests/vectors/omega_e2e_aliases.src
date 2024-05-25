@@ -16,7 +16,7 @@ def 1 {
     } else {
         # comment within else #
         push2 xfeedbeef
-        push4 s"yellow submarine"
+        push1 s"yellow submarine"
     }
 }
 
