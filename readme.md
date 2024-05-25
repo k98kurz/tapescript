@@ -449,24 +449,34 @@ For windows, replace `source venv/bin/activate` with `source venv/Scripts/activa
 Then run the test suite with the following:
 
 ```bash
-find tests -name test_*.py -exec {} \;
+find tests -name test_*.py -print -exec {} \;
 ```
 
 or
 
 ```bash
-python test/test_classes.py
-python test/test_functions.py
-python test/test_parsing.py
-python test/test_tools.py
-python test/test_e2e_eltoo.py
+python tests/test_classes.py
+python tests/test_functions.py
+python tests/test_parsing.py
+python tests/test_tools.py
+python tests/test_e2e_eltoo.py
+python tests/test_e2e_sigext.py
 ```
 
-There are currently 225 tests and 106 test vectors used for validating the
+There are currently 228 tests and 106 test vectors used for validating the ops,
 compiler, decompiler, and script running functions. This includes 3 tests for a
 proof-of-concept implementation of the eltoo payment channel protocol, a test
 proving the one-way homomorphic quality of ed25519, and e2e tests combining the
-anonymous multi-hop lock (AMHL) system with adapter signatures.
+anonymous multi-hop lock (AMHL) system with adapter signatures, as well as tests
+for the contract system, signature extension plugins, hard-forks, and the soft-
+fork system.
+
+## Contributing
+
+Check out the [Pycelium discord server](https://discord.gg/b2QFEJDX69). If you
+experience a problem, please discuss it on the Discord server. All suggestions
+for improvement are also welcome, and the best place for that is also Discord.
+If you experience a bug and do not use Discord, open an issue on Github.
 
 ## ISC License
 

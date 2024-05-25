@@ -22,8 +22,12 @@ from .functions import (
     aggregate_scalars,
     xor,
     bytes_are_same,
+    add_signature_extension,
+    remove_signature_extension,
+    reset_signature_extensions,
+    run_sig_extensions,
 )
-from .interfaces import CanCheckTransfer
+from .interfaces import CanCheckTransfer, CanBeInvoked
 from .parsing import (
     compile_script,
     decompile_script,
