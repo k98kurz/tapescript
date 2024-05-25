@@ -177,15 +177,6 @@ class TestFunctions(unittest.TestCase):
         assert not len(self.cache.keys())
         assert self.stack.get() == b'hello world'
 
-    def test_OP_PUSH4_reads_next_4_bytes_as_uint_and_puts_that_many_from_tape_onto_stack(self):
-        self.tape = classes.Tape(b'\x00\x00\x00' + functions.int_to_bytes(11) + b'hello world')
-        assert self.stack.empty()
-        assert not len(self.cache.keys())
-        functions.OP_PUSH4(self.tape, self.stack, self.cache)
-        assert not self.stack.empty()
-        assert not len(self.cache.keys())
-        assert self.stack.get() == b'hello world'
-
     def test_OP_POP0_moves_one_item_from_stack_into_cache(self):
         self.stack.put(b'1234')
         assert not self.stack.empty()

@@ -198,14 +198,6 @@ def OP_PUSH2(tape: Tape, stack: Stack, cache: dict) -> None:
     size = int.from_bytes(tape.read(2), 'big')
     stack.put(tape.read(size))
 
-def OP_PUSH4(tape: Tape, stack: Stack, cache: dict) -> None:
-    """Read the next 4 bytes from the tape, interpreting as an unsigned
-        int; take that many bytes from the tape; put them onto the
-        stack.
-    """
-    size = int.from_bytes(tape.read(4), 'big')
-    stack.put(tape.read(size))
-
 def OP_POP0(tape: Tape, stack: Stack, cache: dict) -> None:
     """Remove the first item from the stack and put it in the cache at
         key b'P' (can be put back onto the stack with @P).
@@ -1543,7 +1535,7 @@ opcodes = [
     ('OP_PUSH0', OP_PUSH0),
     ('OP_PUSH1', OP_PUSH1),
     ('OP_PUSH2', OP_PUSH2),
-    ('OP_PUSH4', OP_PUSH4),
+    ('OP_GET_MESSAGE', OP_GET_MESSAGE),
     ('OP_POP0', OP_POP0),
     ('OP_POP1', OP_POP1),
     ('OP_SIZE', OP_SIZE),
@@ -1627,7 +1619,6 @@ opcodes = [
     ('OP_XOR', OP_XOR),
     ('OP_OR', OP_OR),
     ('OP_AND', OP_AND),
-    ('OP_GET_MESSAGE', OP_GET_MESSAGE),
 ]
 opcodes: dict[int, tuple[str, Callable]] = {x: opcodes[x] for x in range(len(opcodes))}
 

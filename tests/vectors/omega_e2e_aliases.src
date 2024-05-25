@@ -159,6 +159,7 @@ xor
 or
 and
 msg x00
+nop89 d1
 nop90 d1
 nop91 d1
 nop92 d1
