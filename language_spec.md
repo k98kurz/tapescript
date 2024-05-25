@@ -432,7 +432,7 @@ constructed from sigfields not blanked by the flags, and puts that signature
 onto the stack.
 - `OP_SIGN_QUEUE` - takes a signing key seed and message from the stack, signs
 the message, and puts the signature onto the stack.
-- `OP_CHECK_SIG_QUEUE` - takes a verify key, signature, and message from the
+- `OP_CHECK_SIG_QUEUE` - takes a verify key, message, and signature from the
 stack; puts `True` onto the stack if the signature was valid for the vkey and
 message, otherwise puts `False` onto the stack.
 - `OP_DERIVE_SCALAR` - takes a seed from stack; derives an ed25519 private key

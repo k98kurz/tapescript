@@ -1,4 +1,4 @@
-## 0.4.2
+## 0.5.0
 
 - Signature extension system: call a plugin at the beginning of each of the
 following ops, passing it the runtime: `CHECK_SIG`, `CHECK_MULTISIG`, `SIGN`,
@@ -10,6 +10,16 @@ future, additional OPs may get plugin hooks using this system.
 - Slightly simplified `CHECK_SIG` and `SIGN` to now use `GET_MESSAGE` instead of
 repeating that message construction logic. To avoid calling plugins twice, a new
 Tape containing only the sigflag is passed to `GET_MESSAGE` by these calls.
+- New class `Stack` with item size limits to avoid denial of service attack from
+the 6 byte script `true loop { dup concat }`. Refactor system to use new `Stack`.
+(Internally use `collections.deque`.)
+- Removed `OP_PUSH4`
+- Redefined x05 to be `OP_GET_MESSAGE` and x59 to be `NOP89`
+- Reversed the order in which the message and signature are pulled from the
+queue by `CHECK_SIG_QUEUE` to make it equivalent to the `OP_CSFS` BIP.
+- Reversed the order of `CONCAT` to make it equivalent to the `OP_CAT` BIP.
+- Reversed the order of outputs of `DECRYPT_ADAPTER_SIG` to for compatability
+with changed `CONCAT`.
 
 ## 0.4.1
 

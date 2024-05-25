@@ -49,7 +49,7 @@ As of version 0.4.0, a simple CLI has been included with the following features:
 - `compile src_file bin_file` -- compiles the human-readable source into bytecode
 - `decompile bin_file` -- decompiles bytecode to human-readable source
 - `run bin_file [cache_file]` -- runs Tapescript bytecode and prints the cache
-and queue
+and stack
 - `auth bin_file [cache_file]` -- runs the Tapescript bytecode as an auth script
 and prints "true" if it succeeded and "false" otherwise
 
@@ -64,8 +64,8 @@ or plugins.
 ### Write, compile, decompile
 
 See the
-[langauge_spec.md](https://github.com/k98kurz/tapescript/blob/master/language_spec.md)
-and [docs.md](https://github.com/k98kurz/tapescript/blob/master/docs.md) files
+[langauge_spec.md](https://github.com/k98kurz/tapescript/blob/v0.5.0/language_spec.md)
+and [docs.md](https://github.com/k98kurz/tapescript/blob/v0.5.0/docs.md) files
 for syntax and operation specifics.
 
 Once you have a script written, use the `compile_script(code: str) -> bytes`
@@ -92,11 +92,11 @@ Version 0.3.0 and 0.3.1 added a sort of variable and macro system to the
 compiler.
 
 Variable assignment uses two possible syntaxes: `@= varname [vals]` or
-`@= varname count`; the first pushes the values onto the queue then calls
+`@= varname count`; the first pushes the values onto the stack then calls
 `OP_WRITE_CACHE` to store those values in the cache at the `varname` key, while
 the second instead just calls `OP_WRITE_CACHE` and takes `count` items from the
 queue. Using `@varname` calls `OP_READ_CACHE` and places the values held at the
-`varname` cache key onto the queue.
+`varname` cache key onto the stack.
 
 Macros allow use of string interpolation in the compiler: use the syntax
 `!= macroname [ arg1 arg2 ... ] { statements }` to define a macro and
@@ -230,16 +230,16 @@ or `run_auth_script(script: bytes, cache_vals: dict = {}, contracts: dict = {})`
 The `run_script` function returns `tuple` of length 3 containing a `Tape`, a
 `LifoQueue`, and the final state of the `cache` dict. The `run_auth_script`
 instead returns a bool that is `True` if the script ran without error and
-resulted in a single `0x01` value on the queue; otherwise it returns `False`.
+resulted in a single `0x01` value on the stack; otherwise it returns `False`.
 
 In the case where a signature is expected to be validated, the message parts for
 the signature must be passed in via the `cache_vals` dict at keys `sigfield[1-8]`.
 In the case where `OP_CHECK_TRANSFER` or `OP_INVOKE` might be called, the
 contracts must be passed in via the `contracts` dict. See the
-[check_transfer](https://github.com/k98kurz/tapescript/blob/master/language_spec.md#op_check_transfer)
+[check_transfer](https://github.com/k98kurz/tapescript/blob/v0.5.0/language_spec.md#op_check_transfer)
 and
-[INVOKE](https://github.com/k98kurz/tapescript/blob/master/language_spec.md#op_invoke)
-section in the language_spec.md file for more informaiton about these two ops.
+[invoke](https://github.com/k98kurz/tapescript/blob/v0.5.0/language_spec.md#op_invoke)
+sections in the language_spec.md file for more informaiton about these two ops.
 
 #### Changing flags
 
@@ -250,14 +250,13 @@ The interpreter flags can be changed by changing the `functions.flags` dict.
 The ops can be updated via a plugin system.
 
 ```py
-from queue import LifoQueue
-from tapescript import Tape, add_opcode, add_opcode_parsing_handlers
+from tapescript import Stack, Tape, add_opcode, add_opcode_parsing_handlers
 
 
-def OP_SOME_NONSENSE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+def OP_SOME_NONSENSE(tape: Tape, stack: Stack, cache: dict) -> None:
     count = tape.read(1)[0]
     for _ in range(count):
-        queue.put(b'some nonsense')
+        stack.put(b'some nonsense')
 
 def OP_SOME_NONSENSE_compiler(opname: str, symbols: list[str],
         symbols_to_advance: int, symbol_index: int):
@@ -332,8 +331,8 @@ about how `CMS` and `CMSV` work.
 As of 0.4.2, the following OPs can be slightly modified with a plugin system:
 `CHECK_SIG`, `CHECK_MULTISIG`, `SIGN`, and `GET_MESSAGE`. Signature extension
 plugins can be managed with the following functions:
-- `add_signature_extension(plugin: Callable[[Tape, LifoQueue, dict], None])`
-- `remove_signature_extension(plugin: Callable[[Tape, LifoQueue, dict], None])`
+- `add_signature_extension(plugin: Callable[[Tape, Stack, dict], None])`
+- `remove_signature_extension(plugin: Callable[[Tape, Stack, dict], None])`
 - `reset_signature_extensions()`
 
 Additionally, plugins can be injected when calling `run_script` or
@@ -347,7 +346,7 @@ t, q, c = run_script(script, plugins={
 })
 ```
 
-Plugin functions must take a Tape, LifoQueue, and dict (i.e. the runtime data)
+Plugin functions must take a Tape, Stack, and dict (i.e. the runtime data)
 as arguments, and they must do all of their work on them. (Technically, they
 are procedures with side-effects.) For signature extension, the sigfields in the
 dict cache are the most likely target for alteration.
@@ -361,7 +360,7 @@ support in mind, and the helper function `add_soft_fork` is included to
 streamline the process and reduce the use of boilerplate.
 
 To enable a soft fork, a NOP code must be replaced with an op that reads the
-next byte as a signed int, pulls that many values from the queue, runs any
+next byte as a signed int, pulls that many values from the stack, runs any
 checks on the data, and raises an error in case any check fails. This maintains
 the behavior of the original NOP such that any nodes that did not activate the
 soft fork will not have any errors parsing scripts using the new OP.
@@ -371,16 +370,16 @@ Example soft fork:
 ```python
 from tapescript import (
     Tape,
+    Stack,
     ScriptExecutionError,
     add_soft_fork,
     bytes_to_int,
 )
-from queue import LifoQueue
 
 
-def OP_CHECK_ALL_EQUAL_VERIFY(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+def OP_CHECK_ALL_EQUAL_VERIFY(tape: Tape, stack: Stack, cache: dict) -> None:
     """Replacement for NOP255: read the next byte an int count, take
-        that many items from queue, run checks, and raise an error if
+        that many items from stack, run checks, and raise an error if
         any check fails.
     """
     count = bytes_to_int(tape.read(1))
