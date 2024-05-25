@@ -80,16 +80,12 @@ class Stack:
         self.deque.append(item)
 
     def size(self) -> int:
-        """Return the current number of items in the Stack."""
-        return len(self.deque)
-
-    def size_total(self) -> int:
         """Return the number of bytes currently stored on the Stack."""
         return sum([len(item) for item in self.deque])
 
     def __len__(self) -> int:
         """Return the current number of items in the Stack."""
-        return self.size()
+        return len(self.deque)
 
     def list(self) -> list:
         return list(self.deque)

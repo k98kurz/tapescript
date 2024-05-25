@@ -74,6 +74,27 @@ class TestStack(unittest.TestCase):
         with self.assertRaises(errors.ScriptExecutionError) as e:
             stack.put(b'34')
 
+    def test_Stack_put_and_get_use_LIFO_order(self):
+        stack = classes.Stack()
+        items = [i.to_bytes(2, 'big') for i in range(10)]
+        for item in items:
+            stack.put(item)
+        assert stack.get() == items[-1]
+        last = stack.get()
+        while len(stack):
+            last = stack.get()
+        assert last == items[0]
+
+    def test_Stack_size_returns_byte_count(self):
+        stack = classes.Stack()
+        assert stack.size() == 0
+        stack.put(b'123')
+        assert stack.size() == 3
+        stack.put(b'321')
+        assert stack.size() == 6
+        _ = stack.get()
+        assert stack.size() == 3
+
 
 if __name__ == '__main__':
     unittest.main()
