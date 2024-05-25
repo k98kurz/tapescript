@@ -462,8 +462,9 @@ def make_delegate_key_lock(root_pubkey: bytes, sigflags: str = '00') -> str:
         val s"timestamp" @bgn less verify
 
         # cert form: delegate key + begin ts + expiry #
+        @crt
         @exp @bgn concat @dpk concat
-        @crt push x{root_pubkey.hex()} check_sig_queue verify
+        push x{root_pubkey.hex()} check_sig_queue verify
 
         @dpk check_sig x{sigflags}
     '''

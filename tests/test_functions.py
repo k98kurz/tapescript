@@ -1713,15 +1713,15 @@ class TestFunctions(unittest.TestCase):
         skey = SigningKey(seed)
         sig = skey.sign(msg).signature
 
-        self.stack.put(msg)
         self.stack.put(sig)
+        self.stack.put(msg)
         self.stack.put(bytes(skey.verify_key)[:-1])
         with self.assertRaises(ValueError) as e:
             functions.OP_CHECK_SIG_QUEUE(self.tape, self.stack, self.cache)
         assert 'invalid vkey' in str(e.exception)
 
-        self.stack.put(msg)
         self.stack.put(sig[:-1])
+        self.stack.put(msg)
         self.stack.put(bytes(skey.verify_key))
         with self.assertRaises(ValueError) as e:
             functions.OP_CHECK_SIG_QUEUE(self.tape, self.stack, self.cache)
@@ -1733,15 +1733,15 @@ class TestFunctions(unittest.TestCase):
         skey = SigningKey(seed)
         sig = skey.sign(msg).signature
 
-        self.stack.put(msg)
         self.stack.put(sig)
+        self.stack.put(msg)
         self.stack.put(bytes(skey.verify_key))
         functions.OP_CHECK_SIG_QUEUE(self.tape, self.stack, self.cache)
         assert self.stack.size() == 1
         assert self.stack.get() == b'\xff'
 
-        self.stack.put(msg)
         self.stack.put(sig[1:] + sig[:1])
+        self.stack.put(msg)
         self.stack.put(bytes(skey.verify_key))
         functions.OP_CHECK_SIG_QUEUE(self.tape, self.stack, self.cache)
         assert self.stack.size() == 1
@@ -1857,8 +1857,8 @@ class TestFunctions(unittest.TestCase):
         sig = SigningKey(seed).sign(m).signature
 
         self.tape = classes.Tape(b'\x00')
-        self.stack.put(m)
         self.stack.put(sig)
+        self.stack.put(m)
         self.stack.put(X)
         functions.OP_CHECK_SIG_QUEUE(self.tape, self.stack, self.cache)
         assert self.stack.size() == 1

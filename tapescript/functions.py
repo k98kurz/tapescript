@@ -1202,17 +1202,17 @@ def OP_SIGN_QUEUE(tape: Tape, stack: Stack, cache: dict) -> None:
 
 def OP_CHECK_SIG_QUEUE(tape: Tape, stack: Stack, cache: dict) -> None:
     """Pulls a value from the stack, interpreting as a VerifyKey; pulls
-        a value from the stack, interpreting as a signature; pulls a
-        message from the stack; puts True onto the stack if the
+        a message from the stack; pulls a value from the stack,
+        interpreting as a signature; puts True onto the stack if the
         signature is valid for the message and the VerifyKey, otherwise
         puts False onto the stack. Raises ValueError for invalid vkey or
         signature.
     """
     vkey = stack.get()
     vert(len(vkey) == nacl.bindings.crypto_core_ed25519_BYTES, 'invalid vkey')
+    msg = stack.get()
     sig = stack.get()
     vert(len(sig) == nacl.bindings.crypto_sign_BYTES, 'invalid signature')
-    msg = stack.get()
     try:
         VerifyKey(vkey).verify(msg, sig)
         OP_TRUE(tape, stack, cache)
