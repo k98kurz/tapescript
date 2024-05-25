@@ -4,14 +4,14 @@ build-backend = "hatchling.build"
 
 [project]
 name = "tapescript"
-version = "0.4.1"
+version = "0.5.0"
 authors = [
   { name="k98kurz", email="k98kurz@gmail.com" },
 ]
 dependencies = [
   "PyNaCl>=1.5.0"
 ]
-description = "Scripting system for use in distributed systems"
+description = "Bytecode VM for embedding ACL in distributed systems"
 readme = "readme.md"
 requires-python = ">=3.10"
 classifiers = [
