@@ -301,8 +301,8 @@ class TestTools(unittest.TestCase):
             sigfields
         )
         assert stack.size() == 2
-        RT = stack.get()
         s = stack.get()
+        RT = stack.get()
 
         # decrypt method 2
         assert tools.decrypt_adapter(witness, tweak) == RT + s

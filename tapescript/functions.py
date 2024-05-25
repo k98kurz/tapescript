@@ -881,12 +881,12 @@ def OP_REVERSE(tape: Tape, stack: Stack, cache: dict) -> None:
     [stack.put(item) for item in items]
 
 def OP_CONCAT(tape: Tape, stack: Stack, cache: dict) -> None:
-    """Pull two items from the stack; concatenate them first+second; put
+    """Pull two items from the stack; concatenate them second+first; put
         the result onto the stack.
     """
     first = stack.get()
     second = stack.get()
-    stack.put(first + second)
+    stack.put(second + first)
 
 def OP_SPLIT(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int
@@ -908,7 +908,7 @@ def OP_CONCAT_STR(tape: Tape, stack: Stack, cache: dict) -> None:
     """
     first = str(stack.get(), 'utf-8')
     second = str(stack.get(), 'utf-8')
-    stack.put(bytes(first + second, 'utf-8'))
+    stack.put(bytes(second + first, 'utf-8'))
 
 def OP_SPLIT_STR(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int
@@ -991,7 +991,7 @@ def OP_MERKLEVAL(tape: Tape, stack: Stack, cache: dict) -> None:
     OP_DUP(tape, stack, cache)
     OP_SHA256(tape, stack, cache)
     OP_SWAP(Tape(b'\x01\x02'), stack, cache)
-    if not is_branch_A:
+    if is_branch_A:
         OP_SWAP2(tape, stack, cache)
     OP_CONCAT(tape, stack, cache)
     OP_SHA256(tape, stack, cache)
@@ -1389,7 +1389,7 @@ def OP_CHECK_ADAPTER_SIG(tape: Tape, stack: Stack, cache: dict) -> None:
 def OP_DECRYPT_ADAPTER_SIG(tape: Tape, stack: Stack, cache: dict) -> None:
     """Takes tweak scalar t, nonce point R, and signature adapter sa
         from stack; calculates nonce RT; decrypts signature s from sa;
-        puts s onto stack; puts RT onto the stack; sets cache keys b's'
+        puts RT onto the stack; puts s onto stack; sets cache keys b's'
         to s if tape.flags[9] and b'RT' to RT if tape.flags[7] (can be
         used in code with @s and @RT).
     """
@@ -1403,8 +1403,8 @@ def OP_DECRYPT_ADAPTER_SIG(tape: Tape, stack: Stack, cache: dict) -> None:
         cache[b'RT'] = RT
     if 9 in tape.flags and tape.flags[9]:
         cache[b's'] = s
-    stack.put(s)
     stack.put(RT)
+    stack.put(s)
 
 def OP_INVOKE(tape: Tape, stack: Stack, cache: dict) -> None:
     """Takes an item from the stack as `contract_id`; takes an int from

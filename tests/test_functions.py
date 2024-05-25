@@ -1085,8 +1085,8 @@ class TestFunctions(unittest.TestCase):
         assert str(e.exception) == 'OP_REVERSE stack size exceeded'
 
     def test_OP_CONCAT_concatenates_top_two_items_from_stack(self):
-        self.stack.put(b'123')
         self.stack.put(b'321')
+        self.stack.put(b'123')
         functions.OP_CONCAT(self.tape, self.stack, self.cache)
         assert self.stack.get() == b'321123'
         assert self.stack.empty()
@@ -1106,8 +1106,8 @@ class TestFunctions(unittest.TestCase):
         assert str(e.exception) == 'OP_SPLIT item len exceeded by index'
 
     def test_OP_CONCAT_STR_concatenates_top_two_utf8_str_items_from_stack(self):
-        self.stack.put(bytes('123', 'utf-8'))
         self.stack.put(bytes('abc', 'utf-8'))
+        self.stack.put(bytes('123', 'utf-8'))
         functions.OP_CONCAT_STR(self.tape, self.stack, self.cache)
         item = self.stack.get()
         assert str(item, 'utf-8') == 'abc123'

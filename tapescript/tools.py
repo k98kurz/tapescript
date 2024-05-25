@@ -393,8 +393,8 @@ def decrypt_adapter(adapter_witness: bytes, tweak: bytes) -> bytes:
         adapter_witness +
         compile_script(make_adapter_decrypt(tweak))
     )
-    RT = stack.get()
     s = stack.get()
+    RT = stack.get()
     return RT + s
 
 def make_adapter_locks_prv(
@@ -463,7 +463,7 @@ def make_delegate_key_lock(root_pubkey: bytes, sigflags: str = '00') -> str:
 
         # cert form: delegate key + begin ts + expiry #
         @crt
-        @exp @bgn concat @dpk concat
+        @dpk @bgn concat @exp concat
         push x{root_pubkey.hex()} check_sig_queue verify
 
         @dpk check_sig x{sigflags}
@@ -473,9 +473,11 @@ def make_delegate_key_cert_sig(
         root_skey: bytes, delegate_pubkey: bytes, begin_ts: int, end_ts: int
     ) -> bytes:
     """Returns a signature for a key delegation cert."""
+    # cert form: delegate key + begin ts + expiry #
     _, stack, _ = run_script(compile_script(f'''
-        push d{end_ts} push d{begin_ts} concat
-        push x{delegate_pubkey.hex()} concat
+        push x{delegate_pubkey.hex()}
+        push d{begin_ts} concat
+        push d{end_ts} concat
         push x{root_skey.hex()} sign_queue
     '''))
     assert stack.size() == 1
