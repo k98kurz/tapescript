@@ -480,7 +480,7 @@ def make_delegate_key_cert_sig(
         push d{end_ts} concat
         push x{root_skey.hex()} sign_stack
     '''))
-    assert stack.size() == 1
+    assert len(stack) == 1
     return stack.get()
 
 def make_delegate_key_unlock(
@@ -491,7 +491,7 @@ def make_delegate_key_unlock(
         compile_script(f'push x{prvkey.hex()} sign x{sigflags}'),
         sigfields
     )
-    assert stack.size() == 1
+    assert len(stack) == 1
     sig = stack.get()
     return f'''
         push x{sig.hex()}
@@ -861,7 +861,7 @@ def run_cli() -> None:
                 cache = _parse_cache_json(argv[3])
             _, stack, cache = run_script(script, cache)
             items = []
-            while stack.size():
+            while len(stack):
                 items.append(stack.get().hex())
             items.reverse()
             cache = {

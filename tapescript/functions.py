@@ -839,8 +839,8 @@ def OP_UNSET_FLAG(tape: Tape, stack: Stack, cache: dict) -> None:
         del tape.flags[flag]
 
 def OP_DEPTH(tape: Tape, stack: Stack, cache: dict) -> None:
-    """Put the size of the stack onto the stack."""
-    stack.put(uint_to_bytes(stack.size()))
+    """Put the stack item count onto the stack."""
+    stack.put(uint_to_bytes(len(stack)))
 
 def OP_SWAP(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read the next 2 bytes from the tape, interpreting as unsigned
@@ -1897,7 +1897,7 @@ def run_auth_script(script: bytes, cache_vals: dict = {}, contracts: dict = {},
     try:
         tape, stack, cache = run_script(script, cache_vals, contracts, plugins=plugins)
         assert tape.has_terminated()
-        assert stack.size() == 1
+        assert len(stack) == 1
         item = stack.get()
         assert item == b'\xff'
         return True

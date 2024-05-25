@@ -283,7 +283,7 @@ class TestTools(unittest.TestCase):
 
         # run witness script
         _, stack, _ = functions.run_script(witness, sigfields)
-        assert stack.size() == 2
+        assert len(stack) == 2
         R = stack.get()
         sa = stack.get()
         assert nacl.bindings.crypto_core_ed25519_is_valid_point(R)
@@ -300,7 +300,7 @@ class TestTools(unittest.TestCase):
             witness + decrypt_adapter_script,
             sigfields
         )
-        assert stack.size() == 2
+        assert len(stack) == 2
         s = stack.get()
         RT = stack.get()
 
@@ -345,7 +345,7 @@ class TestTools(unittest.TestCase):
 
         # run witness script
         _, stack, _ = functions.run_script(witness, {**sigfields})
-        assert stack.size() == 3
+        assert len(stack) == 3
         R = stack.get()
         sa = stack.get()
         t = stack.get()
