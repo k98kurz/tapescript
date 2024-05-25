@@ -58,5 +58,22 @@ class TestTape(unittest.TestCase):
         assert isinstance(tape.contracts, dict)
 
 
+class TestStack(unittest.TestCase):
+    def test_putting_nonbytes_onto_Stack_raises_TypeError(self):
+        stack = classes.Stack(max_items=2, max_item_size=2)
+        with self.assertRaises(TypeError) as e:
+            stack.put('not bytes')
+
+    def test_exceeding_Stack_limits_raises_ScriptExecutionError(self):
+        stack = classes.Stack(max_items=2, max_item_size=2)
+        with self.assertRaises(errors.ScriptExecutionError) as e:
+            stack.put(b'too large')
+
+        stack.put(b'12')
+        stack.put(b'23')
+        with self.assertRaises(errors.ScriptExecutionError) as e:
+            stack.put(b'34')
+
+
 if __name__ == '__main__':
     unittest.main()

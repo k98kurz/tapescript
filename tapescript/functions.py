@@ -1,12 +1,11 @@
 from __future__ import annotations
-from .classes import Tape
+from .classes import Tape, Stack
 from .errors import tert, vert, sert
 from .interfaces import CanCheckTransfer, CanBeInvoked
 from hashlib import sha256, shake_256, sha512
 from math import ceil, floor, isnan, log2
 from nacl.exceptions import BadSignatureError
 from nacl.signing import SigningKey, VerifyKey
-from queue import LifoQueue
 from secrets import token_bytes
 from time import time
 from typing import Callable, _ProtocolMeta
@@ -171,72 +170,72 @@ def bytes_are_same(b1: bytes, b2: bytes) -> bool:
     return len(b1) == len(b2) and int.from_bytes(xor(b1, b2), 'little') == 0
 
 
-def OP_FALSE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Puts a null byte onto the queue."""
-    queue.put(b'\x00')
+def OP_FALSE(tape: Tape, stack: Stack, cache: dict) -> None:
+    """Puts a null byte onto the stack."""
+    stack.put(b'\x00')
 
-def OP_TRUE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Puts a 0xFF byte onto the queue."""
-    queue.put(b'\xff')
+def OP_TRUE(tape: Tape, stack: Stack, cache: dict) -> None:
+    """Puts a 0xFF byte onto the stack."""
+    stack.put(b'\xff')
 
-def OP_PUSH0(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Read the next byte from the tape; put it onto the queue.
+def OP_PUSH0(tape: Tape, stack: Stack, cache: dict) -> None:
+    """Read the next byte from the tape; put it onto the stack.
     """
-    queue.put(tape.read(1))
+    stack.put(tape.read(1))
 
-def OP_PUSH1(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+def OP_PUSH1(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int;
-        take that many bytes from the tape; put them onto the queue.
+        take that many bytes from the tape; put them onto the stack.
     """
     size = int.from_bytes(tape.read(1), 'big')
-    queue.put(tape.read(size))
+    stack.put(tape.read(size))
 
-def OP_PUSH2(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+def OP_PUSH2(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read the next 2 bytes from the tape, interpreting as an unsigned
         int; take that many bytes from the tape; put them onto the
-        queue.
+        stack.
     """
     size = int.from_bytes(tape.read(2), 'big')
-    queue.put(tape.read(size))
+    stack.put(tape.read(size))
 
-def OP_PUSH4(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+def OP_PUSH4(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read the next 4 bytes from the tape, interpreting as an unsigned
         int; take that many bytes from the tape; put them onto the
-        queue.
+        stack.
     """
     size = int.from_bytes(tape.read(4), 'big')
-    queue.put(tape.read(size))
+    stack.put(tape.read(size))
 
-def OP_POP0(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Remove the first item from the queue and put it in the cache at
-        key b'P' (can be put back onto the queue with @P).
+def OP_POP0(tape: Tape, stack: Stack, cache: dict) -> None:
+    """Remove the first item from the stack and put it in the cache at
+        key b'P' (can be put back onto the stack with @P).
     """
-    cache[b'P'] = [queue.get(False)]
+    cache[b'P'] = [stack.get(False)]
 
-def OP_POP1(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+def OP_POP1(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int;
-        remove that many items from the queue and put them in the cache
-        at key b'P' (can be put back onto the queue with @P).
+        remove that many items from the stack and put them in the cache
+        at key b'P' (can be put back onto the stack with @P).
     """
     size = int.from_bytes(tape.read(1), 'big')
     items = []
 
     for _ in range(size):
-        items.append(queue.get(False))
+        items.append(stack.get(False))
 
     cache[b'P'] = items
 
-def OP_SIZE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Pull a value from the queue; put the size of the value onto the
-        queue as signed int.
+def OP_SIZE(tape: Tape, stack: Stack, cache: dict) -> None:
+    """Pull a value from the stack; put the size of the value onto the
+        stack as signed int.
     """
-    queue.put(int_to_bytes(len(queue.get(False))))
+    stack.put(int_to_bytes(len(stack.get(False))))
 
-def OP_WRITE_CACHE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+def OP_WRITE_CACHE(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int;
         read that many bytes from tape as cache key; read another byte
         from the tape, interpreting as an int; read that many items from
-        the queue and write them to the cache.
+        the stack and write them to the cache.
     """
     size = int.from_bytes(tape.read(1), 'big')
     key = tape.read(size)
@@ -244,14 +243,14 @@ def OP_WRITE_CACHE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     items = []
 
     for _ in range(n_items):
-        items.append(queue.get(False))
+        items.append(stack.get(False))
 
     cache[key] = items
 
-def OP_READ_CACHE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+def OP_READ_CACHE(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int;
         read that many bytes from tape as cache key; read those values
-        from the cache and place them onto the queue.
+        from the cache and place them onto the stack.
     """
     size = int.from_bytes(tape.read(1), 'big')
     key = tape.read(size)
@@ -259,140 +258,140 @@ def OP_READ_CACHE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     items = cache[key] if type(cache[key]) in (list, tuple) else [cache[key]]
 
     for item in items:
-        queue.put(item)
+        stack.put(item)
 
-def OP_READ_CACHE_SIZE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+def OP_READ_CACHE_SIZE(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int;
         read that many bytes from tape as cache key; count how many
         values exist at that point in the cache and place that int onto
-        the queue.
+        the stack.
     """
     size = int.from_bytes(tape.read(1), 'big')
     key = tape.read(size)
 
     if key not in cache:
-        return queue.put(int_to_bytes(0))
+        return stack.put(int_to_bytes(0))
 
-    queue.put(int_to_bytes(len(cache[key])))
+    stack.put(int_to_bytes(len(cache[key])))
 
-def OP_READ_CACHE_Q(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Pull a value from the queue as a cache key; put those values from
-        the cache onto the queue.
+def OP_READ_CACHE_Q(tape: Tape, stack: Stack, cache: dict) -> None:
+    """Pull a value from the stack as a cache key; put those values from
+        the cache onto the stack.
     """
-    key = queue.get(False)
+    key = stack.get(False)
     sert(key in cache, 'OP_READ_CACHE_Q key not in cache')
     items = cache[key] if type(cache[key]) in (list, tuple) else [cache[key]]
 
     for item in items:
-        queue.put(item)
+        stack.put(item)
 
-def OP_READ_CACHE_Q_SIZE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Pull a value from the queue as a cache key; count the number of
-        values in the cache at that key; put the result onto the queue
+def OP_READ_CACHE_Q_SIZE(tape: Tape, stack: Stack, cache: dict) -> None:
+    """Pull a value from the stack as a cache key; count the number of
+        values in the cache at that key; put the result onto the stack
         as a signed int.
     """
-    key = queue.get(False)
+    key = stack.get(False)
 
     if key not in cache:
-        return queue.put(int_to_bytes(0))
+        return stack.put(int_to_bytes(0))
 
-    queue.put(int_to_bytes(len(cache[key])))
+    stack.put(int_to_bytes(len(cache[key])))
 
-def OP_ADD_INTS(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+def OP_ADD_INTS(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned
-        int; pull that many values from the queue, interpreting them as
+        int; pull that many values from the stack, interpreting them as
         signed ints; add them together; put the result back onto the
-        queue.
+        stack.
     """
     size = int.from_bytes(tape.read(1), 'big')
     total = 0
 
     for _ in range(size):
-        total += bytes_to_int(queue.get(False))
+        total += bytes_to_int(stack.get(False))
 
-    queue.put(int_to_bytes(total))
+    stack.put(int_to_bytes(total))
 
-def OP_SUBTRACT_INTS(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+def OP_SUBTRACT_INTS(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as uint count;
-        pull that many values from the queue, interpreting them as
+        pull that many values from the stack, interpreting them as
         signed ints; subtract count-1 of them from the first one; put
-        the result onto the queue.
+        the result onto the stack.
     """
     count = int.from_bytes(tape.read(1), 'big')
-    total = bytes_to_int(queue.get(False))
+    total = bytes_to_int(stack.get(False))
 
     for _ in range(count-1):
-        item = queue.get(False)
+        item = stack.get(False)
         number = bytes_to_int(item)
         total -= number
 
-    queue.put(int_to_bytes(total))
+    stack.put(int_to_bytes(total))
 
-def OP_MULT_INTS(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+def OP_MULT_INTS(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned
-        int; pull that many values from the queue, interpreting them as
+        int; pull that many values from the stack, interpreting them as
         signed ints; multiply them together; put the result back onto
-        the queue.
+        the stack.
     """
     size = int.from_bytes(tape.read(1), 'big')
-    total = bytes_to_int(queue.get(False))
+    total = bytes_to_int(stack.get(False))
 
     for _ in range(size-1):
-        total *= bytes_to_int(queue.get(False))
+        total *= bytes_to_int(stack.get(False))
 
-    queue.put(int_to_bytes(total))
+    stack.put(int_to_bytes(total))
 
-def OP_DIV_INT(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+def OP_DIV_INT(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned
         int; read that many bytes from the tape, interpreting as a
-        signed int divisor (denominator); pull a value from the queue,
+        signed int divisor (denominator); pull a value from the stack,
         interpreting as a signed int dividend (numerator); divide the
-        dividend by the divisor; put the result onto the queue.
+        dividend by the divisor; put the result onto the stack.
     """
     size = int.from_bytes(tape.read(1), 'big')
     divisor = bytes_to_int(tape.read(size))
-    dividend = bytes_to_int(queue.get(False))
-    queue.put(int_to_bytes(dividend // divisor))
+    dividend = bytes_to_int(stack.get(False))
+    stack.put(int_to_bytes(dividend // divisor))
 
-def OP_DIV_INTS(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Pull two values from the queue, interpreting as signed ints;
-        divide the first by the second; put the result onto the queue.
+def OP_DIV_INTS(tape: Tape, stack: Stack, cache: dict) -> None:
+    """Pull two values from the stack, interpreting as signed ints;
+        divide the first by the second; put the result onto the stack.
     """
-    dividend = bytes_to_int(queue.get(False))
-    divisor = bytes_to_int(queue.get(False))
-    queue.put(int_to_bytes(dividend // divisor))
+    dividend = bytes_to_int(stack.get(False))
+    divisor = bytes_to_int(stack.get(False))
+    stack.put(int_to_bytes(dividend // divisor))
 
-def OP_MOD_INT(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+def OP_MOD_INT(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned
         int; read that many bytes from the tape, interpreting as a
-        signed int divisor; pull a value from the queue, interpreting
+        signed int divisor; pull a value from the stack, interpreting
         as a signed int dividend; perform integer modulus: dividend %
-        divisor; put the result onto the queue.
+        divisor; put the result onto the stack.
     """
     size = int.from_bytes(tape.read(1), 'big')
     divisor = bytes_to_int(tape.read(size))
-    dividend = bytes_to_int(queue.get(False))
-    queue.put(int_to_bytes(dividend % divisor))
+    dividend = bytes_to_int(stack.get(False))
+    stack.put(int_to_bytes(dividend % divisor))
 
-def OP_MOD_INTS(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Pull two values from the queue, interpreting as signed ints;
+def OP_MOD_INTS(tape: Tape, stack: Stack, cache: dict) -> None:
+    """Pull two values from the stack, interpreting as signed ints;
         perform integer modulus: first % second; put the result onto the
-        queue.
+        stack.
     """
-    dividend = bytes_to_int(queue.get(False))
-    divisor = bytes_to_int(queue.get(False))
-    queue.put(int_to_bytes(dividend % divisor))
+    dividend = bytes_to_int(stack.get(False))
+    divisor = bytes_to_int(stack.get(False))
+    stack.put(int_to_bytes(dividend % divisor))
 
-def OP_ADD_FLOATS(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+def OP_ADD_FLOATS(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int;
-        pull that many values from the queue, interpreting them as
-        floats; add them together; put the result back onto the queue.
+        pull that many values from the stack, interpreting them as
+        floats; add them together; put the result back onto the stack.
     """
     size = int.from_bytes(tape.read(1), 'big')
     total = 0.0
 
     for _ in range(size):
-        item = queue.get(False)
+        item = stack.get(False)
         tert(type(item) is bytes and len(item) == 4,
             'OP_ADD_FLOATS malformed float')
         item, = struct.unpack('!f', item)
@@ -400,22 +399,22 @@ def OP_ADD_FLOATS(tape: Tape, queue: LifoQueue, cache: dict) -> None:
 
     vert(not isnan(total), 'OP_ADD_FLOATS nan encountered')
 
-    queue.put(struct.pack('!f', total))
+    stack.put(struct.pack('!f', total))
 
-def OP_SUBTRACT_FLOATS(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+def OP_SUBTRACT_FLOATS(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int;
-        pull that many values from the queue, interpreting them as
+        pull that many values from the stack, interpreting them as
         floats; subtract them from the first one; put the result back
-        onto the queue.
+        onto the stack.
     """
     size = int.from_bytes(tape.read(1), 'big')
-    item = queue.get(False)
+    item = stack.get(False)
     tert(type(item) is bytes and len(item) == 4,
         'OP_SUBTRACT_FLOATS malformed float')
     total, = struct.unpack('!f', item)
 
     for _ in range(size-1):
-        item = queue.get(False)
+        item = stack.get(False)
         tert(type(item) is bytes and len(item) == 4,
             'OP_SUBTRACT_FLOATS malformed float')
         number, = struct.unpack('!f', item)
@@ -423,79 +422,79 @@ def OP_SUBTRACT_FLOATS(tape: Tape, queue: LifoQueue, cache: dict) -> None:
 
     vert(not isnan(total), 'OP_SUBTRACT_FLOATS nan encountered')
 
-    queue.put(struct.pack('!f', total))
+    stack.put(struct.pack('!f', total))
 
-def OP_DIV_FLOAT(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+def OP_DIV_FLOAT(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read the next 4 bytes from the tape, interpreting as a float
-        divisor; pull a value from the queue, interpreting as a float
+        divisor; pull a value from the stack, interpreting as a float
         dividend; divide the dividend by the divisor; put the result
-        onto the queue.
+        onto the stack.
     """
-    item = queue.get(False)
+    item = stack.get(False)
     tert(type(item) is bytes and len(item) == 4,
         'OP_DIV_FLOAT malformed float')
     dividend, = struct.unpack('!f', item)
     divisor, = struct.unpack('!f', tape.read(4))
     result = divisor / dividend
     vert(not isnan(result), 'OP_DIV_FLOAT nan encountered')
-    queue.put(struct.pack('!f', result))
+    stack.put(struct.pack('!f', result))
 
-def OP_DIV_FLOATS(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Pull two values from the queue, interpreting as floats; divide
-        the second by the first; put the result onto the queue.
+def OP_DIV_FLOATS(tape: Tape, stack: Stack, cache: dict) -> None:
+    """Pull two values from the stack, interpreting as floats; divide
+        the second by the first; put the result onto the stack.
     """
-    item = queue.get(False)
+    item = stack.get(False)
     tert(type(item) is bytes and len(item) == 4, 'OP_DIV_FLOATS malformed float')
     divisor, = struct.unpack('!f', item)
 
-    item = queue.get(False)
+    item = stack.get(False)
     tert(type(item) is bytes and len(item) == 4, 'OP_DIV_FLOATS malformed float')
     dividend, = struct.unpack('!f', item)
 
     result = divisor / dividend
     vert(not isnan(result), 'OP_DIV_FLOATS nan encountered')
-    queue.put(struct.pack('!f', result))
+    stack.put(struct.pack('!f', result))
 
-def OP_MOD_FLOAT(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+def OP_MOD_FLOAT(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read the next 4 bytes from the tape, interpreting as a float
-        divisor; pull a value from the queue, interpreting as a float
+        divisor; pull a value from the stack, interpreting as a float
         dividend; perform float modulus: dividend % divisor; put the
-        result onto the queue.
+        result onto the stack.
     """
-    item = queue.get(False)
+    item = stack.get(False)
     tert(type(item) is bytes and len(item) == 4, 'OP_MOD_FLOAT malformed float')
     dividend, = struct.unpack('!f', item)
     divisor, = struct.unpack('!f', tape.read(4))
     result = dividend % divisor
     vert(not isnan(result), 'OP_MOD_FLOAT nan encountered')
-    queue.put(struct.pack('!f', result))
+    stack.put(struct.pack('!f', result))
 
-def OP_MOD_FLOATS(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Pull two values from the queue, interpreting as floats; perform
-        float modulus: second % first; put the result onto the queue.
+def OP_MOD_FLOATS(tape: Tape, stack: Stack, cache: dict) -> None:
+    """Pull two values from the stack, interpreting as floats; perform
+        float modulus: second % first; put the result onto the stack.
     """
-    item = queue.get(False)
+    item = stack.get(False)
     tert(type(item) is bytes and len(item) == 4, 'OP_MOD_FLOATS malformed float')
     divisor, = struct.unpack('!f', item)
 
-    item = queue.get(False)
+    item = stack.get(False)
     tert(type(item) is bytes and len(item) == 4, 'OP_MOD_FLOATS malformed float')
     dividend, = struct.unpack('!f', item)
 
     result = dividend % divisor
     vert(not isnan(result), 'OP_MOD_FLOATS nan encountered')
-    queue.put(struct.pack('!f', result))
+    stack.put(struct.pack('!f', result))
 
-def OP_ADD_POINTS(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+def OP_ADD_POINTS(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int;
-        pull that many values from the queue; add them together using
-        ed25519 point addition; replace the result onto the queue.
+        pull that many values from the stack; add them together using
+        ed25519 point addition; replace the result onto the stack.
     """
     count = int.from_bytes(tape.read(1), 'big')
     points = []
 
     for _ in range(count):
-        points.append(queue.get(False))
+        points.append(stack.get(False))
         tert(type(points[-1]) in (bytes, VerifyKey),
             'OP_ADD_POINTS non-point value encountered')
 
@@ -507,76 +506,76 @@ def OP_ADD_POINTS(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     # compute the sum
     sum = aggregate_points(points)
 
-    # put the sum onto the queue
-    queue.put(sum)
+    # put the sum onto the stack
+    stack.put(sum)
 
-def OP_COPY(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+def OP_COPY(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int;
-        pull a value from the queue; place that value and a number of
+        pull a value from the stack; place that value and a number of
         copies corresponding to the int from the tape back onto the
-        queue.
+        stack.
     """
     n_copies = int.from_bytes(tape.read(1), 'big')
-    item = queue.get(False)
+    item = stack.get(False)
 
     for _ in range(n_copies + 1):
-        queue.put(item)
+        stack.put(item)
 
-def OP_DUP(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+def OP_DUP(tape: Tape, stack: Stack, cache: dict) -> None:
     """OP_COPY but with only 1 copy and no reading from the tape or
         advancing the pointer. Equivalent to OP_DUP in Bitcoin script.
     """
-    item = queue.get(False)
-    queue.put(item)
-    queue.put(item)
+    item = stack.get(False)
+    stack.put(item)
+    stack.put(item)
 
-def OP_SHA256(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Pull an item from the queue and put its sha256 hash back onto
-        the queue.
+def OP_SHA256(tape: Tape, stack: Stack, cache: dict) -> None:
+    """Pull an item from the stack and put its sha256 hash back onto
+        the stack.
     """
-    item = queue.get(False)
-    queue.put(sha256(item).digest())
+    item = stack.get(False)
+    stack.put(sha256(item).digest())
 
-def OP_SHAKE256(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+def OP_SHAKE256(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int;
-        pull an item from the queue; put its shake_256 hash of the
-        spcified length back onto the queue.
+        pull an item from the stack; put its shake_256 hash of the
+        spcified length back onto the stack.
     """
     size = int.from_bytes(tape.read(1), 'big')
-    item = queue.get(False)
-    queue.put(shake_256(item).digest(size))
+    item = stack.get(False)
+    stack.put(shake_256(item).digest(size))
 
-def OP_VERIFY(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Pull a value from the queue; evaluate it as a bool; and raise a
+def OP_VERIFY(tape: Tape, stack: Stack, cache: dict) -> None:
+    """Pull a value from the stack; evaluate it as a bool; and raise a
         ScriptExecutionError if it is False.
     """
-    sert(bytes_to_bool(queue.get(False)), 'OP_VERIFY check failed')
+    sert(bytes_to_bool(stack.get(False)), 'OP_VERIFY check failed')
 
-def OP_EQUAL(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Pull 2 items from the queue; compare them; put the bool result
-        onto the queue.
+def OP_EQUAL(tape: Tape, stack: Stack, cache: dict) -> None:
+    """Pull 2 items from the stack; compare them; put the bool result
+        onto the stack.
     """
-    item1, item2 = queue.get(False), queue.get(False)
-    queue.put(b'\xff' if bytes_are_same(item1, item2) else b'\x00')
+    item1, item2 = stack.get(False), stack.get(False)
+    stack.put(b'\xff' if bytes_are_same(item1, item2) else b'\x00')
 
-def OP_EQUAL_VERIFY(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+def OP_EQUAL_VERIFY(tape: Tape, stack: Stack, cache: dict) -> None:
     """Runs OP_EQUAL then OP_VERIFY."""
-    OP_EQUAL(tape, queue, cache)
-    OP_VERIFY(tape, queue, cache)
+    OP_EQUAL(tape, stack, cache)
+    OP_VERIFY(tape, stack, cache)
 
-def OP_CHECK_SIG(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+def OP_CHECK_SIG(tape: Tape, stack: Stack, cache: dict) -> None:
     """Take a byte from the tape, interpreting as the encoded allowable
-        sigflags; pull a value from the queue, interpreting as a
-        VerifyKey; pull a value from the queue, interpreting as a
+        sigflags; pull a value from the stack, interpreting as a
+        VerifyKey; pull a value from the stack, interpreting as a
         signature; check the signature against the VerifyKey and the
         cached sigfields not disabled by a sig flag; put True onto the
-        queue if verification succeeds, otherwise put False onto the
-        queue.
+        stack if verification succeeds, otherwise put False onto the
+        stack.
     """
-    run_sig_extensions(tape, queue, cache)
+    run_sig_extensions(tape, stack, cache)
     allowable_flags = tape.read(1)[0]
-    vkey = queue.get(False)
-    sig = queue.get(False)
+    vkey = stack.get(False)
+    sig = stack.get(False)
 
     vert((type(vkey) is bytes and len(vkey) == nacl.bindings.crypto_sign_PUBLICKEYBYTES)
         or type(vkey) is VerifyKey,
@@ -616,30 +615,30 @@ def OP_CHECK_SIG(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     if sig_flag8:
         sert(allowable_flags & 0b10000000, 'disallowed sigflag')
 
-    OP_GET_MESSAGE(Tape(sig_flag.to_bytes(1, 'big')), queue, cache)
-    message = queue.get(False)
+    OP_GET_MESSAGE(Tape(sig_flag.to_bytes(1, 'big')), stack, cache)
+    message = stack.get(False)
 
     try:
         vkey.verify(message, sig)
-        queue.put(b'\xff')
+        stack.put(b'\xff')
     except BadSignatureError:
-        queue.put(b'\x00')
+        stack.put(b'\x00')
 
-def OP_CHECK_SIG_VERIFY(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+def OP_CHECK_SIG_VERIFY(tape: Tape, stack: Stack, cache: dict) -> None:
     """Runs OP_CHECK_SIG, then OP_VERIFY."""
-    OP_CHECK_SIG(tape, queue, cache)
-    OP_VERIFY(tape, queue, cache)
+    OP_CHECK_SIG(tape, stack, cache)
+    OP_VERIFY(tape, stack, cache)
 
-def OP_CHECK_TIMESTAMP(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Pulls a value from the queue, interpreting as an unsigned int;
+def OP_CHECK_TIMESTAMP(tape: Tape, stack: Stack, cache: dict) -> None:
+    """Pulls a value from the stack, interpreting as an unsigned int;
         gets the timestamp to check from the cache; compares the two
-        values; if the cache timestamp is less than the queue time, or
+        values; if the cache timestamp is less than the stack time, or
         if current Unix epoch is behind cache timestamp by the flagged
-        amount, put False onto the queue; otherwise, put True onto the
-        queue. If the ts_threshold flag is <= 0, that check will be
+        amount, put False onto the stack; otherwise, put True onto the
+        stack. If the ts_threshold flag is <= 0, that check will be
         skipped.
     """
-    constraint = queue.get(False)
+    constraint = stack.get(False)
     sert(type(constraint) is bytes and len(constraint) > 0,
         'OP_CHECK_TIMESTAMP malformed constraint encountered')
     constraint = int.from_bytes(constraint, 'big')
@@ -655,25 +654,25 @@ def OP_CHECK_TIMESTAMP(tape: Tape, queue: LifoQueue, cache: dict) -> None:
 
     difference = cache['timestamp'] - int(time())
     if cache['timestamp'] < constraint:
-        queue.put(b'\x00')
+        stack.put(b'\x00')
     elif difference >= tape.flags['ts_threshold'] and \
         tape.flags['ts_threshold'] > 0:
-        queue.put(b'\x00')
+        stack.put(b'\x00')
     else:
-        queue.put(b'\xff')
+        stack.put(b'\xff')
 
-def OP_CHECK_TIMESTAMP_VERIFY(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+def OP_CHECK_TIMESTAMP_VERIFY(tape: Tape, stack: Stack, cache: dict) -> None:
     """Runs OP_CHECK_TIMESTAMP, then OP_VERIFY."""
-    OP_CHECK_TIMESTAMP(tape, queue, cache)
-    OP_VERIFY(tape, queue, cache)
+    OP_CHECK_TIMESTAMP(tape, stack, cache)
+    OP_VERIFY(tape, stack, cache)
 
-def OP_CHECK_EPOCH(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Pulls a value from the queue, interpreting as an unsigned int;
+def OP_CHECK_EPOCH(tape: Tape, stack: Stack, cache: dict) -> None:
+    """Pulls a value from the stack, interpreting as an unsigned int;
         gets the current Unix epoch time; compares the two values; if
-        current time is less than the queue time, put False onto the
-        queue; otherwise, put True onto the queue.
+        current time is less than the stack time, put False onto the
+        stack; otherwise, put True onto the stack.
     """
-    constraint = queue.get(False)
+    constraint = stack.get(False)
     sert(type(constraint) is bytes and len(constraint) > 0,
         'OP_CHECK_EPOCH malformed constraint encountered')
     constraint = int.from_bytes(constraint, 'big')
@@ -686,16 +685,16 @@ def OP_CHECK_EPOCH(tape: Tape, queue: LifoQueue, cache: dict) -> None:
         'OP_CHECK_EPOCH malformed epoch_threshold flag')
 
     if constraint - int(time()) >= tape.flags['epoch_threshold']:
-        queue.put(b'\x00')
+        stack.put(b'\x00')
     else:
-        queue.put(b'\xff')
+        stack.put(b'\xff')
 
-def OP_CHECK_EPOCH_VERIFY(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+def OP_CHECK_EPOCH_VERIFY(tape: Tape, stack: Stack, cache: dict) -> None:
     """Runs OP_CHECK_EPOCH, then OP_VERIFY."""
-    OP_CHECK_EPOCH(tape, queue, cache)
-    OP_VERIFY(tape, queue, cache)
+    OP_CHECK_EPOCH(tape, stack, cache)
+    OP_VERIFY(tape, stack, cache)
 
-def OP_DEF(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+def OP_DEF(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read the next byte from the tape as the definition number; read
         the next 2 bytes from the tape, interpreting as an unsigned int;
         read that many bytes from the tape as the subroutine definition.
@@ -713,9 +712,9 @@ def OP_DEF(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     tape.definitions[def_handle] = subtape
     subtape.definitions = tape.definitions
 
-def OP_CALL(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+def OP_CALL(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read the next byte from the tape as the definition number; call
-        run_tape passing that definition tape, the queue, and the cache.
+        run_tape passing that definition tape, the stack, and the cache.
     """
     sert(tape.callstack_count < tape.callstack_limit,
         'callstack limit exceeded')
@@ -727,22 +726,22 @@ def OP_CALL(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     subtape.callstack_count = tape.callstack_count
 
     subtape.pointer = 0
-    run_tape(subtape, queue, cache, additional_flags=tape.flags)
+    run_tape(subtape, stack, cache, additional_flags=tape.flags)
     subtape.pointer = init_pointer
     if 'returned' in cache:
         del cache['returned']
 
-def OP_IF(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+def OP_IF(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read the next 2 bytes from the tape, interpreting as an unsigned
         int; read that many bytes from the tape as a subroutine
-        definition; pull a value from the queue and evaluate as a bool;
+        definition; pull a value from the stack and evaluate as a bool;
         if it is true, run the subroutine.
     """
     def_size = int.from_bytes(tape.read(2), 'big')
 
     def_data = tape.read(def_size)
 
-    if bytes_to_bool(queue.get(False)):
+    if bytes_to_bool(stack.get(False)):
         subtape = Tape(
             def_data,
             callstack_limit=tape.callstack_limit,
@@ -750,16 +749,16 @@ def OP_IF(tape: Tape, queue: LifoQueue, cache: dict) -> None:
             definitions={**tape.definitions},
             contracts=tape.contracts
         )
-        run_tape(subtape, queue, cache, additional_flags=tape.flags)
+        run_tape(subtape, stack, cache, additional_flags=tape.flags)
         if 'returned' in cache:
-            OP_RETURN(tape, queue, cache)
+            OP_RETURN(tape, stack, cache)
 
-def OP_IF_ELSE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+def OP_IF_ELSE(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read the next 2 bytes from the tape, interpreting as an unsigned
         int; read that many bytes from the tape as the IF subroutine
         definition; read the next 2 bytes from the tape, interpreting as
         an unsigned int; read that many bytes from the tape as the ELSE
-        subroutine definition; pull a value from the queue and evaluate
+        subroutine definition; pull a value from the stack and evaluate
         as a bool; if it is true, run the IF subroutine; else run the
         ELSE subroutine.
     """
@@ -770,26 +769,26 @@ def OP_IF_ELSE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     else_def_data = tape.read(else_def_size)
 
     subtape = Tape(
-        if_def_data if bytes_to_bool(queue.get(False)) else else_def_data,
+        if_def_data if bytes_to_bool(stack.get(False)) else else_def_data,
         callstack_limit=tape.callstack_limit,
         callstack_count=tape.callstack_count,
         definitions={**tape.definitions},
         contracts=tape.contracts,
     )
-    run_tape(subtape, queue, cache, additional_flags=tape.flags)
+    run_tape(subtape, stack, cache, additional_flags=tape.flags)
     if 'returned' in cache:
-        OP_RETURN(tape, queue, cache)
+        OP_RETURN(tape, stack, cache)
 
-def OP_EVAL(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+def OP_EVAL(tape: Tape, stack: Stack, cache: dict) -> None:
     """Pulls a value from the stack then attempts to run it as a script.
-        OP_EVAL shares a common queue and cache with other ops. Script
+        OP_EVAL shares a common stack and cache with other ops. Script
         is disallowed from modifying tape.flags or tape.definitions; it
         is executed with callstack_count=tape.callstack_count+1 and
         copies of tape.flags and tape.definitions; it also has access to
         all loaded contracts.
     """
     sert('disallow_OP_EVAL' not in tape.flags, 'OP_EVAL disallowed')
-    script = queue.get(False)
+    script = stack.get(False)
     vert(len(script) > 0, 'OP_EVAL encountered empty script')
 
     # setup
@@ -803,33 +802,33 @@ def OP_EVAL(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     )
 
     # run
-    run_tape(subtape, queue, cache, additional_flags=tape.flags)
+    run_tape(subtape, stack, cache, additional_flags=tape.flags)
     if 'returned' in cache:
         if 'eval_return' in tape.flags and tape.flags['eval_return']:
-            OP_RETURN(tape, queue, cache)
+            OP_RETURN(tape, stack, cache)
         else:
             del cache['returned']
 
-def OP_NOT(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Pulls a value from the queue; performs bitwise NOT operation;
-        puts result onto the queue.
+def OP_NOT(tape: Tape, stack: Stack, cache: dict) -> None:
+    """Pulls a value from the stack; performs bitwise NOT operation;
+        puts result onto the stack.
     """
-    item = queue.get(False)
-    queue.put(not_bytes(item))
+    item = stack.get(False)
+    stack.put(not_bytes(item))
 
-def OP_RANDOM(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+def OP_RANDOM(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int;
-        put that many random bytes onto the queue.
+        put that many random bytes onto the stack.
     """
     size = int.from_bytes(tape.read(1), 'big')
-    queue.put(token_bytes(size), False)
+    stack.put(token_bytes(size), False)
 
-def OP_RETURN(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+def OP_RETURN(tape: Tape, stack: Stack, cache: dict) -> None:
     """Ends the script."""
     tape.pointer = len(tape.data)
     cache['returned'] = True
 
-def OP_SET_FLAG(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+def OP_SET_FLAG(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int;
         read that many bytes from the tape as a flag; set that flag.
     """
@@ -838,7 +837,7 @@ def OP_SET_FLAG(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     sert(flag in flags, 'OP_SET_FLAG unrecognized flag')
     tape.flags[flag] = flags[flag]
 
-def OP_UNSET_FLAG(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+def OP_UNSET_FLAG(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int;
         read that many bytes from the tape as a flag; unset that flag.
     """
@@ -847,13 +846,13 @@ def OP_UNSET_FLAG(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     if flag in tape.flags:
         del tape.flags[flag]
 
-def OP_DEPTH(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Put the size of the queue onto the queue."""
-    queue.put(uint_to_bytes(queue.qsize()))
+def OP_DEPTH(tape: Tape, stack: Stack, cache: dict) -> None:
+    """Put the size of the stack onto the stack."""
+    stack.put(uint_to_bytes(stack.size()))
 
-def OP_SWAP(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+def OP_SWAP(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read the next 2 bytes from the tape, interpreting as unsigned
-        ints; swap the queue items at those depths.
+        ints; swap the stack items at those depths.
     """
     first_idx = int.from_bytes(tape.read(1), 'big')
     second_idx = int.from_bytes(tape.read(1), 'big')
@@ -862,108 +861,107 @@ def OP_SWAP(tape: Tape, queue: LifoQueue, cache: dict) -> None:
         return
 
     max_idx = first_idx if first_idx > second_idx else second_idx
-    sert(len(queue.queue) >= max_idx, 'OP_SWAP queue size exceeded by index')
+    sert(len(stack.deque) >= max_idx, 'OP_SWAP stack size exceeded by index')
 
-    length = len(queue.queue)
+    length = len(stack.deque)
     first_idx = length - first_idx - 1
     second_idx = length - second_idx - 1
 
-    first = queue.queue[first_idx]
-    second = queue.queue[second_idx]
-    queue.queue[first_idx] = second
-    queue.queue[second_idx] = first
+    first = stack.deque[first_idx]
+    second = stack.deque[second_idx]
+    stack.deque[first_idx] = second
+    stack.deque[second_idx] = first
 
-def OP_SWAP2(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Swap the order of the top two items of the queue."""
-    first = queue.get(False)
-    second = queue.get(False)
-    queue.put(first)
-    queue.put(second)
+def OP_SWAP2(tape: Tape, stack: Stack, cache: dict) -> None:
+    """Swap the order of the top two items of the stack."""
+    first = stack.get(False)
+    second = stack.get(False)
+    stack.put(first)
+    stack.put(second)
 
-def OP_REVERSE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+def OP_REVERSE(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int;
-        reverse that number of items from the top of the queue.
+        reverse that number of items from the top of the stack.
     """
     count = int.from_bytes(tape.read(1), 'big')
-    sert(len(queue.queue) >= count, 'OP_REVERSE queue size exceeded')
-    items = queue.queue[-count:]
-    items.reverse()
-    queue.queue[-count:] = items
+    sert(len(stack.deque) >= count, 'OP_REVERSE stack size exceeded')
+    items = [stack.get() for _ in range(count)]
+    [stack.put(item) for item in items]
 
-def OP_CONCAT(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Pull two items from the queue; concatenate them first+second; put
-        the result onto the queue.
+def OP_CONCAT(tape: Tape, stack: Stack, cache: dict) -> None:
+    """Pull two items from the stack; concatenate them first+second; put
+        the result onto the stack.
     """
-    first = queue.get(False)
-    second = queue.get(False)
-    queue.put(first + second)
+    first = stack.get(False)
+    second = stack.get(False)
+    stack.put(first + second)
 
-def OP_SPLIT(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+def OP_SPLIT(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int
-        index; pull an item from the queue; split the item bytes at the
-        index; put the second byte sequence onto the queue, then put the
-        first byte sequence onto the queue.
+        index; pull an item from the stack; split the item bytes at the
+        index; put the second byte sequence onto the stack, then put the
+        first byte sequence onto the stack.
     """
     index = int.from_bytes(tape.read(1), 'big')
-    item = queue.get(False)
+    item = stack.get(False)
     sert(index < len(item), 'OP_SPLIT item len exceeded by index')
     part0 = item[:index]
     part1 = item[index:]
-    queue.put(part0)
-    queue.put(part1)
+    stack.put(part0)
+    stack.put(part1)
 
-def OP_CONCAT_STR(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Pull two items from the queue, interpreting as UTF-8 strings;
-        concatenate them; put the result onto the queue.
+def OP_CONCAT_STR(tape: Tape, stack: Stack, cache: dict) -> None:
+    """Pull two items from the stack, interpreting as UTF-8 strings;
+        concatenate them; put the result onto the stack.
     """
-    first = str(queue.get(False), 'utf-8')
-    second = str(queue.get(False), 'utf-8')
-    queue.put(bytes(first + second, 'utf-8'))
+    first = str(stack.get(False), 'utf-8')
+    second = str(stack.get(False), 'utf-8')
+    stack.put(bytes(first + second, 'utf-8'))
 
-def OP_SPLIT_STR(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+def OP_SPLIT_STR(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int
-        index; pull an item from the queue, interpreting as a UTF-8 str;
+        index; pull an item from the stack, interpreting as a UTF-8 str;
         split the item str at the index, then put the first str onto
-        the queue; put the second str onto the queue.
+        the stack; put the second str onto the stack.
     """
     index = int.from_bytes(tape.read(1), 'big')
-    item = str(queue.get(False), 'utf-8')
+    item = str(stack.get(False), 'utf-8')
     sert(index < len(item), 'OP_SPLIT_STR item len exceeded by index')
     part0 = item[:index]
     part1 = item[index:]
-    queue.put(bytes(part0, 'utf-8'))
-    queue.put(bytes(part1, 'utf-8'))
+    stack.put(bytes(part0, 'utf-8'))
+    stack.put(bytes(part1, 'utf-8'))
 
-def OP_CHECK_TRANSFER(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Take an item from the queue as a contract ID; take an item from
-        the queue as an amount; take an item from the queue as a
-        serialized txn constraint; take an item from the queue as a
+def OP_CHECK_TRANSFER(tape: Tape, stack: Stack, cache: dict) -> None:
+    """Take an item from the stack as a contract ID; take an item from
+        the stack as an amount; take an item from the stack as a
+        serialized txn constraint; take an item from the stack as a
         destination (address, locking script hash, etc); take an item
-        from the queue, interpreting as an unsigned int count; take
-        count number of items from the queue as sources; take the count
-        number of items from the queue as transaction proofs; verify
+        from the stack, interpreting as an unsigned int count; take
+        count number of items from the stack as sources; take the count
+        number of items from the stack as transaction proofs; verify
         that the aggregate of the transfers to the destination from the
         sources equal or exceed the amount; verify that the transfers
         were valid using the proofs and the contract code; verify that
-        any constraints were followed; and put True onto the queue if
+        any constraints were followed; and put True onto the stack if
         successful and False otherwise. Sources and proofs must be in
         corresponding order.
     """
     # get parameters
-    contract_id = queue.get(False)
-    amount = bytes_to_int(queue.get(False))
-    constraint = queue.get(False)
-    destination = queue.get(False)
-    count = int.from_bytes(queue.get(False), 'big')
+    contract_id = stack.get(False)
+    amount = bytes_to_int(stack.get(False))
+    constraint = stack.get(False)
+    destination = stack.get(False)
+    count = int.from_bytes(stack.get(False), 'big')
     sources = []
     txn_proofs = []
     all_proofs_valid = True
 
     for _ in range(count):
-        sources.append(queue.get(False))
+        sources.append(stack.get(False))
 
     for _ in range(count):
-        txn_proofs.append(queue.get(False))
+        txn_proofs.append(stack.get(False))
 
     # check contract is loaded and has required functions
     sert(contract_id in tape.contracts,
@@ -988,28 +986,28 @@ def OP_CHECK_TRANSFER(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     # calculate aggregate
     aggregate = calc_txn_aggregates(txn_proofs, scope=destination)[destination]
 
-    queue.put(b'\xff' if all_proofs_valid and amount <= aggregate else b'\x00')
+    stack.put(b'\xff' if all_proofs_valid and amount <= aggregate else b'\x00')
 
-def OP_MERKLEVAL(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+def OP_MERKLEVAL(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read 32 bytes from the tape as the root digest; pull a bool from
-        the queue; call OP_DUP then OP_SHA256; call OP_SWAP 1 2; if not
+        the stack; call OP_DUP then OP_SHA256; call OP_SWAP 1 2; if not
         bool, call OP_SWAP2; call OP_CONCAT; call OP_SHA256; push root
-        hash onto the queue; call OP_EQUAL_VERIFY; call OP_EVAL.
+        hash onto the stack; call OP_EQUAL_VERIFY; call OP_EVAL.
     """
     root_hash = tape.read(32)
-    is_branch_A = bytes_to_bool(queue.get(False))
-    OP_DUP(tape, queue, cache)
-    OP_SHA256(tape, queue, cache)
-    OP_SWAP(Tape(b'\x01\x02'), queue, cache)
+    is_branch_A = bytes_to_bool(stack.get(False))
+    OP_DUP(tape, stack, cache)
+    OP_SHA256(tape, stack, cache)
+    OP_SWAP(Tape(b'\x01\x02'), stack, cache)
     if not is_branch_A:
-        OP_SWAP2(tape, queue, cache)
-    OP_CONCAT(tape, queue, cache)
-    OP_SHA256(tape, queue, cache)
-    queue.put(root_hash)
-    OP_EQUAL_VERIFY(tape, queue, cache)
-    OP_EVAL(tape, queue, cache)
+        OP_SWAP2(tape, stack, cache)
+    OP_CONCAT(tape, stack, cache)
+    OP_SHA256(tape, stack, cache)
+    stack.put(root_hash)
+    OP_EQUAL_VERIFY(tape, stack, cache)
+    OP_EVAL(tape, stack, cache)
 
-def OP_TRY_EXCEPT(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+def OP_TRY_EXCEPT(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read the next 2 bytes from the tape, interpreting as an unsigned
         int; read that many bytes from the tape as the TRY subroutine
         definition; read 2 bytes from the tape, interpreting as an
@@ -1033,7 +1031,7 @@ def OP_TRY_EXCEPT(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     )
 
     try:
-        run_tape(subtape, queue, cache, additional_flags=tape.flags)
+        run_tape(subtape, stack, cache, additional_flags=tape.flags)
     except BaseException as e:
         serialized = e.__class__.__name__ + '|' + str(e)
         cache[b'E'] = [serialized.encode('utf-8')]
@@ -1044,31 +1042,31 @@ def OP_TRY_EXCEPT(tape: Tape, queue: LifoQueue, cache: dict) -> None:
             definitions={**tape.definitions},
             contracts=tape.contracts,
         )
-        run_tape(subtape, queue, cache, additional_flags=tape.flags)
+        run_tape(subtape, stack, cache, additional_flags=tape.flags)
 
     if 'returned' in cache:
-        OP_RETURN(tape, queue, cache)
+        OP_RETURN(tape, stack, cache)
 
-def OP_LESS(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Pull two signed ints val1 and val2 from queue; put (v1<v2) onto
-        queue.
+def OP_LESS(tape: Tape, stack: Stack, cache: dict) -> None:
+    """Pull two signed ints val1 and val2 from stack; put (v1<v2) onto
+        stack.
     """
-    val1 = bytes_to_int(queue.get(False))
-    val2 = bytes_to_int(queue.get(False))
-    queue.put(b'\xff' if val1 < val2 else b'\x00')
+    val1 = bytes_to_int(stack.get(False))
+    val2 = bytes_to_int(stack.get(False))
+    stack.put(b'\xff' if val1 < val2 else b'\x00')
 
-def OP_LESS_OR_EQUAL(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Pull two signed ints val1 and val2 from queue; put (v1<=v2) onto
-        queue.
+def OP_LESS_OR_EQUAL(tape: Tape, stack: Stack, cache: dict) -> None:
+    """Pull two signed ints val1 and val2 from stack; put (v1<=v2) onto
+        stack.
     """
-    val1 = bytes_to_int(queue.get(False))
-    val2 = bytes_to_int(queue.get(False))
-    queue.put(b'\xff' if val1 <= val2 else b'\x00')
+    val1 = bytes_to_int(stack.get(False))
+    val2 = bytes_to_int(stack.get(False))
+    stack.put(b'\xff' if val1 <= val2 else b'\x00')
 
-def OP_GET_VALUE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+def OP_GET_VALUE(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read one byte from the tape as uint size; read size bytes from
         the tape, interpreting as utf-8 string; put the read-only cache
-        value(s) at that cache key onto the queue, serialized as bytes.
+        value(s) at that cache key onto the stack, serialized as bytes.
     """
     size = tape.read(1)[0]
     key = str(tape.read(size), 'utf-8')
@@ -1076,46 +1074,46 @@ def OP_GET_VALUE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     items = cache[key] if type(cache[key]) in (list, tuple) else [cache[key]]
     for val in items:
         if type(val) in (bytes, bytearray):
-            queue.put(val)
+            stack.put(val)
         elif type(val) is str:
-            queue.put(bytes(val, 'utf-8'))
+            stack.put(bytes(val, 'utf-8'))
         elif type(val) is int:
-            queue.put(int_to_bytes(val))
+            stack.put(int_to_bytes(val))
         elif type(val) is float:
-            queue.put(float_to_bytes(val))
+            stack.put(float_to_bytes(val))
 
-def OP_FLOAT_LESS(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Pull two floats val1 and val2 from queue; put (v1<v2) onto queue."""
-    val1 = bytes_to_float(queue.get(False))
-    val2 = bytes_to_float(queue.get(False))
-    queue.put(b'\xff' if val1 < val2 else b'\x00')
+def OP_FLOAT_LESS(tape: Tape, stack: Stack, cache: dict) -> None:
+    """Pull two floats val1 and val2 from stack; put (v1<v2) onto stack."""
+    val1 = bytes_to_float(stack.get(False))
+    val2 = bytes_to_float(stack.get(False))
+    stack.put(b'\xff' if val1 < val2 else b'\x00')
 
-def OP_FLOAT_LESS_OR_EQUAL(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Pull two floats val1 and val2 from queue; put (v1<=v2) onto queue."""
-    val1 = bytes_to_float(queue.get(False))
-    val2 = bytes_to_float(queue.get(False))
-    queue.put(b'\xff' if val1 <= val2 else b'\x00')
+def OP_FLOAT_LESS_OR_EQUAL(tape: Tape, stack: Stack, cache: dict) -> None:
+    """Pull two floats val1 and val2 from stack; put (v1<=v2) onto stack."""
+    val1 = bytes_to_float(stack.get(False))
+    val2 = bytes_to_float(stack.get(False))
+    stack.put(b'\xff' if val1 <= val2 else b'\x00')
 
-def OP_INT_TO_FLOAT(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Pull a signed int from the queue and put it back as a float."""
-    value = bytes_to_int(queue.get(False))
-    queue.put(float_to_bytes(1.0 * value))
+def OP_INT_TO_FLOAT(tape: Tape, stack: Stack, cache: dict) -> None:
+    """Pull a signed int from the stack and put it back as a float."""
+    value = bytes_to_int(stack.get(False))
+    stack.put(float_to_bytes(1.0 * value))
 
-def OP_FLOAT_TO_INT(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Pull a float from the queue and put it back as a signed int."""
-    value = bytes_to_float(queue.get(False))
-    queue.put(int_to_bytes(int(value)))
+def OP_FLOAT_TO_INT(tape: Tape, stack: Stack, cache: dict) -> None:
+    """Pull a float from the stack and put it back as a signed int."""
+    value = bytes_to_float(stack.get(False))
+    stack.put(int_to_bytes(int(value)))
 
-def OP_LOOP(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+def OP_LOOP(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read 2 bytes from the tape as uint len; read that many bytes from
         the tape as the loop definition; run the loop as long as the top
-        value of the queue is not false or until a callstack limit
+        value of the stack is not false or until a callstack limit
         exceeded error is raised.
     """
     loop_size = int.from_bytes(tape.read(2), 'big')
     loop_def = tape.read(loop_size)
-    condition = queue.get(False)
-    queue.put(condition)
+    condition = stack.get(False)
+    stack.put(condition)
     count = 0
 
     subtape = Tape(
@@ -1127,198 +1125,198 @@ def OP_LOOP(tape: Tape, queue: LifoQueue, cache: dict) -> None:
 
     while bytes_to_bool(condition):
         sert(count < tape.callstack_limit, 'OP_LOOP limit exceeded')
-        run_tape(subtape, queue, cache)
+        run_tape(subtape, stack, cache)
         subtape.reset_pointer()
         count += 1
-        condition = queue.get(False)
-        queue.put(condition)
+        condition = stack.get(False)
+        stack.put(condition)
 
-def OP_CHECK_MULTISIG(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+def OP_CHECK_MULTISIG(tape: Tape, stack: Stack, cache: dict) -> None:
     """Reads 1 byte from tape as allowable flags; reads 1 byte from tape
         as uint m; reads 1 byte from tape as uint n; pulls n values from
-        queue as vkeys; pulls m values from queue as signatures;
-        verifies each signature against vkeys; puts false onto the queue
+        stack as vkeys; pulls m values from stack as signatures;
+        verifies each signature against vkeys; puts false onto the stack
         if any signature fails to validate with one of the vkeys or if
-        any vkey is used more than once; puts true onto the queue
+        any vkey is used more than once; puts true onto the stack
         otherwise.
     """
-    run_sig_extensions(tape, queue, cache)
+    run_sig_extensions(tape, stack, cache)
     subtape = Tape(tape.read(1))
     m = tape.read(1)[0]
     n = tape.read(1)[0]
-    vkeys = [queue.get(False) for _ in range(n)]
-    sigs = [queue.get(False) for _ in range(m)]
+    vkeys = [stack.get(False) for _ in range(n)]
+    sigs = [stack.get(False) for _ in range(m)]
     confirmed = set()
 
     for sig in sigs:
         for vkey in vkeys:
             subtape.reset_pointer()
-            queue.put(sig)
-            queue.put(vkey)
-            OP_CHECK_SIG(subtape, queue, cache)
-            result = bytes_to_bool(queue.get(False))
+            stack.put(sig)
+            stack.put(vkey)
+            OP_CHECK_SIG(subtape, stack, cache)
+            result = bytes_to_bool(stack.get(False))
             if result:
                 vkeys.remove(vkey)
                 confirmed.add(sig)
                 break
 
     if len(confirmed) == len(sigs):
-        queue.put(b'\xff')
+        stack.put(b'\xff')
     else:
-        queue.put(b'\x00')
+        stack.put(b'\x00')
 
-def OP_CHECK_MULTISIG_VERIFY(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+def OP_CHECK_MULTISIG_VERIFY(tape: Tape, stack: Stack, cache: dict) -> None:
     """Runs OP_CHECK_MULTISIG then OP_VERIFY."""
-    OP_CHECK_MULTISIG(tape, queue, cache)
-    OP_VERIFY(tape, queue, cache)
+    OP_CHECK_MULTISIG(tape, stack, cache)
+    OP_VERIFY(tape, stack, cache)
 
-def OP_SIGN(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+def OP_SIGN(tape: Tape, stack: Stack, cache: dict) -> None:
     """Reads 1 byte from the tape as the sig_flag; pulls a value from
-        the queue, interpreting as a SigningKey; creates a signature
-        using the correct sigfields; puts the signature onto the queue.
+        the stack, interpreting as a SigningKey; creates a signature
+        using the correct sigfields; puts the signature onto the stack.
         Raises ValueError for invalid key seed length.
     """
-    run_sig_extensions(tape, queue, cache)
+    run_sig_extensions(tape, stack, cache)
     sig_flag = tape.read(1)[0]
-    skey_seed = queue.get(False)
+    skey_seed = stack.get(False)
     vert(len(skey_seed) == nacl.bindings.crypto_sign_SEEDBYTES,
          'invalid signing key; must be ' +
          f'{nacl.bindings.crypto_sign_SEEDBYTES} bytes')
 
-    OP_GET_MESSAGE(Tape(sig_flag.to_bytes(1, 'big')), queue, cache)
-    message = queue.get(False)
+    OP_GET_MESSAGE(Tape(sig_flag.to_bytes(1, 'big')), stack, cache)
+    message = stack.get(False)
 
     skey = SigningKey(skey_seed)
     sig = skey.sign(message).signature
     sig = sig + sig_flag.to_bytes(1, 'big') if sig_flag else sig
     if 9 in tape.flags and tape.flags[9]:
         cache[b's'] = sig
-    queue.put(sig)
+    stack.put(sig)
 
-def OP_SIGN_QUEUE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Pulls a value from the queue, interpreting as a SigningKey; pulls
-        a message from the queue; signs the message with the SigningKey;
-        puts the signature onto the queue. Raises ValueError for invalid
+def OP_SIGN_QUEUE(tape: Tape, stack: Stack, cache: dict) -> None:
+    """Pulls a value from the stack, interpreting as a SigningKey; pulls
+        a message from the stack; signs the message with the SigningKey;
+        puts the signature onto the stack. Raises ValueError for invalid
         key seed length.
     """
-    seed = queue.get(False)
-    msg = queue.get(False)
+    seed = stack.get(False)
+    msg = stack.get(False)
     vert(len(seed) == nacl.bindings.crypto_sign_SEEDBYTES)
     skey = SigningKey(seed)
     sig = skey.sign(msg).signature
     if 9 in tape.flags and tape.flags[9]:
         cache[b's'] = sig
-    queue.put(sig)
+    stack.put(sig)
 
-def OP_CHECK_SIG_QUEUE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Pulls a value from the queue, interpreting as a VerifyKey; pulls
-        a value from the queue, interpreting as a signature; pulls a
-        message from the queue; puts True onto the queue if the
+def OP_CHECK_SIG_QUEUE(tape: Tape, stack: Stack, cache: dict) -> None:
+    """Pulls a value from the stack, interpreting as a VerifyKey; pulls
+        a value from the stack, interpreting as a signature; pulls a
+        message from the stack; puts True onto the stack if the
         signature is valid for the message and the VerifyKey, otherwise
-        puts False onto the queue. Raises ValueError for invalid vkey or
+        puts False onto the stack. Raises ValueError for invalid vkey or
         signature.
     """
-    vkey = queue.get(False)
+    vkey = stack.get(False)
     vert(len(vkey) == nacl.bindings.crypto_core_ed25519_BYTES, 'invalid vkey')
-    sig = queue.get(False)
+    sig = stack.get(False)
     vert(len(sig) == nacl.bindings.crypto_sign_BYTES, 'invalid signature')
-    msg = queue.get(False)
+    msg = stack.get(False)
     try:
         VerifyKey(vkey).verify(msg, sig)
-        OP_TRUE(tape, queue, cache)
+        OP_TRUE(tape, stack, cache)
     except:
-        OP_FALSE(tape, queue, cache)
+        OP_FALSE(tape, stack, cache)
 
-def OP_DERIVE_SCALAR(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Takes a value seed from queue; derives an ed25519 key scalar from
-        the seed; puts the key scalar onto the queue. Sets cache key
+def OP_DERIVE_SCALAR(tape: Tape, stack: Stack, cache: dict) -> None:
+    """Takes a value seed from stack; derives an ed25519 key scalar from
+        the seed; puts the key scalar onto the stack. Sets cache key
         b'x' to x if allowed by tape.flags.
     """
-    seed = queue.get(False)
+    seed = stack.get(False)
     x = derive_key_from_seed(seed)
     if 1 in tape.flags and tape.flags[1]:
         cache[b'x'] = x
-    queue.put(x)
+    stack.put(x)
 
-def OP_CLAMP_SCALAR(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+def OP_CLAMP_SCALAR(tape: Tape, stack: Stack, cache: dict) -> None:
     """Reads a byte from the tape, interpreting as a bool is_key; takes
-        a value from the queue; clamps it to an ed25519 scalar; puts the
-        clamped ed25519 scalar onto the queue. Raises ValueError for
+        a value from the stack; clamps it to an ed25519 scalar; puts the
+        clamped ed25519 scalar onto the stack. Raises ValueError for
         invalid value.
     """
     is_key = bytes_to_bool(tape.read(1))
-    value = queue.get(False)
-    queue.put(clamp_scalar(value, is_key))
+    value = stack.get(False)
+    stack.put(clamp_scalar(value, is_key))
 
-def OP_ADD_SCALARS(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+def OP_ADD_SCALARS(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int;
-        pull that many values from the queue; add them together using
-        ed25519 scalar addition; put the sum onto the queue.
+        pull that many values from the stack; add them together using
+        ed25519 scalar addition; put the sum onto the stack.
     """
     count = int.from_bytes(tape.read(1), 'big')
     scalars = []
 
     for _ in range(count):
-        scalars.append(queue.get(False))
+        scalars.append(stack.get(False))
 
     # compute the sum
     sum = aggregate_scalars(scalars)
 
-    # put the sum onto the queue
-    queue.put(sum)
+    # put the sum onto the stack
+    stack.put(sum)
 
-def OP_SUBTRACT_SCALARS(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+def OP_SUBTRACT_SCALARS(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as uint count;
-        pull that many values from the queue, interpreting them as
+        pull that many values from the stack, interpreting them as
         ed25519 scalars; subtract count-1 of them from the first one;
-        put the difference onto the queue.
+        put the difference onto the stack.
     """
     size = int.from_bytes(tape.read(1), 'big')
-    total = queue.get(False)
+    total = stack.get(False)
 
     for _ in range(size-1):
-        item = queue.get(False)
+        item = stack.get(False)
         total = nacl.bindings.crypto_core_ed25519_scalar_sub(total, item)
 
-    queue.put(total)
+    stack.put(total)
 
-def OP_DERIVE_POINT(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Takes an an ed25519 scalar value x from the queue; derives a
-        curve point X from scalar value x; puts X onto queue; sets cache
+def OP_DERIVE_POINT(tape: Tape, stack: Stack, cache: dict) -> None:
+    """Takes an an ed25519 scalar value x from the stack; derives a
+        curve point X from scalar value x; puts X onto stack; sets cache
         key b'X' to X if allowed by tape.flags (can be used in code with
         @X).
     """
-    x = queue.get(False)
+    x = stack.get(False)
     X = derive_point_from_scalar(x)
     if 2 in tape.flags and tape.flags[2]:
         cache[b'X'] = X
-    queue.put(X)
+    stack.put(X)
 
-def OP_SUBTRACT_POINTS(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+def OP_SUBTRACT_POINTS(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int;
-        pull that many values from the queue, interpreting them as
+        pull that many values from the stack, interpreting them as
         ed25519 scalars; subtract them from the first one; put the
-        result onto the queue.
+        result onto the stack.
     """
     size = int.from_bytes(tape.read(1), 'big')
-    total = queue.get(False)
+    total = stack.get(False)
 
     for _ in range(size-1):
-        item = queue.get(False)
+        item = stack.get(False)
         total = nacl.bindings.crypto_core_ed25519_sub(total, item)
 
-    queue.put(total)
+    stack.put(total)
 
-def OP_MAKE_ADAPTER_SIG_PUBLIC(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Takes three items from queue: public tweak point T, message m,
+def OP_MAKE_ADAPTER_SIG_PUBLIC(tape: Tape, stack: Stack, cache: dict) -> None:
+    """Takes three items from stack: public tweak point T, message m,
         and prvkey seed; creates a signature adapter sa; puts nonce
-        point R onto queue; puts signature adapter sa onto queue; sets
+        point R onto stack; puts signature adapter sa onto stack; sets
         cache keys b'R' to R, b'T' to T, and b'sa' to sa if allowed by
         tape.flags (can be used in code with @R, @T, and @sa).
     """
-    T = queue.get(False)
-    m = queue.get(False)
-    seed = queue.get(False)
+    T = stack.get(False)
+    m = stack.get(False)
+    seed = stack.get(False)
     x = derive_key_from_seed(seed)
     X = nacl.bindings.crypto_scalarmult_ed25519_base_noclamp(x) # G^x
     nonce = H_big(seed)[32:]
@@ -1337,15 +1335,15 @@ def OP_MAKE_ADAPTER_SIG_PUBLIC(tape: Tape, queue: LifoQueue, cache: dict) -> Non
         cache[b'T'] = T
     if 8 in tape.flags and tape.flags[8]:
         cache[b'sa'] = sa
-    queue.put(R)
-    queue.put(sa)
+    stack.put(R)
+    stack.put(sa)
 
-def OP_MAKE_ADAPTER_SIG_PRIVATE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Takes three values, seed, t, and message m from the queue;
+def OP_MAKE_ADAPTER_SIG_PRIVATE(tape: Tape, stack: Stack, cache: dict) -> None:
+    """Takes three values, seed, t, and message m from the stack;
         derives prvkey x from seed; derives pubkey X from x; derives
         private nonce r from seed and m; derives public nonce point R
         from r; derives public tweak point T from t; creates signature
-        adapter sa; puts T, R, and sa onto queue; sets cache keys b't'
+        adapter sa; puts T, R, and sa onto stack; sets cache keys b't'
         to t if tape.flags[5], b'T' to T if tape.flags[6], b'R' to R if
         tape.flags[4], and b'sa' to sa if tape.flags[8] (can be used in
         code with @t, @T, @R, and @sa). Values seed and t should be 32
@@ -1353,9 +1351,9 @@ def OP_MAKE_ADAPTER_SIG_PRIVATE(tape: Tape, queue: LifoQueue, cache: dict) -> No
         and necessary for verification; t is used to decrypt the
         signature.
     """
-    seed = queue.get(False)
-    t = clamp_scalar(queue.get(False))
-    m = queue.get(False)
+    seed = stack.get(False)
+    t = clamp_scalar(stack.get(False))
+    m = stack.get(False)
     x = derive_key_from_seed(seed)
     X = nacl.bindings.crypto_scalarmult_ed25519_base_noclamp(x) # G^x
     T = nacl.bindings.crypto_scalarmult_ed25519_base_noclamp(t) # G^x
@@ -1375,37 +1373,37 @@ def OP_MAKE_ADAPTER_SIG_PRIVATE(tape: Tape, queue: LifoQueue, cache: dict) -> No
         cache[b'T'] = T
     if 8 in tape.flags and tape.flags[8]:
         cache[b'sa'] = sa
-    queue.put(T)
-    queue.put(R)
-    queue.put(sa)
+    stack.put(T)
+    stack.put(R)
+    stack.put(sa)
 
-def OP_CHECK_ADAPTER_SIG(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+def OP_CHECK_ADAPTER_SIG(tape: Tape, stack: Stack, cache: dict) -> None:
     """Takes public key X, tweak point T, message m, nonce point R, and
-        signature adapter sa from the queue; puts True onto queue
+        signature adapter sa from the stack; puts True onto stack
         if the signature adapter is valid and False otherwise.
     """
-    X = queue.get(False)
-    T = queue.get(False)
-    m = queue.get(False)
-    R = queue.get(False)
-    sa = queue.get(False)
+    X = stack.get(False)
+    T = stack.get(False)
+    m = stack.get(False)
+    R = stack.get(False)
+    sa = stack.get(False)
     sa_G = nacl.bindings.crypto_scalarmult_ed25519_base_noclamp(sa) # sa_G = G^sa
     RT = aggregate_points((R, T)) # R + T
     ca = clamp_scalar(H_small(RT, X, m)) # H(R + T || X || m)
     caX = nacl.bindings.crypto_scalarmult_ed25519_noclamp(ca, X) # X^H(R + T || X || m)
     RcaX = aggregate_points((R, caX)) # R + X^H(R + T || X || m)
-    queue.put(b'\xff' if bytes_are_same(sa_G, RcaX) else b'\x00')
+    stack.put(b'\xff' if bytes_are_same(sa_G, RcaX) else b'\x00')
 
-def OP_DECRYPT_ADAPTER_SIG(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+def OP_DECRYPT_ADAPTER_SIG(tape: Tape, stack: Stack, cache: dict) -> None:
     """Takes tweak scalar t, nonce point R, and signature adapter sa
-        from queue; calculates nonce RT; decrypts signature s from sa;
-        puts s onto queue; puts RT onto the queue; sets cache keys b's'
+        from stack; calculates nonce RT; decrypts signature s from sa;
+        puts s onto stack; puts RT onto the stack; sets cache keys b's'
         to s if tape.flags[9] and b'RT' to RT if tape.flags[7] (can be
         used in code with @s and @RT).
     """
-    t = clamp_scalar(queue.get(False))
-    R = queue.get(False)
-    sa = queue.get(False)
+    t = clamp_scalar(stack.get(False))
+    R = stack.get(False)
+    sa = stack.get(False)
     T = derive_point_from_scalar(t)
     RT = aggregate_points((R, T)) # R + T
     s = nacl.bindings.crypto_core_ed25519_scalar_add(sa, t) # s = sa + t
@@ -1413,26 +1411,26 @@ def OP_DECRYPT_ADAPTER_SIG(tape: Tape, queue: LifoQueue, cache: dict) -> None:
         cache[b'RT'] = RT
     if 9 in tape.flags and tape.flags[9]:
         cache[b's'] = s
-    queue.put(s)
-    queue.put(RT)
+    stack.put(s)
+    stack.put(RT)
 
-def OP_INVOKE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Takes an item from the queue as `contract_id`; takes an int from
-        the queue as `argcount`; takes `argcount` items from the queue
+def OP_INVOKE(tape: Tape, stack: Stack, cache: dict) -> None:
+    """Takes an item from the stack as `contract_id`; takes an int from
+        the stack as `argcount`; takes `argcount` items from the stack
         as arguments; tries to invoke the contract's abi method, passing
-        it the arguments; puts any return values onto the queue. Raises
+        it the arguments; puts any return values onto the stack. Raises
         ScriptExecutionError if the argcount is negative, contract is
         missing, or the contract does not implement the `CanBeInvoked`
         interface. Raises TypeError if the return value type is not
         bytes or NoneType. If allowed by tape.flag[0], will put any
         return values into cache at key b'IR'.
     """
-    contract_id = queue.get(False)
-    argcount = bytes_to_int(queue.get(False))
+    contract_id = stack.get(False)
+    argcount = bytes_to_int(stack.get(False))
     sert(argcount >= 0, 'OP_INVOKE invalid argcount encountered')
     args = []
     for _ in range(argcount):
-        args.append(queue.get(False))
+        args.append(stack.get(False))
 
     sert(contract_id in tape.contracts, 'OP_INVOKE unknown contract')
     contract = tape.contracts[contract_id]
@@ -1445,55 +1443,55 @@ def OP_INVOKE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
         for r in result:
             tert(type(r) is bytes,
                  'invalid contract: abi return value must be tuple[bytes] or None')
-            queue.put(r)
+            stack.put(r)
         if 0 in tape.flags and tape.flags[0]:
             cache[b'IR'] = result
 
-def OP_XOR(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Takes two values from the queue; XORs them together; puts result
-        onto the queue. Pads the shorter length value with x00.
+def OP_XOR(tape: Tape, stack: Stack, cache: dict) -> None:
+    """Takes two values from the stack; XORs them together; puts result
+        onto the stack. Pads the shorter length value with x00.
     """
-    item1 = queue.get(False)
-    item2 = queue.get(False)
+    item1 = stack.get(False)
+    item2 = stack.get(False)
     while len(item1) < len(item2):
         item1 += b'\x00'
     while len(item1) > len(item2):
         item2 += b'\x00'
     result = xor(item1, item2)
-    queue.put(result)
+    stack.put(result)
 
-def OP_OR(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Takes two values from the queue; ORs them together; puts result
-        onto the queue. Pads the shorter length value with x00.
+def OP_OR(tape: Tape, stack: Stack, cache: dict) -> None:
+    """Takes two values from the stack; ORs them together; puts result
+        onto the stack. Pads the shorter length value with x00.
     """
-    item1 = queue.get(False)
-    item2 = queue.get(False)
+    item1 = stack.get(False)
+    item2 = stack.get(False)
     while len(item1) < len(item2):
         item1 += b'\x00'
     while len(item1) > len(item2):
         item2 += b'\x00'
     result = or_bytes(item1, item2)
-    queue.put(result)
+    stack.put(result)
 
-def OP_AND(tape: Tape, queue: LifoQueue, cache: dict) -> None:
-    """Takes two values from the queue; ANDs them together; puts result
-        onto the queue. Pads the shorter length value with x00.
+def OP_AND(tape: Tape, stack: Stack, cache: dict) -> None:
+    """Takes two values from the stack; ANDs them together; puts result
+        onto the stack. Pads the shorter length value with x00.
     """
-    item1 = queue.get(False)
-    item2 = queue.get(False)
+    item1 = stack.get(False)
+    item2 = stack.get(False)
     while len(item1) < len(item2):
         item1 += b'\x00'
     while len(item1) > len(item2):
         item2 += b'\x00'
     result = and_bytes(item1, item2)
-    queue.put(result)
+    stack.put(result)
 
-def OP_GET_MESSAGE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+def OP_GET_MESSAGE(tape: Tape, stack: Stack, cache: dict) -> None:
     """Reads a byte from tape as the sigflags; constructs the message
         that will be used by OP_SIGN and OP_CHECK_SIG/_VERIFY from the
-        sigfields; puts the result onto the queue.
+        sigfields; puts the result onto the stack.
     """
-    run_sig_extensions(tape, queue, cache)
+    run_sig_extensions(tape, stack, cache)
     sig_flag = int.from_bytes(tape.read(1), 'big')
 
     sig_flag1 = sig_flag & 0b00000001
@@ -1524,11 +1522,11 @@ def OP_GET_MESSAGE(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     if 'sigfield8' in cache and not sig_flag8:
         message += cache['sigfield8']
 
-    queue.put(message)
+    stack.put(message)
 
-def NOP(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+def NOP(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as a signed int
-        and pull that many values from the queue. Does nothing with the
+        and pull that many values from the stack. Does nothing with the
         values. Useful for later soft-forks by redefining byte codes.
         Raises ScriptExecutionError if count is negative.
     """
@@ -1536,7 +1534,7 @@ def NOP(tape: Tape, queue: LifoQueue, cache: dict) -> None:
     sert(count >= 0, 'NOP count must not be negative')
 
     for _ in range(count):
-        queue.get(False)
+        stack.get(False)
 
 
 opcodes = [
@@ -1801,10 +1799,10 @@ def add_opcode(code: int, name: str, function: Callable) -> None:
         del nopcodes[code]
         del nopcodes_inverse[nopname]
 
-def add_plugin(scope: str, plugin: Callable[[Tape, LifoQueue, dict], None]) -> None:
+def add_plugin(scope: str, plugin: Callable[[Tape, Stack, dict], None]) -> None:
     """Adds a plugin for the given scope."""
     tert(type(scope) is str, 'scope must be str')
-    tert(callable(plugin), f'plugin (for {scope}) must be Callable[[Tape, LifoQueue, dict], None]')
+    tert(callable(plugin), f'plugin (for {scope}) must be Callable[[Tape, Stack, dict], None]')
 
     if scope not in _plugins:
         _plugins[scope] = []
@@ -1812,7 +1810,7 @@ def add_plugin(scope: str, plugin: Callable[[Tape, LifoQueue, dict], None]) -> N
     if plugin not in _plugins[scope]:
         _plugins[scope].append(plugin)
 
-def remove_plugin(scope: str, plugin: Callable[[Tape, LifoQueue, dict], None]) -> None:
+def remove_plugin(scope: str, plugin: Callable[[Tape, Stack, dict], None]) -> None:
     """Removes a plugin for the given scope."""
     tert(type(scope) is str, 'scope must be str')
     if scope not in _plugins:
@@ -1830,20 +1828,20 @@ def reset_plugins(scope: str) -> None:
         for plugin in _plugins[scope]
     ]
 
-def run_plugins(scope: str, tape: Tape, queue: LifoQueue, cache: dict) -> None:
+def run_plugins(scope: str, tape: Tape, stack: Stack, cache: dict) -> None:
     """Runs all plugins of the given scope."""
     if scope not in tape.plugins:
         return
     for plugin in tape.plugins[scope]:
-        plugin(tape, queue, cache)
+        plugin(tape, stack, cache)
 
-def add_signature_extension(plugin: Callable[[Tape, LifoQueue, dict], None]) -> None:
+def add_signature_extension(plugin: Callable[[Tape, Stack, dict], None]) -> None:
     """Adds a signature extension plugin to be run before the following
         ops: CHECK_SIG, CHECK_MULTISIG, SIGN, and GET_MESSAGE.
     """
     add_plugin('signature_extensions', plugin)
 
-def remove_signature_extension(plugin: Callable[[Tape, LifoQueue, dict], None]) -> None:
+def remove_signature_extension(plugin: Callable[[Tape, Stack, dict], None]) -> None:
     """Removes a signature extension plugin from the list of plugins to
         be run before the following ops: CHECK_SIG, CHECK_MULTISIG, SIGN,
         and GET_MESSAGE.
@@ -1854,9 +1852,9 @@ def reset_signature_extensions() -> None:
     """Removes all signature extension plugins."""
     reset_plugins('signature_extensions')
 
-def run_sig_extensions(tape: Tape, queue: LifoQueue, cache: dict) -> None:
+def run_sig_extensions(tape: Tape, stack: Stack, cache: dict) -> None:
     """Runs all signature extension plugins."""
-    run_plugins('signature_extensions', tape, queue, cache)
+    run_plugins('signature_extensions', tape, stack, cache)
 
 def set_tape_flags(tape: Tape, additional_flags: dict = {}) -> Tape:
     """Sets flags included in flags_to_set and any additional_flags for
@@ -1873,19 +1871,19 @@ def set_tape_flags(tape: Tape, additional_flags: dict = {}) -> Tape:
 def run_script(script: bytes, cache_vals: dict = {},
                contracts: dict = {},
                additional_flags: dict = {},
-               plugins: dict = {}) -> tuple[Tape, LifoQueue, dict]:
-    """Run the given script byte code. Returns a tape, queue, and dict."""
+               plugins: dict = {}) -> tuple[Tape, Stack, dict]:
+    """Run the given script byte code. Returns a tape, stack, and dict."""
     tape = Tape(script)
-    queue = LifoQueue()
+    stack = Stack()
     cache = {'timestamp': int(time()), **cache_vals}
     tape.contracts = {**_contracts, **contracts}
     tape.plugins = {**_plugins, **plugins}
-    run_tape(tape, queue, cache, additional_flags=additional_flags)
-    return (tape, queue, cache)
+    run_tape(tape, stack, cache, additional_flags=additional_flags)
+    return (tape, stack, cache)
 
-def run_tape(tape: Tape, queue: LifoQueue, cache: dict,
+def run_tape(tape: Tape, stack: Stack, cache: dict,
              additional_flags: dict = {}) -> None:
-    """Run the given tape using the queue and cache."""
+    """Run the given tape using the stack and cache."""
     tape = set_tape_flags(tape, additional_flags)
     while not tape.has_terminated():
         op_code = tape.read(1)[0]
@@ -1893,19 +1891,19 @@ def run_tape(tape: Tape, queue: LifoQueue, cache: dict,
             op = opcodes[op_code][1]
         else:
             op = nopcodes[op_code][1]
-        op(tape, queue, cache)
+        op(tape, stack, cache)
 
 def run_auth_script(script: bytes, cache_vals: dict = {}, contracts: dict = {},
                     plugins: dict = {}) -> bool:
-    """Run the given auth script byte code. Returns True iff the queue
+    """Run the given auth script byte code. Returns True iff the stack
         has a single \\xff value after script execution and no errors were
         raised; otherwise, returns False.
     """
     try:
-        tape, queue, cache = run_script(script, cache_vals, contracts, plugins=plugins)
+        tape, stack, cache = run_script(script, cache_vals, contracts, plugins=plugins)
         assert tape.has_terminated()
-        assert queue.qsize() == 1
-        item = queue.get(False)
+        assert stack.size() == 1
+        item = stack.get(False)
         assert item == b'\xff'
         return True
     except BaseException as e:

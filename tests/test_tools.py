@@ -4,7 +4,6 @@ from context import functions
 from context import parsing
 from context import tools
 from nacl.signing import SigningKey, VerifyKey
-from queue import LifoQueue
 from secrets import token_bytes
 from time import time
 import nacl.bindings
@@ -88,11 +87,11 @@ class TestTools(unittest.TestCase):
         locking_script = parsing.compile_script(result[0])
         unlocking_script = parsing.compile_script(result[1][0])
 
-        tape, queue, cache = functions.run_script(unlocking_script + locking_script)
+        tape, stack, cache = functions.run_script(unlocking_script + locking_script)
         assert tape.has_terminated()
-        assert not queue.empty()
-        assert int.from_bytes(queue.get(False), 'big') == 123
-        assert queue.empty()
+        assert not stack.empty()
+        assert int.from_bytes(stack.get(False), 'big') == 123
+        assert stack.empty()
 
     def test_create_merklized_script_2_branches_e2e(self):
         result = tools.create_merklized_script(['OP_PUSH d123', 'OP_PUSH x0123'])
@@ -100,17 +99,17 @@ class TestTools(unittest.TestCase):
         unlocking_scripts = [parsing.compile_script(s) for s in result[1]]
         assert len(unlocking_scripts) == 2
 
-        tape, queue, cache = functions.run_script(unlocking_scripts[0] + locking_script)
+        tape, stack, cache = functions.run_script(unlocking_scripts[0] + locking_script)
         assert tape.has_terminated()
-        assert not queue.empty()
-        assert int.from_bytes(queue.get(False), 'big') == 123
-        assert queue.empty()
+        assert not stack.empty()
+        assert int.from_bytes(stack.get(False), 'big') == 123
+        assert stack.empty()
 
-        tape, queue, cache = functions.run_script(unlocking_scripts[1] + locking_script)
+        tape, stack, cache = functions.run_script(unlocking_scripts[1] + locking_script)
         assert tape.has_terminated()
-        assert not queue.empty()
-        assert queue.get(False) == b'\x01\x23'
-        assert queue.empty()
+        assert not stack.empty()
+        assert stack.get(False) == b'\x01\x23'
+        assert stack.empty()
 
     def test_create_merklized_script_3_branches_e2e(self):
         result = tools.create_merklized_script([
@@ -120,23 +119,23 @@ class TestTools(unittest.TestCase):
         unlocking_scripts = [parsing.compile_script(s) for s in result[1]]
         assert len(unlocking_scripts) == 3
 
-        tape, queue, cache = functions.run_script(unlocking_scripts[0] + locking_script)
+        tape, stack, cache = functions.run_script(unlocking_scripts[0] + locking_script)
         assert tape.has_terminated()
-        assert not queue.empty()
-        assert int.from_bytes(queue.get(False), 'big') == 123
-        assert queue.empty()
+        assert not stack.empty()
+        assert int.from_bytes(stack.get(False), 'big') == 123
+        assert stack.empty()
 
-        tape, queue, cache = functions.run_script(unlocking_scripts[1] + locking_script)
+        tape, stack, cache = functions.run_script(unlocking_scripts[1] + locking_script)
         assert tape.has_terminated()
-        assert not queue.empty()
-        assert queue.get(False) == b'\x01\x23'
-        assert queue.empty()
+        assert not stack.empty()
+        assert stack.get(False) == b'\x01\x23'
+        assert stack.empty()
 
-        tape, queue, cache = functions.run_script(unlocking_scripts[2] + locking_script)
+        tape, stack, cache = functions.run_script(unlocking_scripts[2] + locking_script)
         assert tape.has_terminated()
-        assert not queue.empty()
-        assert str(queue.get(False), 'utf-8') == 'hello world'
-        assert queue.empty()
+        assert not stack.empty()
+        assert str(stack.get(False), 'utf-8') == 'hello world'
+        assert stack.empty()
 
     def test_create_merklized_script_20_branches_e2e(self):
         scripts = [f'OP_PUSH d{i}' for i in range(20)]
@@ -146,11 +145,11 @@ class TestTools(unittest.TestCase):
         assert len(unlocking_scripts) == 20
 
         for i in range(20):
-            tape, queue, cache = functions.run_script(unlocking_scripts[i] + locking_script)
+            tape, stack, cache = functions.run_script(unlocking_scripts[i] + locking_script)
             assert tape.has_terminated()
-            assert not queue.empty()
-            assert int.from_bytes(queue.get(False), 'big') == i
-            assert queue.empty()
+            assert not stack.empty()
+            assert int.from_bytes(stack.get(False), 'big') == i
+            assert stack.empty()
 
     def test_add_soft_fork_e2e(self):
         locking_script_old_src = 'NOP255 d3 OP_TRUE'
@@ -158,15 +157,15 @@ class TestTools(unittest.TestCase):
         good_unlocking_script_src = 'OP_PUSH x0123 OP_PUSH x0123 OP_PUSH x0123'
         bad_unlocking_script_src = 'OP_PUSH x0123 OP_PUSH x0123 OP_PUSH x3210'
 
-        def OP_CHECK_ALL_EQUAL_VERIFY(tape: classes.Tape, queue: LifoQueue, cache: dict) -> None:
+        def OP_CHECK_ALL_EQUAL_VERIFY(tape: classes.Tape, stack: classes.Stack, cache: dict) -> None:
             """Replacement for NOP255: read the next bytes as uint count, take
-                that many items from queue, run checks, and raise an error if
+                that many items from stack, run checks, and raise an error if
                 any checks fail.
             """
             count = tape.read(1)[0]
             items = []
             for i in range(count):
-                items.append(queue.get(False))
+                items.append(stack.get(False))
 
             compare = items.pop()
             while len(items):
@@ -196,15 +195,15 @@ class TestTools(unittest.TestCase):
         good_unlocking_script_src = 'OP_PUSH x0123 OP_PUSH x0123 OP_PUSH x0123'
         bad_unlocking_script_src = 'OP_PUSH x0123 OP_PUSH x0123 OP_PUSH x3210'
 
-        def OP_CHECK_ALL_EQUAL_VERIFY(tape: classes.Tape, queue: LifoQueue, cache: dict) -> None:
+        def OP_CHECK_ALL_EQUAL_VERIFY(tape: classes.Tape, stack: classes.Stack, cache: dict) -> None:
             """Replacement for NOP255: read the next bytes as uint count, take
-                that many items from queue, run checks, and raise an error if
+                that many items from stack, run checks, and raise an error if
                 any checks fail.
             """
             count = tape.read(1)[0]
             items = []
             for i in range(count):
-                items.append(queue.get(False))
+                items.append(stack.get(False))
 
             compare = items.pop()
             while len(items):
@@ -283,10 +282,10 @@ class TestTools(unittest.TestCase):
         witness = tools.compile_script(witness_src)
 
         # run witness script
-        _, queue, _ = functions.run_script(witness, sigfields)
-        assert queue.qsize() == 2
-        R = queue.get(False)
-        sa = queue.get(False)
+        _, stack, _ = functions.run_script(witness, sigfields)
+        assert stack.size() == 2
+        R = stack.get(False)
+        sa = stack.get(False)
         assert nacl.bindings.crypto_core_ed25519_is_valid_point(R)
         assert len(sa) == 32
 
@@ -297,13 +296,13 @@ class TestTools(unittest.TestCase):
         )
 
         # decrypt signature from witness
-        _, queue, _ = functions.run_script(
+        _, stack, _ = functions.run_script(
             witness + decrypt_adapter_script,
             sigfields
         )
-        assert queue.qsize() == 2
-        RT = queue.get(False)
-        s = queue.get(False)
+        assert stack.size() == 2
+        RT = stack.get(False)
+        s = stack.get(False)
 
         # decrypt method 2
         assert tools.decrypt_adapter(witness, tweak) == RT + s
@@ -345,11 +344,11 @@ class TestTools(unittest.TestCase):
         witness = tools.compile_script(f'push x{tweak.hex()} {witness_src}')
 
         # run witness script
-        _, queue, _ = functions.run_script(witness, {**sigfields})
-        assert queue.qsize() == 3
-        R = queue.get(False)
-        sa = queue.get(False)
-        t = queue.get(False)
+        _, stack, _ = functions.run_script(witness, {**sigfields})
+        assert stack.size() == 3
+        R = stack.get(False)
+        sa = stack.get(False)
+        t = stack.get(False)
         assert nacl.bindings.crypto_core_ed25519_is_valid_point(R)
         assert len(sa) == 32
         assert t == tweak

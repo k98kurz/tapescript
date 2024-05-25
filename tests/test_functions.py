@@ -1,7 +1,6 @@
 from context import classes, errors, functions, interfaces
 from hashlib import sha256, shake_256
 from nacl.signing import SigningKey
-from queue import LifoQueue
 from random import randint
 from secrets import token_bytes
 from time import time
@@ -40,7 +39,7 @@ class DoesThing:
 
 class TestFunctions(unittest.TestCase):
     tape: classes.Tape
-    queue: LifoQueue
+    stack: classes.Stack
     cache: dict
     original_opcodes: dict
     original_nopcodes: dict
@@ -50,7 +49,7 @@ class TestFunctions(unittest.TestCase):
 
     def setUp(self) -> None:
         self.tape = classes.Tape(b'')
-        self.queue = LifoQueue()
+        self.stack = classes.Stack()
         self.cache = {}
         self.original_opcodes = {**functions.opcodes}
         self.original_opcodes_inverse = {**functions.opcodes_inverse}
@@ -135,566 +134,560 @@ class TestFunctions(unittest.TestCase):
         assert type(number) is bytes
 
     # ops
-    def test_OP_FALSE_puts_null_byte_onto_queue(self):
-        assert self.queue.empty()
+    def test_OP_FALSE_puts_null_byte_onto_stack(self):
+        assert self.stack.empty()
         assert not len(self.cache.keys())
-        functions.OP_FALSE(self.tape, self.queue, self.cache)
-        assert not self.queue.empty()
+        functions.OP_FALSE(self.tape, self.stack, self.cache)
+        assert not self.stack.empty()
         assert not len(self.cache.keys())
-        assert self.queue.get() == b'\x00'
+        assert self.stack.get() == b'\x00'
 
-    def test_OP_TRUE_puts_nonnull_byte_onto_queue(self):
-        assert self.queue.empty()
+    def test_OP_TRUE_puts_nonnull_byte_onto_stack(self):
+        assert self.stack.empty()
         assert not len(self.cache.keys())
-        functions.OP_TRUE(self.tape, self.queue, self.cache)
-        assert not self.queue.empty()
+        functions.OP_TRUE(self.tape, self.stack, self.cache)
+        assert not self.stack.empty()
         assert not len(self.cache.keys())
-        assert functions.bytes_to_bool(self.queue.get())
+        assert functions.bytes_to_bool(self.stack.get())
 
-    def test_OP_PUSH0_puts_next_byte_from_tape_onto_queue(self):
+    def test_OP_PUSH0_puts_next_byte_from_tape_onto_stack(self):
         self.tape = classes.Tape(b'123')
-        assert self.queue.empty()
+        assert self.stack.empty()
         assert not len(self.cache.keys())
-        functions.OP_PUSH0(self.tape, self.queue, self.cache)
-        assert not self.queue.empty()
+        functions.OP_PUSH0(self.tape, self.stack, self.cache)
+        assert not self.stack.empty()
         assert not len(self.cache.keys())
-        assert self.queue.get() == b'1'
+        assert self.stack.get() == b'1'
 
-    def test_OP_PUSH1_reads_next_byte_as_uint_and_puts_that_many_from_tape_onto_queue(self):
+    def test_OP_PUSH1_reads_next_byte_as_uint_and_puts_that_many_from_tape_onto_stack(self):
         self.tape = classes.Tape(functions.int_to_bytes(11) + b'hello world')
-        assert self.queue.empty()
+        assert self.stack.empty()
         assert not len(self.cache.keys())
-        functions.OP_PUSH1(self.tape, self.queue, self.cache)
-        assert not self.queue.empty()
+        functions.OP_PUSH1(self.tape, self.stack, self.cache)
+        assert not self.stack.empty()
         assert not len(self.cache.keys())
-        assert self.queue.get() == b'hello world'
+        assert self.stack.get() == b'hello world'
 
-    def test_OP_PUSH2_reads_next_2_bytes_as_uint_and_puts_that_many_from_tape_onto_queue(self):
+    def test_OP_PUSH2_reads_next_2_bytes_as_uint_and_puts_that_many_from_tape_onto_stack(self):
         self.tape = classes.Tape(b'\x00' + functions.int_to_bytes(11) + b'hello world')
-        assert self.queue.empty()
+        assert self.stack.empty()
         assert not len(self.cache.keys())
-        functions.OP_PUSH2(self.tape, self.queue, self.cache)
-        assert not self.queue.empty()
+        functions.OP_PUSH2(self.tape, self.stack, self.cache)
+        assert not self.stack.empty()
         assert not len(self.cache.keys())
-        assert self.queue.get() == b'hello world'
+        assert self.stack.get() == b'hello world'
 
-    def test_OP_PUSH4_reads_next_4_bytes_as_uint_and_puts_that_many_from_tape_onto_queue(self):
+    def test_OP_PUSH4_reads_next_4_bytes_as_uint_and_puts_that_many_from_tape_onto_stack(self):
         self.tape = classes.Tape(b'\x00\x00\x00' + functions.int_to_bytes(11) + b'hello world')
-        assert self.queue.empty()
+        assert self.stack.empty()
         assert not len(self.cache.keys())
-        functions.OP_PUSH4(self.tape, self.queue, self.cache)
-        assert not self.queue.empty()
+        functions.OP_PUSH4(self.tape, self.stack, self.cache)
+        assert not self.stack.empty()
         assert not len(self.cache.keys())
-        assert self.queue.get() == b'hello world'
+        assert self.stack.get() == b'hello world'
 
-    def test_OP_POP0_moves_one_item_from_queue_into_cache(self):
-        self.queue.put(b'1234')
-        assert not self.queue.empty()
+    def test_OP_POP0_moves_one_item_from_stack_into_cache(self):
+        self.stack.put(b'1234')
+        assert not self.stack.empty()
         assert not len(self.cache.keys())
-        functions.OP_POP0(self.tape, self.queue, self.cache)
-        assert self.queue.empty()
+        functions.OP_POP0(self.tape, self.stack, self.cache)
+        assert self.stack.empty()
         assert len(self.cache.keys())
         assert b'P' in self.cache
         assert self.cache[b'P'] == [b'1234']
 
-    def test_OP_POP1_reads_uint_from_tape_then_puts_that_many_items_from_queue_to_cache(self):
-        assert self.queue.empty()
-        self.queue.put(b'12')
-        self.queue.put(b'34')
+    def test_OP_POP1_reads_uint_from_tape_then_puts_that_many_items_from_stack_to_cache(self):
+        assert self.stack.empty()
+        self.stack.put(b'12')
+        self.stack.put(b'34')
         self.tape = classes.Tape(functions.int_to_bytes(2))
-        assert not self.queue.empty()
+        assert not self.stack.empty()
         assert b'P' not in self.cache
-        functions.OP_POP1(self.tape, self.queue, self.cache)
-        assert self.queue.empty()
+        functions.OP_POP1(self.tape, self.stack, self.cache)
+        assert self.stack.empty()
         assert b'P' in self.cache
         assert self.cache[b'P'] == [b'34', b'12']
 
     def test_OP_POP1_interprets_negative_ints_as_positive(self):
-        assert self.queue.empty()
+        assert self.stack.empty()
         for i in range(136):
-            self.queue.put(functions.int_to_bytes(i))
+            self.stack.put(functions.int_to_bytes(i))
         self.tape = classes.Tape(functions.int_to_bytes(-120))
-        functions.OP_POP1(self.tape, self.queue, self.cache)
-        assert self.queue.empty()
+        functions.OP_POP1(self.tape, self.stack, self.cache)
+        assert self.stack.empty()
         assert b'P' in self.cache
         assert len(self.cache[b'P']) == 136
 
-    def test_OP_SIZE_pulls_item_from_queue_and_puts_its_length_onto_queue(self):
-        assert self.queue.empty()
-        self.queue.put(b'123')
-        functions.OP_SIZE(self.tape, self.queue, self.cache)
-        assert not self.queue.empty()
-        item = self.queue.get(False)
+    def test_OP_SIZE_pulls_item_from_stack_and_puts_its_length_onto_stack(self):
+        assert self.stack.empty()
+        self.stack.put(b'123')
+        functions.OP_SIZE(self.tape, self.stack, self.cache)
+        assert not self.stack.empty()
+        item = self.stack.get(False)
         assert item == functions.int_to_bytes(3)
 
-    def test_OP_WRITE_CACHE_reads_cache_key_and_int_from_tape_and_moves_from_queue_to_cache(self):
+    def test_OP_WRITE_CACHE_reads_cache_key_and_int_from_tape_and_moves_from_stack_to_cache(self):
         self.tape = classes.Tape(
             functions.int_to_bytes(4) +
             b'test' +
             functions.int_to_bytes(2)
         )
-        assert self.queue.empty()
+        assert self.stack.empty()
         assert not len(self.cache.keys())
-        self.queue.put(b'1')
-        self.queue.put(b'2')
-        functions.OP_WRITE_CACHE(self.tape, self.queue, self.cache)
-        assert self.queue.empty()
+        self.stack.put(b'1')
+        self.stack.put(b'2')
+        functions.OP_WRITE_CACHE(self.tape, self.stack, self.cache)
+        assert self.stack.empty()
         assert b'test' in self.cache
         assert self.cache[b'test'] == [b'2', b'1']
 
-    def test_OP_READ_CACHE_reads_cache_key_from_tape_and_moves_values_from_cache_to_queue(self):
+    def test_OP_READ_CACHE_reads_cache_key_from_tape_and_moves_values_from_cache_to_stack(self):
         self.cache[b'test'] = [b'2', b'1']
         self.tape = classes.Tape(functions.int_to_bytes(4) + b'test')
-        assert self.queue.empty()
-        functions.OP_READ_CACHE(self.tape, self.queue, self.cache)
-        assert not self.queue.empty()
+        assert self.stack.empty()
+        functions.OP_READ_CACHE(self.tape, self.stack, self.cache)
+        assert not self.stack.empty()
         assert self.cache[b'test'] == [b'2', b'1']
-        items = [self.queue.get(False), self.queue.get(False)]
+        items = [self.stack.get(False), self.stack.get(False)]
         assert items == [b'1', b'2']
 
     def test_OP_READ_CACHE_raises_ScriptExecutionError_for_missing_cache_key(self):
         self.tape = classes.Tape(functions.int_to_bytes(4) + b'test')
         with self.assertRaises(errors.ScriptExecutionError) as e:
-            functions.OP_READ_CACHE(self.tape, self.queue, self.cache)
+            functions.OP_READ_CACHE(self.tape, self.stack, self.cache)
         assert str(e.exception) == 'OP_READ_CACHE key not in cache'
 
-    def test_OP_READ_CACHE_SIZE_reads_cache_key_from_tape_and_puts_size_of_cache_on_queue(self):
+    def test_OP_READ_CACHE_SIZE_reads_cache_key_from_tape_and_puts_size_of_cache_on_stack(self):
         self.cache[b'test'] = [b'2', b'1']
         self.tape = classes.Tape(functions.int_to_bytes(4) + b'test')
-        assert self.queue.empty()
-        functions.OP_READ_CACHE_SIZE(self.tape, self.queue, self.cache)
-        assert not self.queue.empty()
+        assert self.stack.empty()
+        functions.OP_READ_CACHE_SIZE(self.tape, self.stack, self.cache)
+        assert not self.stack.empty()
         assert self.cache[b'test'] == [b'2', b'1']
-        item = self.queue.get(False)
-        assert self.queue.empty()
+        item = self.stack.get(False)
+        assert self.stack.empty()
         assert item == functions.int_to_bytes(2)
 
-    def test_OP_READ_CACHE_Q_reads_cache_key_from_queue_and_moves_items_from_cache_to_queue(self):
+    def test_OP_READ_CACHE_Q_reads_cache_key_from_stack_and_moves_items_from_cache_to_stack(self):
         self.cache[b'test'] = [b'2', b'1']
-        assert self.queue.empty()
-        self.queue.put(b'test')
-        functions.OP_READ_CACHE_Q(self.tape, self.queue, self.cache)
-        assert not self.queue.empty()
+        assert self.stack.empty()
+        self.stack.put(b'test')
+        functions.OP_READ_CACHE_Q(self.tape, self.stack, self.cache)
+        assert not self.stack.empty()
         assert self.cache[b'test'] == [b'2', b'1']
-        items = [self.queue.get(False), self.queue.get(False)]
-        assert self.queue.empty()
+        items = [self.stack.get(False), self.stack.get(False)]
+        assert self.stack.empty()
         assert items == [b'1', b'2']
 
     def test_OP_READ_CACHE_Q_raises_ScriptExecutionError_for_missing_cache_key(self):
-        self.queue.put(b'test')
+        self.stack.put(b'test')
         with self.assertRaises(errors.ScriptExecutionError) as e:
-            functions.OP_READ_CACHE_Q(self.tape, self.queue, self.cache)
+            functions.OP_READ_CACHE_Q(self.tape, self.stack, self.cache)
         assert str(e.exception) == 'OP_READ_CACHE_Q key not in cache'
 
-    def test_OP_READ_CACHE_Q_SIZE_reads_cache_key_from_queue_and_puts_size_of_cache_on_queue(self):
+    def test_OP_READ_CACHE_Q_SIZE_reads_cache_key_from_stack_and_puts_size_of_cache_on_stack(self):
         self.cache[b'test'] = [b'2', b'1']
-        assert self.queue.empty()
-        self.queue.put(b'test')
-        functions.OP_READ_CACHE_Q_SIZE(self.tape, self.queue, self.cache)
-        assert not self.queue.empty()
+        assert self.stack.empty()
+        self.stack.put(b'test')
+        functions.OP_READ_CACHE_Q_SIZE(self.tape, self.stack, self.cache)
+        assert not self.stack.empty()
         assert self.cache[b'test'] == [b'2', b'1']
-        item = self.queue.get(False)
-        assert self.queue.empty()
+        item = self.stack.get(False)
+        assert self.stack.empty()
         assert item == functions.int_to_bytes(2)
 
-    def test_OP_ADD_INTS_reads_uint_from_tape_pulls_that_many_ints_from_queue_and_puts_sum_on_queue(self):
+    def test_OP_ADD_INTS_reads_uint_from_tape_pulls_that_many_ints_from_stack_and_puts_sum_on_stack(self):
         self.tape = classes.Tape(functions.int_to_bytes(3))
-        assert self.queue.empty()
-        self.queue.put(functions.int_to_bytes(2))
-        self.queue.put(functions.int_to_bytes(5))
-        self.queue.put(functions.int_to_bytes(-3))
-        functions.OP_ADD_INTS(self.tape, self.queue, self.cache)
-        assert not self.queue.empty()
-        item = self.queue.get(False)
-        assert self.queue.empty()
+        assert self.stack.empty()
+        self.stack.put(functions.int_to_bytes(2))
+        self.stack.put(functions.int_to_bytes(5))
+        self.stack.put(functions.int_to_bytes(-3))
+        functions.OP_ADD_INTS(self.tape, self.stack, self.cache)
+        assert not self.stack.empty()
+        item = self.stack.get(False)
+        assert self.stack.empty()
         assert not self.cache
         assert functions.bytes_to_int(item) == 4
 
-    def test_OP_SUBTRACT_INTS_reads_uint_from_tape_pulls_that_many_ints_from_queue_and_puts_difference_on_queue(self):
+    def test_OP_SUBTRACT_INTS_reads_uint_from_tape_pulls_that_many_ints_from_stack_and_puts_difference_on_stack(self):
         self.tape = classes.Tape(functions.int_to_bytes(3))
-        assert self.queue.empty()
-        self.queue.put(functions.int_to_bytes(-3))
-        self.queue.put(functions.int_to_bytes(2))
-        self.queue.put(functions.int_to_bytes(5))
-        functions.OP_SUBTRACT_INTS(self.tape, self.queue, self.cache)
-        assert not self.queue.empty()
-        item = self.queue.get(False)
-        assert self.queue.empty()
+        assert self.stack.empty()
+        self.stack.put(functions.int_to_bytes(-3))
+        self.stack.put(functions.int_to_bytes(2))
+        self.stack.put(functions.int_to_bytes(5))
+        functions.OP_SUBTRACT_INTS(self.tape, self.stack, self.cache)
+        assert not self.stack.empty()
+        item = self.stack.get(False)
+        assert self.stack.empty()
         assert not self.cache
         assert functions.bytes_to_int(item) == 6
 
-    def test_OP_MULT_INTS_reads_uint_from_tape_pulls_that_many_ints_from_queue_and_puts_product_on_queue(self):
+    def test_OP_MULT_INTS_reads_uint_from_tape_pulls_that_many_ints_from_stack_and_puts_product_on_stack(self):
         self.tape = classes.Tape(functions.int_to_bytes(4))
-        assert self.queue.empty()
-        self.queue.put(functions.int_to_bytes(3))
-        self.queue.put(functions.int_to_bytes(2))
-        self.queue.put(functions.int_to_bytes(-2))
-        self.queue.put(functions.int_to_bytes(5))
-        functions.OP_MULT_INTS(self.tape, self.queue, self.cache)
-        assert not self.queue.empty()
-        item = self.queue.get(False)
-        assert self.queue.empty()
+        assert self.stack.empty()
+        self.stack.put(functions.int_to_bytes(3))
+        self.stack.put(functions.int_to_bytes(2))
+        self.stack.put(functions.int_to_bytes(-2))
+        self.stack.put(functions.int_to_bytes(5))
+        functions.OP_MULT_INTS(self.tape, self.stack, self.cache)
+        assert not self.stack.empty()
+        item = self.stack.get(False)
+        assert self.stack.empty()
         assert not self.cache
         assert functions.bytes_to_int(item) == -60
 
-    def test_OP_DIV_INT_pulls_int_from_queue_reads_signed_int_from_tape_and_puts_quotient_on_queue(self):
+    def test_OP_DIV_INT_pulls_int_from_stack_reads_signed_int_from_tape_and_puts_quotient_on_stack(self):
         self.tape = classes.Tape(functions.int_to_bytes(1) + functions.int_to_bytes(-2))
-        assert self.queue.empty()
-        self.queue.put(functions.int_to_bytes(-60))
-        functions.OP_DIV_INT(self.tape, self.queue, self.cache)
-        assert not self.queue.empty()
-        item = self.queue.get(False)
-        assert self.queue.empty()
+        assert self.stack.empty()
+        self.stack.put(functions.int_to_bytes(-60))
+        functions.OP_DIV_INT(self.tape, self.stack, self.cache)
+        assert not self.stack.empty()
+        item = self.stack.get(False)
+        assert self.stack.empty()
         assert not self.cache
         assert functions.bytes_to_int(item) == 30
 
-    def test_OP_DIV_INTS_pulls_two_ints_from_queue_and_puts_quotient_on_queue(self):
-        assert self.queue.empty()
-        self.queue.put(functions.int_to_bytes(12))
-        self.queue.put(functions.int_to_bytes(-132))
-        functions.OP_DIV_INTS(self.tape, self.queue, self.cache)
-        assert not self.queue.empty()
-        item = self.queue.get(False)
-        assert self.queue.empty()
+    def test_OP_DIV_INTS_pulls_two_ints_from_stack_and_puts_quotient_on_stack(self):
+        assert self.stack.empty()
+        self.stack.put(functions.int_to_bytes(12))
+        self.stack.put(functions.int_to_bytes(-132))
+        functions.OP_DIV_INTS(self.tape, self.stack, self.cache)
+        assert not self.stack.empty()
+        item = self.stack.get(False)
+        assert self.stack.empty()
         assert not self.cache
         assert functions.bytes_to_int(item) == -11
 
-    def test_OP_MOD_INT_reads_uint_from_tape_pulls_int_from_queue_and_puts_modulus_on_queue(self):
-        assert self.queue.empty()
+    def test_OP_MOD_INT_reads_uint_from_tape_pulls_int_from_stack_and_puts_modulus_on_stack(self):
+        assert self.stack.empty()
         self.tape = classes.Tape(functions.int_to_bytes(1) + functions.int_to_bytes(17))
-        self.queue.put(functions.int_to_bytes(1258))
-        functions.OP_MOD_INT(self.tape, self.queue, self.cache)
-        assert not self.queue.empty()
-        item = self.queue.get(False)
-        assert self.queue.empty()
+        self.stack.put(functions.int_to_bytes(1258))
+        functions.OP_MOD_INT(self.tape, self.stack, self.cache)
+        assert not self.stack.empty()
+        item = self.stack.get(False)
+        assert self.stack.empty()
         assert not self.cache
         assert functions.bytes_to_int(item) == (1258%17)
 
-    def test_OP_MOD_INT_pulls_two_ints_from_queue_and_puts_modulus_on_queue(self):
-        assert self.queue.empty()
-        self.queue.put(functions.int_to_bytes(17))
-        self.queue.put(functions.int_to_bytes(1258))
-        functions.OP_MOD_INTS(self.tape, self.queue, self.cache)
-        assert not self.queue.empty()
-        item = self.queue.get(False)
-        assert self.queue.empty()
+    def test_OP_MOD_INT_pulls_two_ints_from_stack_and_puts_modulus_on_stack(self):
+        assert self.stack.empty()
+        self.stack.put(functions.int_to_bytes(17))
+        self.stack.put(functions.int_to_bytes(1258))
+        functions.OP_MOD_INTS(self.tape, self.stack, self.cache)
+        assert not self.stack.empty()
+        item = self.stack.get(False)
+        assert self.stack.empty()
         assert not self.cache
         assert functions.bytes_to_int(item) == (1258%17)
 
-    def test_OP_ADD_FLOATS_reads_uint_from_tape_pulls_that_many_floats_from_queue_put_sum_on_queue(self):
-        assert self.queue.empty()
+    def test_OP_ADD_FLOATS_reads_uint_from_tape_pulls_that_many_floats_from_stack_put_sum_on_stack(self):
+        assert self.stack.empty()
         self.tape = classes.Tape(functions.int_to_bytes(3))
-        self.queue.put(functions.float_to_bytes(0.01))
-        self.queue.put(functions.float_to_bytes(0.1))
-        self.queue.put(functions.float_to_bytes(1.0))
+        self.stack.put(functions.float_to_bytes(0.01))
+        self.stack.put(functions.float_to_bytes(0.1))
+        self.stack.put(functions.float_to_bytes(1.0))
 
         expected = functions.bytes_to_float(functions.float_to_bytes(0.01))
         expected += functions.bytes_to_float(functions.float_to_bytes(0.1))
         expected += functions.bytes_to_float(functions.float_to_bytes(1.0))
 
-        functions.OP_ADD_FLOATS(self.tape, self.queue, self.cache)
+        functions.OP_ADD_FLOATS(self.tape, self.stack, self.cache)
         assert not self.cache
-        assert not self.queue.empty()
-        item = self.queue.get(False)
+        assert not self.stack.empty()
+        item = self.stack.get(False)
         item = functions.bytes_to_float(item)
-        assert self.queue.empty()
+        assert self.stack.empty()
         assert str(item)[:5] == str(expected)[:5]
 
     def test_OP_ADD_FLOATS_raises_errors_for_invalid_floats(self):
         self.tape = classes.Tape(functions.int_to_bytes(2))
-        assert self.queue.empty()
-        self.queue.put(functions.float_to_bytes(0.01)+b'000')
-        self.queue.put(functions.float_to_bytes(0.1))
+        assert self.stack.empty()
+        self.stack.put(functions.float_to_bytes(0.01)+b'000')
+        self.stack.put(functions.float_to_bytes(0.1))
         with self.assertRaises(TypeError) as e:
-            functions.OP_ADD_FLOATS(self.tape, self.queue, self.cache)
+            functions.OP_ADD_FLOATS(self.tape, self.stack, self.cache)
         assert str(e.exception) == 'OP_ADD_FLOATS malformed float'
 
         self.tape = classes.Tape(functions.int_to_bytes(2))
-        self.queue.put(functions.float_to_bytes(float('NaN')))
-        self.queue.put(functions.float_to_bytes(0.1))
+        self.stack.put(functions.float_to_bytes(float('NaN')))
+        self.stack.put(functions.float_to_bytes(0.1))
         with self.assertRaises(ValueError) as e:
-            functions.OP_ADD_FLOATS(self.tape, self.queue, self.cache)
+            functions.OP_ADD_FLOATS(self.tape, self.stack, self.cache)
         assert str(e.exception) == 'OP_ADD_FLOATS nan encountered'
 
-    def test_OP_SUBTRACT_FLOATS_reads_uint_from_tape_pulls_that_many_floats_from_queue_put_difference_on_queue(self):
-        assert self.queue.empty()
+    def test_OP_SUBTRACT_FLOATS_reads_uint_from_tape_pulls_that_many_floats_from_stack_put_difference_on_stack(self):
+        assert self.stack.empty()
         self.tape = classes.Tape(functions.int_to_bytes(3))
-        self.queue.put(functions.float_to_bytes(0.01))
-        self.queue.put(functions.float_to_bytes(0.1))
-        self.queue.put(functions.float_to_bytes(1.0))
+        self.stack.put(functions.float_to_bytes(0.01))
+        self.stack.put(functions.float_to_bytes(0.1))
+        self.stack.put(functions.float_to_bytes(1.0))
 
         expected = functions.bytes_to_float(functions.float_to_bytes(1.0))
         expected -= functions.bytes_to_float(functions.float_to_bytes(0.01))
         expected -= functions.bytes_to_float(functions.float_to_bytes(0.1))
 
-        functions.OP_SUBTRACT_FLOATS(self.tape, self.queue, self.cache)
+        functions.OP_SUBTRACT_FLOATS(self.tape, self.stack, self.cache)
         assert not self.cache
-        assert not self.queue.empty()
-        item = self.queue.get(False)
+        assert not self.stack.empty()
+        item = self.stack.get(False)
         item = functions.bytes_to_float(item)
-        assert self.queue.empty()
+        assert self.stack.empty()
         assert str(item)[:5] == str(expected)[:5]
 
     def test_OP_SUBTRACT_FLOATS_raises_errors_for_invalid_floats(self):
         self.tape = classes.Tape(functions.int_to_bytes(2))
-        self.queue.put(functions.float_to_bytes(0.01)+b'000')
-        self.queue.put(functions.float_to_bytes(0.1))
+        self.stack.put(functions.float_to_bytes(0.01)+b'000')
+        self.stack.put(functions.float_to_bytes(0.1))
         with self.assertRaises(TypeError) as e:
-            functions.OP_SUBTRACT_FLOATS(self.tape, self.queue, self.cache)
+            functions.OP_SUBTRACT_FLOATS(self.tape, self.stack, self.cache)
         assert str(e.exception) == 'OP_SUBTRACT_FLOATS malformed float'
 
         self.tape = classes.Tape(functions.int_to_bytes(2))
-        self.queue.put(functions.float_to_bytes(float('NaN')))
-        self.queue.put(functions.float_to_bytes(0.1))
+        self.stack.put(functions.float_to_bytes(float('NaN')))
+        self.stack.put(functions.float_to_bytes(0.1))
         with self.assertRaises(ValueError) as e:
-            functions.OP_SUBTRACT_FLOATS(self.tape, self.queue, self.cache)
+            functions.OP_SUBTRACT_FLOATS(self.tape, self.stack, self.cache)
         assert str(e.exception) == 'OP_SUBTRACT_FLOATS nan encountered'
 
-    def test_OP_DIV_FLOAT_reads_float_from_tape_pulls_float_from_queue_put_quotient_on_queue(self):
-        assert self.queue.empty()
+    def test_OP_DIV_FLOAT_reads_float_from_tape_pulls_float_from_stack_put_quotient_on_stack(self):
+        assert self.stack.empty()
         self.tape = classes.Tape(functions.float_to_bytes(0.01))
-        self.queue.put(functions.float_to_bytes(0.1))
+        self.stack.put(functions.float_to_bytes(0.1))
 
         expected = functions.bytes_to_float(functions.float_to_bytes(0.1))
         expected /= functions.bytes_to_float(functions.float_to_bytes(0.01))
 
-        functions.OP_DIV_FLOAT(self.tape, self.queue, self.cache)
+        functions.OP_DIV_FLOAT(self.tape, self.stack, self.cache)
         assert not self.cache
-        assert not self.queue.empty()
-        item = self.queue.get(False)
+        assert not self.stack.empty()
+        item = self.stack.get(False)
         item = functions.bytes_to_float(item)
-        assert self.queue.empty()
+        assert self.stack.empty()
         assert (item-expected)/expected < 0.000001
 
     def test_OP_DIV_FLOAT_raises_errors_for_invalid_float(self):
         self.tape = classes.Tape(functions.float_to_bytes(0.01))
-        self.queue.put(functions.float_to_bytes(0.1) + b'xx')
+        self.stack.put(functions.float_to_bytes(0.1) + b'xx')
         with self.assertRaises(TypeError) as e:
-            functions.OP_DIV_FLOAT(self.tape, self.queue, self.cache)
+            functions.OP_DIV_FLOAT(self.tape, self.stack, self.cache)
         assert str(e.exception) == 'OP_DIV_FLOAT malformed float'
 
         self.tape = classes.Tape(functions.float_to_bytes(float('NaN')))
-        self.queue.put(functions.float_to_bytes(0.1))
+        self.stack.put(functions.float_to_bytes(0.1))
         with self.assertRaises(ValueError) as e:
-            functions.OP_DIV_FLOAT(self.tape, self.queue, self.cache)
+            functions.OP_DIV_FLOAT(self.tape, self.stack, self.cache)
         assert str(e.exception) == 'OP_DIV_FLOAT nan encountered'
 
-    def test_OP_DIV_FLOATS_pulls_two_floats_from_queue_put_quotient_on_queue(self):
-        assert self.queue.empty()
-        self.queue.put(functions.float_to_bytes(0.01))
-        self.queue.put(functions.float_to_bytes(0.1))
+    def test_OP_DIV_FLOATS_pulls_two_floats_from_stack_put_quotient_on_stack(self):
+        assert self.stack.empty()
+        self.stack.put(functions.float_to_bytes(0.01))
+        self.stack.put(functions.float_to_bytes(0.1))
 
         expected = functions.bytes_to_float(functions.float_to_bytes(0.1))
         expected /= functions.bytes_to_float(functions.float_to_bytes(0.01))
 
-        functions.OP_DIV_FLOATS(self.tape, self.queue, self.cache)
+        functions.OP_DIV_FLOATS(self.tape, self.stack, self.cache)
         assert not self.cache
-        assert not self.queue.empty()
-        item = self.queue.get(False)
+        assert not self.stack.empty()
+        item = self.stack.get(False)
         item = functions.bytes_to_float(item)
-        assert self.queue.empty()
+        assert self.stack.empty()
         assert (item-expected)/expected < 0.000001
 
     def test_OP_DIV_FLOATS_raises_errors_for_invalid_floats(self):
-        self.queue.put(functions.float_to_bytes(0.01)+b'1212')
+        self.stack.put(functions.float_to_bytes(0.01)+b'1212')
         with self.assertRaises(TypeError) as e:
-            functions.OP_DIV_FLOATS(self.tape, self.queue, self.cache)
+            functions.OP_DIV_FLOATS(self.tape, self.stack, self.cache)
         assert str(e.exception) == 'OP_DIV_FLOATS malformed float'
 
-        self.queue.put(functions.float_to_bytes(0.1))
-        self.queue.put(functions.float_to_bytes(0.01)+b'1212')
+        self.stack.put(functions.float_to_bytes(0.1))
+        self.stack.put(functions.float_to_bytes(0.01)+b'1212')
         with self.assertRaises(TypeError) as e:
-            functions.OP_DIV_FLOATS(self.tape, self.queue, self.cache)
+            functions.OP_DIV_FLOATS(self.tape, self.stack, self.cache)
         assert str(e.exception) == 'OP_DIV_FLOATS malformed float'
 
-        self.queue.put(functions.float_to_bytes(float('NaN')))
-        self.queue.put(functions.float_to_bytes(0.1))
+        self.stack.put(functions.float_to_bytes(float('NaN')))
+        self.stack.put(functions.float_to_bytes(0.1))
         with self.assertRaises(ValueError) as e:
-            functions.OP_DIV_FLOATS(self.tape, self.queue, self.cache)
+            functions.OP_DIV_FLOATS(self.tape, self.stack, self.cache)
         assert str(e.exception) == 'OP_DIV_FLOATS nan encountered'
 
-    def test_OP_MOD_FLOAT_reads_float_from_tape_pulls_float_from_queue_put_modulus_on_queue(self):
-        assert self.queue.empty()
+    def test_OP_MOD_FLOAT_reads_float_from_tape_pulls_float_from_stack_put_modulus_on_stack(self):
+        assert self.stack.empty()
         self.tape = classes.Tape(functions.float_to_bytes(13.0))
-        self.queue.put(functions.float_to_bytes(131.1))
+        self.stack.put(functions.float_to_bytes(131.1))
 
         expected = functions.bytes_to_float(functions.float_to_bytes(131.1))
         expected = expected % functions.bytes_to_float(functions.float_to_bytes(13.0))
 
-        functions.OP_MOD_FLOAT(self.tape, self.queue, self.cache)
+        functions.OP_MOD_FLOAT(self.tape, self.stack, self.cache)
         assert not self.cache
-        assert not self.queue.empty()
-        item = self.queue.get(False)
+        assert not self.stack.empty()
+        item = self.stack.get(False)
         item = functions.bytes_to_float(item)
-        assert self.queue.empty()
+        assert self.stack.empty()
         assert (item-expected)/expected < 0.000001
 
     def test_OP_MOD_FLOAT_raises_errors_for_invalid_floats(self):
         self.tape = classes.Tape(functions.float_to_bytes(1.1))
-        self.queue.put(functions.float_to_bytes(0.1) + b'12')
+        self.stack.put(functions.float_to_bytes(0.1) + b'12')
         with self.assertRaises(TypeError) as e:
-            functions.OP_MOD_FLOAT(self.tape, self.queue, self.cache)
+            functions.OP_MOD_FLOAT(self.tape, self.stack, self.cache)
         assert str(e.exception) == 'OP_MOD_FLOAT malformed float'
 
         self.tape = classes.Tape(functions.float_to_bytes(float('NaN')))
-        self.queue.put(functions.float_to_bytes(0.1))
+        self.stack.put(functions.float_to_bytes(0.1))
         with self.assertRaises(ValueError) as e:
-            functions.OP_MOD_FLOAT(self.tape, self.queue, self.cache)
+            functions.OP_MOD_FLOAT(self.tape, self.stack, self.cache)
         assert str(e.exception) == 'OP_MOD_FLOAT nan encountered'
 
-    def test_OP_MOD_FLOATS_pulls_two_floats_from_queue_put_modulus_on_queue(self):
-        assert self.queue.empty()
-        self.queue.put(functions.float_to_bytes(131.1))
-        self.queue.put(functions.float_to_bytes(13.0))
+    def test_OP_MOD_FLOATS_pulls_two_floats_from_stack_put_modulus_on_stack(self):
+        assert self.stack.empty()
+        self.stack.put(functions.float_to_bytes(131.1))
+        self.stack.put(functions.float_to_bytes(13.0))
 
         expected = functions.bytes_to_float(functions.float_to_bytes(131.1))
         expected = expected % functions.bytes_to_float(functions.float_to_bytes(13.0))
 
-        functions.OP_MOD_FLOATS(self.tape, self.queue, self.cache)
+        functions.OP_MOD_FLOATS(self.tape, self.stack, self.cache)
         assert not self.cache
-        assert not self.queue.empty()
-        item = self.queue.get(False)
+        assert not self.stack.empty()
+        item = self.stack.get(False)
         item = functions.bytes_to_float(item)
-        assert self.queue.empty()
+        assert self.stack.empty()
         assert (item-expected)/expected < 0.000001
 
     def test_OP_MOD_FLOATS_raises_errors_for_invalid_floats(self):
-        self.queue.put(functions.float_to_bytes(0.1) + b'x')
+        self.stack.put(functions.float_to_bytes(0.1) + b'x')
         with self.assertRaises(TypeError) as e:
-            functions.OP_MOD_FLOATS(self.tape, self.queue, self.cache)
+            functions.OP_MOD_FLOATS(self.tape, self.stack, self.cache)
         assert str(e.exception) == 'OP_MOD_FLOATS malformed float'
 
-        self.queue.put(functions.float_to_bytes(0.1))
-        self.queue.put(functions.float_to_bytes(0.1) + b'x')
+        self.stack.put(functions.float_to_bytes(0.1))
+        self.stack.put(functions.float_to_bytes(0.1) + b'x')
         with self.assertRaises(TypeError) as e:
-            functions.OP_MOD_FLOATS(self.tape, self.queue, self.cache)
+            functions.OP_MOD_FLOATS(self.tape, self.stack, self.cache)
         assert str(e.exception) == 'OP_MOD_FLOATS malformed float'
 
-        self.queue.put(functions.float_to_bytes(0.1))
-        self.queue.put(functions.float_to_bytes(float('NaN')))
+        self.stack.put(functions.float_to_bytes(0.1))
+        self.stack.put(functions.float_to_bytes(float('NaN')))
         with self.assertRaises(ValueError) as e:
-            functions.OP_MOD_FLOATS(self.tape, self.queue, self.cache)
+            functions.OP_MOD_FLOATS(self.tape, self.stack, self.cache)
         assert str(e.exception) == 'OP_MOD_FLOATS nan encountered'
 
-    def test_OP_ADD_POINTS_reads_uint_from_tape_pulls_that_many_points_from_queue_puts_sum_on_queue(self):
-        assert self.queue.empty()
+    def test_OP_ADD_POINTS_reads_uint_from_tape_pulls_that_many_points_from_stack_puts_sum_on_stack(self):
+        assert self.stack.empty()
         self.tape = classes.Tape(functions.int_to_bytes(2))
         point1 = bytes(SigningKey(token_bytes(32)).verify_key)
         point2 = bytes(SigningKey(token_bytes(32)).verify_key)
         expected = nacl.bindings.crypto_core_ed25519_add(point1, point2)
-        self.queue.put(point1)
-        self.queue.put(point2)
-        functions.OP_ADD_POINTS(self.tape, self.queue, self.cache)
+        self.stack.put(point1)
+        self.stack.put(point2)
+        functions.OP_ADD_POINTS(self.tape, self.stack, self.cache)
         assert not self.cache
-        assert not self.queue.empty()
-        item = self.queue.get(False)
+        assert not self.stack.empty()
+        item = self.stack.get(False)
         assert item == bytes(expected)
 
     def test_OP_ADD_POINTS_raises_errors_for_invalid_points(self):
         self.tape = classes.Tape(b'\x02')
-        self.queue.put(12323)
-        with self.assertRaises(TypeError) as e:
-            functions.OP_ADD_POINTS(self.tape, self.queue, self.cache)
-        assert str(e.exception) == 'OP_ADD_POINTS non-point value encountered'
-
-        self.tape = classes.Tape(b'\x02')
-        self.queue.put(b''.join([b'\xff' for _ in range(32)]))
-        self.queue.put(b''.join([b'\xff' for _ in range(32)]))
+        self.stack.put(b''.join([b'\xff' for _ in range(32)]))
+        self.stack.put(b''.join([b'\xff' for _ in range(32)]))
         with self.assertRaises(ValueError) as e:
-            functions.OP_ADD_POINTS(self.tape, self.queue, self.cache)
+            functions.OP_ADD_POINTS(self.tape, self.stack, self.cache)
         assert str(e.exception) == 'OP_ADD_POINTS invalid point encountered'
 
-    def test_OP_COPY_reads_uint_from_tape_and_copies_top_queue_value_that_many_times(self):
-        assert self.queue.empty()
+    def test_OP_COPY_reads_uint_from_tape_and_copies_top_stack_value_that_many_times(self):
+        assert self.stack.empty()
         n_copies = randint(1, 255)
-        self.queue.put(b'1')
+        self.stack.put(b'1')
         self.tape = classes.Tape(n_copies.to_bytes(1, 'big'))
-        functions.OP_COPY(self.tape, self.queue, self.cache)
+        functions.OP_COPY(self.tape, self.stack, self.cache)
         expected = n_copies + 1
         observed = 0
-        while not self.queue.empty():
+        while not self.stack.empty():
             observed += 1
-            assert self.queue.get(False) == b'1'
+            assert self.stack.get(False) == b'1'
         assert observed == expected
 
-    def test_OP_DUP_duplicates_top_queue_item(self):
-        assert self.queue.empty()
-        self.queue.put(b'1')
-        functions.OP_DUP(self.tape, self.queue, self.cache)
-        assert self.queue.get(False) == b'1'
-        assert self.queue.get(False) == b'1'
-        assert self.queue.empty()
+    def test_OP_DUP_duplicates_top_stack_item(self):
+        assert self.stack.empty()
+        self.stack.put(b'1')
+        functions.OP_DUP(self.tape, self.stack, self.cache)
+        assert self.stack.get(False) == b'1'
+        assert self.stack.get(False) == b'1'
+        assert self.stack.empty()
 
-    def test_OP_SHA256_pulls_value_from_queue_and_puts_its_sha256_on_queue(self):
-        assert self.queue.empty()
+    def test_OP_SHA256_pulls_value_from_stack_and_puts_its_sha256_on_stack(self):
+        assert self.stack.empty()
         preimage = b'123232'
-        self.queue.put(preimage)
-        functions.OP_SHA256(self.tape, self.queue, self.cache)
+        self.stack.put(preimage)
+        functions.OP_SHA256(self.tape, self.stack, self.cache)
         expected = sha256(preimage).digest()
-        assert self.queue.get(False) == expected
-        assert self.queue.empty()
+        assert self.stack.get(False) == expected
+        assert self.stack.empty()
 
-    def test_OP_SHAKE256_reads_uint_from_tape_pulls_value_from_queue_and_puts_its_shake256_on_queue(self):
-        assert self.queue.empty()
+    def test_OP_SHAKE256_reads_uint_from_tape_pulls_value_from_stack_and_puts_its_shake256_on_stack(self):
+        assert self.stack.empty()
         self.tape = classes.Tape((20).to_bytes(1, 'big'))
         preimage = b'123232'
-        self.queue.put(preimage)
-        functions.OP_SHAKE256(self.tape, self.queue, self.cache)
+        self.stack.put(preimage)
+        functions.OP_SHAKE256(self.tape, self.stack, self.cache)
         expected = shake_256(preimage).digest(20)
-        assert self.queue.get(False) == expected
-        assert self.queue.empty()
+        assert self.stack.get(False) == expected
+        assert self.stack.empty()
 
-    def test_OP_VERIFY_raises_error_only_if_top_queue_item_is_not_true(self):
-        self.queue.put(b'\x00')
+    def test_OP_VERIFY_raises_error_only_if_top_stack_item_is_not_true(self):
+        self.stack.put(b'\x00')
         with self.assertRaises(errors.ScriptExecutionError) as e:
-            functions.OP_VERIFY(self.tape, self.queue, self.cache)
+            functions.OP_VERIFY(self.tape, self.stack, self.cache)
         assert str(e.exception) == 'OP_VERIFY check failed'
 
-        self.queue.put(b'\x01')
-        functions.OP_VERIFY(self.tape, self.queue, self.cache)
-        self.queue.put(b'12323')
-        functions.OP_VERIFY(self.tape, self.queue, self.cache)
+        self.stack.put(b'\x01')
+        functions.OP_VERIFY(self.tape, self.stack, self.cache)
+        self.stack.put(b'12323')
+        functions.OP_VERIFY(self.tape, self.stack, self.cache)
 
-    def test_OP_EQUAL_compares_two_values_from_queue_and_puts_bool_on_queue(self):
-        self.queue.put(b'123')
-        self.queue.put(b'123')
-        functions.OP_EQUAL(self.tape, self.queue, self.cache)
-        assert self.queue.get(False) == b'\xff'
+    def test_OP_EQUAL_compares_two_values_from_stack_and_puts_bool_on_stack(self):
+        self.stack.put(b'123')
+        self.stack.put(b'123')
+        functions.OP_EQUAL(self.tape, self.stack, self.cache)
+        assert self.stack.get(False) == b'\xff'
 
-        self.queue.put(b'321')
-        self.queue.put(b'123')
-        functions.OP_EQUAL(self.tape, self.queue, self.cache)
-        assert self.queue.get(False) == b'\x00'
+        self.stack.put(b'321')
+        self.stack.put(b'123')
+        functions.OP_EQUAL(self.tape, self.stack, self.cache)
+        assert self.stack.get(False) == b'\x00'
 
     def test_OP_EQUAL_VERIFY_runs_OP_EQUAL_then_OP_VERIFY(self):
-        assert self.queue.empty()
-        self.queue.put(b'123')
-        self.queue.put(b'123')
-        functions.OP_EQUAL_VERIFY(self.tape, self.queue, self.cache)
-        assert self.queue.empty()
+        assert self.stack.empty()
+        self.stack.put(b'123')
+        self.stack.put(b'123')
+        functions.OP_EQUAL_VERIFY(self.tape, self.stack, self.cache)
+        assert self.stack.empty()
 
-        self.queue.put(b'321')
-        self.queue.put(b'123')
+        self.stack.put(b'321')
+        self.stack.put(b'123')
         with self.assertRaises(errors.ScriptExecutionError) as e:
-            functions.OP_EQUAL_VERIFY(self.tape, self.queue, self.cache)
+            functions.OP_EQUAL_VERIFY(self.tape, self.stack, self.cache)
         assert str(e.exception) == 'OP_VERIFY check failed'
-        assert self.queue.empty()
+        assert self.stack.empty()
 
-    def test_OP_CHECK_SIG_pulls_VerifyKey_and_signature_from_queue_and_checks_against_cache(self):
+    def test_OP_CHECK_SIG_pulls_VerifyKey_and_signature_from_stack_and_checks_against_cache(self):
         body = b'hello world'
         skey = SigningKey(token_bytes(32))
         vkey = skey.verify_key
         smsg = skey.sign(body)
         sig = smsg[:64]
         self.tape = classes.Tape(b'\x00')
-        assert self.queue.empty()
-        self.queue.put(sig)
-        self.queue.put(bytes(vkey))
+        assert self.stack.empty()
+        self.stack.put(sig)
+        self.stack.put(bytes(vkey))
         self.cache['sigfield1'] = body
-        functions.OP_CHECK_SIG(self.tape, self.queue, self.cache)
-        assert not self.queue.empty()
-        assert self.queue.get(False) == b'\xff'
-        assert self.queue.empty()
+        functions.OP_CHECK_SIG(self.tape, self.stack, self.cache)
+        assert not self.stack.empty()
+        assert self.stack.get(False) == b'\xff'
+        assert self.stack.empty()
 
     def test_OP_CHECK_SIG_sigflag_omits_sigfields(self):
         field1 = b'hello'
@@ -708,9 +701,9 @@ class TestFunctions(unittest.TestCase):
         vkey = skey.verify_key
         smsg = skey.sign(body)
         sig = smsg[:64] + sigflag.to_bytes(1, 'big')
-        assert self.queue.empty()
-        self.queue.put(sig)
-        self.queue.put(bytes(vkey))
+        assert self.stack.empty()
+        self.stack.put(sig)
+        self.stack.put(bytes(vkey))
         self.cache['sigfield1'] = field1
         self.cache['sigfield2'] = b'should be ignored'
         self.cache['sigfield3'] = field3
@@ -719,24 +712,24 @@ class TestFunctions(unittest.TestCase):
         self.cache['sigfield6'] = b'should be ignored'
         self.cache['sigfield7'] = b'should be ignored'
         self.cache['sigfield8'] = field8
-        functions.OP_CHECK_SIG(self.tape, self.queue, self.cache)
-        assert not self.queue.empty()
-        assert self.queue.get(False) == b'\xff'
-        assert self.queue.empty()
+        functions.OP_CHECK_SIG(self.tape, self.stack, self.cache)
+        assert not self.stack.empty()
+        assert self.stack.get(False) == b'\xff'
+        assert self.stack.empty()
 
     def test_OP_CHECK_SIG_errors_on_invalid_vkey_or_sig(self):
         self.tape = classes.Tape(b'\x00')
-        self.queue.put(b''.join(b'\xff' for _ in range(64)))
-        self.queue.put(b'not a valid vkey')
+        self.stack.put(b''.join(b'\xff' for _ in range(64)))
+        self.stack.put(b'not a valid vkey')
         with self.assertRaises(ValueError) as e:
-            functions.OP_CHECK_SIG(self.tape, self.queue, self.cache)
+            functions.OP_CHECK_SIG(self.tape, self.stack, self.cache)
         assert str(e.exception) == 'OP_CHECK_SIG invalid vkey encountered'
 
         self.tape = classes.Tape(b'\x00')
-        self.queue.put(b'not a valid sig')
-        self.queue.put(b''.join(b'\xff' for _ in range(32)))
+        self.stack.put(b'not a valid sig')
+        self.stack.put(b''.join(b'\xff' for _ in range(32)))
         with self.assertRaises(ValueError) as e:
-            functions.OP_CHECK_SIG(self.tape, self.queue, self.cache)
+            functions.OP_CHECK_SIG(self.tape, self.stack, self.cache)
         assert str(e.exception) == 'OP_CHECK_SIG invalid sig encountered'
 
     def test_OP_CHECK_SIG_errors_on_disallowed_sigflag(self):
@@ -751,14 +744,14 @@ class TestFunctions(unittest.TestCase):
         vkey = skey.verify_key
         smsg = skey.sign(body)
         sig = smsg[:64] + attempted_sigflags.to_bytes(1, 'big')
-        assert self.queue.empty()
-        self.queue.put(sig)
-        self.queue.put(bytes(vkey))
+        assert self.stack.empty()
+        self.stack.put(sig)
+        self.stack.put(bytes(vkey))
 
         with self.assertRaises(errors.ScriptExecutionError) as e:
-            functions.OP_CHECK_SIG(self.tape, self.queue, self.cache)
+            functions.OP_CHECK_SIG(self.tape, self.stack, self.cache)
         assert str(e.exception) == 'disallowed sigflag'
-        assert self.queue.empty()
+        assert self.stack.empty()
 
     def test_OP_CHECK_SIG_VERIFY_runs_OP_CHECK_SIG_then_OP_VERIFY(self):
         body = b'hello world'
@@ -767,240 +760,240 @@ class TestFunctions(unittest.TestCase):
         smsg = skey.sign(body)
         sig = smsg[:64]
         self.tape = classes.Tape(b'\x00')
-        assert self.queue.empty()
-        self.queue.put(sig)
-        self.queue.put(bytes(vkey))
+        assert self.stack.empty()
+        self.stack.put(sig)
+        self.stack.put(bytes(vkey))
         self.cache['sigfield1'] = body
-        functions.OP_CHECK_SIG_VERIFY(self.tape, self.queue, self.cache)
-        assert self.queue.empty()
+        functions.OP_CHECK_SIG_VERIFY(self.tape, self.stack, self.cache)
+        assert self.stack.empty()
 
         sig = smsg[:64]
         self.tape = classes.Tape(b'\x00')
-        assert self.queue.empty()
-        self.queue.put(sig)
-        self.queue.put(bytes(vkey))
+        assert self.stack.empty()
+        self.stack.put(sig)
+        self.stack.put(bytes(vkey))
         self.cache['sigfield1'] = b'not body'
         with self.assertRaises(errors.ScriptExecutionError) as e:
-            functions.OP_CHECK_SIG_VERIFY(self.tape, self.queue, self.cache)
+            functions.OP_CHECK_SIG_VERIFY(self.tape, self.stack, self.cache)
         assert str(e.exception) == 'OP_VERIFY check failed'
-        assert self.queue.empty()
+        assert self.stack.empty()
 
     def test_OP_CHECK_TIMESTAMP_raises_error_for_invalid_constraint(self):
-        assert self.queue.empty()
-        self.queue.put(b'')
+        assert self.stack.empty()
+        self.stack.put(b'')
         with self.assertRaises(errors.ScriptExecutionError) as e:
-            functions.OP_CHECK_TIMESTAMP(self.tape, self.queue, self.cache)
+            functions.OP_CHECK_TIMESTAMP(self.tape, self.stack, self.cache)
         assert str(e.exception) == 'OP_CHECK_TIMESTAMP malformed constraint encountered'
 
     def test_OP_CHECKTIMESTAMP_raises_errors_for_invalid_cache_timestamp(self):
-        assert self.queue.empty()
-        self.queue.put(b'xxxx')
+        assert self.stack.empty()
+        self.stack.put(b'xxxx')
         with self.assertRaises(errors.ScriptExecutionError) as e:
-            functions.OP_CHECK_TIMESTAMP(self.tape, self.queue, self.cache)
+            functions.OP_CHECK_TIMESTAMP(self.tape, self.stack, self.cache)
         assert str(e.exception) == 'OP_CHECK_TIMESTAMP cache missing timestamp'
 
-        assert self.queue.empty()
-        self.queue.put(b'xxxx')
+        assert self.stack.empty()
+        self.stack.put(b'xxxx')
         self.cache['timestamp'] = 'not an int'
         with self.assertRaises(errors.ScriptExecutionError) as e:
-            functions.OP_CHECK_TIMESTAMP(self.tape, self.queue, self.cache)
+            functions.OP_CHECK_TIMESTAMP(self.tape, self.stack, self.cache)
         assert str(e.exception) == 'OP_CHECK_TIMESTAMP malformed cache timestamp'
 
     def test_OP_CHECKTIMESTAMP_raises_errors_for_invalid_ts_threshold_tape_flag(self):
-        assert self.queue.empty()
-        self.queue.put(b'xxxx')
+        assert self.stack.empty()
+        self.stack.put(b'xxxx')
         self.cache['timestamp'] = 3
         with self.assertRaises(errors.ScriptExecutionError) as e:
-            functions.OP_CHECK_TIMESTAMP(self.tape, self.queue, self.cache)
+            functions.OP_CHECK_TIMESTAMP(self.tape, self.stack, self.cache)
         assert str(e.exception) == 'OP_CHECK_TIMESTAMP missing ts_threshold flag'
 
-        assert self.queue.empty()
-        self.queue.put(b'xxxx')
+        assert self.stack.empty()
+        self.stack.put(b'xxxx')
         self.cache['timestamp'] = 3
         self.tape.flags['ts_threshold'] = 'not an int'
         with self.assertRaises(errors.ScriptExecutionError) as e:
-            functions.OP_CHECK_TIMESTAMP(self.tape, self.queue, self.cache)
+            functions.OP_CHECK_TIMESTAMP(self.tape, self.stack, self.cache)
         assert str(e.exception) == 'OP_CHECK_TIMESTAMP malformed ts_threshold flag'
 
-    def test_OP_CHECK_TIMESTAMP_compares_top_queue_int_to_cache_timestamp(self):
-        assert self.queue.empty()
+    def test_OP_CHECK_TIMESTAMP_compares_top_stack_int_to_cache_timestamp(self):
+        assert self.stack.empty()
         self.tape.flags['ts_threshold'] = 10
         self.cache['timestamp'] = int(time())
-        self.queue.put(int(time()).to_bytes(4, 'big'))
-        functions.OP_CHECK_TIMESTAMP(self.tape, self.queue, self.cache)
-        assert not self.queue.empty()
-        assert self.queue.get(False) == b'\xff'
+        self.stack.put(int(time()).to_bytes(4, 'big'))
+        functions.OP_CHECK_TIMESTAMP(self.tape, self.stack, self.cache)
+        assert not self.stack.empty()
+        assert self.stack.get(False) == b'\xff'
 
-        assert self.queue.empty()
+        assert self.stack.empty()
         self.cache['timestamp'] = int(time())-1
-        self.queue.put(int(time()).to_bytes(4, 'big'))
-        functions.OP_CHECK_TIMESTAMP(self.tape, self.queue, self.cache)
-        assert not self.queue.empty()
-        item = self.queue.get(False)
+        self.stack.put(int(time()).to_bytes(4, 'big'))
+        functions.OP_CHECK_TIMESTAMP(self.tape, self.stack, self.cache)
+        assert not self.stack.empty()
+        item = self.stack.get(False)
         assert item == b'\x00'
 
-        assert self.queue.empty()
+        assert self.stack.empty()
         self.cache['timestamp'] = int(time())+12
-        self.queue.put(int(time()).to_bytes(4, 'big'))
-        functions.OP_CHECK_TIMESTAMP(self.tape, self.queue, self.cache)
-        assert not self.queue.empty()
-        item = self.queue.get(False)
+        self.stack.put(int(time()).to_bytes(4, 'big'))
+        functions.OP_CHECK_TIMESTAMP(self.tape, self.stack, self.cache)
+        assert not self.stack.empty()
+        item = self.stack.get(False)
         assert item == b'\x00'
 
-        assert self.queue.empty()
+        assert self.stack.empty()
         self.tape.flags['ts_threshold'] = 100
         self.cache['timestamp'] = int(time())+12
-        self.queue.put(int(time()).to_bytes(4, 'big'))
-        functions.OP_CHECK_TIMESTAMP(self.tape, self.queue, self.cache)
-        assert not self.queue.empty()
-        item = self.queue.get(False)
+        self.stack.put(int(time()).to_bytes(4, 'big'))
+        functions.OP_CHECK_TIMESTAMP(self.tape, self.stack, self.cache)
+        assert not self.stack.empty()
+        item = self.stack.get(False)
         assert item == b'\xff'
 
     def test_OP_CHECK_TIMESTAMP_VERIFY_runs_OP_CHECK_TIMESTAMP_then_OP_VERIFY(self):
-        assert self.queue.empty()
+        assert self.stack.empty()
         self.tape = classes.Tape(b'', flags={'ts_threshold': 10})
         self.cache['timestamp'] = int(time())
-        self.queue.put(int(time()).to_bytes(4, 'big'))
-        functions.OP_CHECK_TIMESTAMP_VERIFY(self.tape, self.queue, self.cache)
-        assert self.queue.empty()
+        self.stack.put(int(time()).to_bytes(4, 'big'))
+        functions.OP_CHECK_TIMESTAMP_VERIFY(self.tape, self.stack, self.cache)
+        assert self.stack.empty()
 
-        assert self.queue.empty()
+        assert self.stack.empty()
         self.cache['timestamp'] = int(time())-1
-        self.queue.put(int(time()).to_bytes(4, 'big'))
+        self.stack.put(int(time()).to_bytes(4, 'big'))
         with self.assertRaises(errors.ScriptExecutionError) as e:
-            functions.OP_CHECK_TIMESTAMP_VERIFY(self.tape, self.queue, self.cache)
+            functions.OP_CHECK_TIMESTAMP_VERIFY(self.tape, self.stack, self.cache)
         assert str(e.exception) == 'OP_VERIFY check failed'
-        assert self.queue.empty()
+        assert self.stack.empty()
 
-        assert self.queue.empty()
+        assert self.stack.empty()
         self.cache['timestamp'] = int(time())+12
-        self.queue.put(int(time()).to_bytes(4, 'big'))
+        self.stack.put(int(time()).to_bytes(4, 'big'))
         with self.assertRaises(errors.ScriptExecutionError) as e:
-            functions.OP_CHECK_TIMESTAMP_VERIFY(self.tape, self.queue, self.cache)
+            functions.OP_CHECK_TIMESTAMP_VERIFY(self.tape, self.stack, self.cache)
         assert str(e.exception) == 'OP_VERIFY check failed'
-        assert self.queue.empty()
+        assert self.stack.empty()
 
     def test_OP_CHECK_EPOCH_raises_error_for_invalid_constraint(self):
-        assert self.queue.empty()
-        self.queue.put(b'')
+        assert self.stack.empty()
+        self.stack.put(b'')
         with self.assertRaises(errors.ScriptExecutionError) as e:
-            functions.OP_CHECK_EPOCH(self.tape, self.queue, self.cache)
+            functions.OP_CHECK_EPOCH(self.tape, self.stack, self.cache)
         assert str(e.exception) == 'OP_CHECK_EPOCH malformed constraint encountered'
 
     def test_OP_CHECK_EPOCH_raises_errors_for_invalid_epoch_threshold_tape_flag(self):
-        assert self.queue.empty()
-        self.queue.put(b'x')
+        assert self.stack.empty()
+        self.stack.put(b'x')
         with self.assertRaises(errors.ScriptExecutionError) as e:
-            functions.OP_CHECK_EPOCH(self.tape, self.queue, self.cache)
+            functions.OP_CHECK_EPOCH(self.tape, self.stack, self.cache)
         assert str(e.exception) == 'OP_CHECK_EPOCH missing epoch_threshold flag'
 
-        assert self.queue.empty()
-        self.queue.put(b'x')
+        assert self.stack.empty()
+        self.stack.put(b'x')
         self.tape.flags['epoch_threshold'] = 'not an int'
         with self.assertRaises(errors.ScriptExecutionError) as e:
-            functions.OP_CHECK_EPOCH(self.tape, self.queue, self.cache)
+            functions.OP_CHECK_EPOCH(self.tape, self.stack, self.cache)
         assert str(e.exception) == 'OP_CHECK_EPOCH malformed epoch_threshold flag'
 
-        assert self.queue.empty()
-        self.queue.put(b'x')
+        assert self.stack.empty()
+        self.stack.put(b'x')
         self.tape.flags['epoch_threshold'] = -1
         with self.assertRaises(errors.ScriptExecutionError) as e:
-            functions.OP_CHECK_EPOCH(self.tape, self.queue, self.cache)
+            functions.OP_CHECK_EPOCH(self.tape, self.stack, self.cache)
         assert str(e.exception) == 'OP_CHECK_EPOCH malformed epoch_threshold flag'
 
     def test_OP_CHCECK_EPOCH_compares_current_time_to_constraint(self):
-        assert self.queue.empty()
+        assert self.stack.empty()
         self.tape.flags['epoch_threshold'] = 0
-        self.queue.put(int(time()-10).to_bytes(4, 'big'))
-        functions.OP_CHECK_EPOCH(self.tape, self.queue, self.cache)
-        assert not self.queue.empty()
-        assert self.queue.get(False) == b'\xff'
+        self.stack.put(int(time()-10).to_bytes(4, 'big'))
+        functions.OP_CHECK_EPOCH(self.tape, self.stack, self.cache)
+        assert not self.stack.empty()
+        assert self.stack.get(False) == b'\xff'
 
-        assert self.queue.empty()
-        self.queue.put(int(time()+10).to_bytes(4, 'big'))
-        functions.OP_CHECK_EPOCH(self.tape, self.queue, self.cache)
-        assert not self.queue.empty()
-        item = self.queue.get(False)
+        assert self.stack.empty()
+        self.stack.put(int(time()+10).to_bytes(4, 'big'))
+        functions.OP_CHECK_EPOCH(self.tape, self.stack, self.cache)
+        assert not self.stack.empty()
+        item = self.stack.get(False)
         assert item == b'\x00'
 
-        assert self.queue.empty()
+        assert self.stack.empty()
         self.tape.flags['epoch_threshold'] = 100
-        self.queue.put(int(time()+10).to_bytes(4, 'big'))
-        functions.OP_CHECK_EPOCH(self.tape, self.queue, self.cache)
-        assert not self.queue.empty()
-        item = self.queue.get(False)
+        self.stack.put(int(time()+10).to_bytes(4, 'big'))
+        functions.OP_CHECK_EPOCH(self.tape, self.stack, self.cache)
+        assert not self.stack.empty()
+        item = self.stack.get(False)
         assert item == b'\xff'
 
     def test_OP_CHECK_EPOCH_VERIFY_runs_OP_CHECK_EPOCH_then_OP_VERIFY(self):
-        assert self.queue.empty()
+        assert self.stack.empty()
         self.tape.flags['epoch_threshold'] = 0
-        self.queue.put(int(time()-10).to_bytes(4, 'big'))
-        functions.OP_CHECK_EPOCH_VERIFY(self.tape, self.queue, self.cache)
-        assert self.queue.empty()
+        self.stack.put(int(time()-10).to_bytes(4, 'big'))
+        functions.OP_CHECK_EPOCH_VERIFY(self.tape, self.stack, self.cache)
+        assert self.stack.empty()
 
-        assert self.queue.empty()
-        self.queue.put(int(time()+10).to_bytes(4, 'big'))
+        assert self.stack.empty()
+        self.stack.put(int(time()+10).to_bytes(4, 'big'))
         with self.assertRaises(errors.ScriptExecutionError) as e:
-            functions.OP_CHECK_EPOCH_VERIFY(self.tape, self.queue, self.cache)
-        assert self.queue.empty()
+            functions.OP_CHECK_EPOCH_VERIFY(self.tape, self.stack, self.cache)
+        assert self.stack.empty()
 
-        assert self.queue.empty()
+        assert self.stack.empty()
         self.tape.flags['epoch_threshold'] = 100
-        self.queue.put(int(time()+10).to_bytes(4, 'big'))
-        functions.OP_CHECK_EPOCH_VERIFY(self.tape, self.queue, self.cache)
-        assert self.queue.empty()
+        self.stack.put(int(time()+10).to_bytes(4, 'big'))
+        functions.OP_CHECK_EPOCH_VERIFY(self.tape, self.stack, self.cache)
+        assert self.stack.empty()
 
     def test_OP_DEF_creates_subtape_definition(self):
-        assert self.queue.empty()
+        assert self.stack.empty()
         self.tape = classes.Tape(b'\x00\x00\x0bhello world')
         assert not self.tape.definitions
-        functions.OP_DEF(self.tape, self.queue, self.cache)
+        functions.OP_DEF(self.tape, self.stack, self.cache)
         assert b'\x00' in self.tape.definitions
         assert isinstance(self.tape.definitions[b'\x00'], classes.Tape)
         assert self.tape.definitions[b'\x00'].data == b'hello world'
-        assert self.queue.empty()
+        assert self.stack.empty()
 
-    def test_OP_NOT_inverts_bool_value_of_top_queue_value(self):
-        assert self.queue.empty()
-        self.queue.put(b'\xFF')
-        functions.OP_NOT(self.tape, self.queue, self.cache)
-        assert not self.queue.empty()
-        assert self.queue.get(False) == b'\x00'
+    def test_OP_NOT_inverts_bool_value_of_top_stack_value(self):
+        assert self.stack.empty()
+        self.stack.put(b'\xFF')
+        functions.OP_NOT(self.tape, self.stack, self.cache)
+        assert not self.stack.empty()
+        assert self.stack.get(False) == b'\x00'
 
-        assert self.queue.empty()
-        self.queue.put(b'\x00')
-        functions.OP_NOT(self.tape, self.queue, self.cache)
-        assert not self.queue.empty()
-        assert self.queue.get(False) == b'\xFF'
-        assert self.queue.empty()
+        assert self.stack.empty()
+        self.stack.put(b'\x00')
+        functions.OP_NOT(self.tape, self.stack, self.cache)
+        assert not self.stack.empty()
+        assert self.stack.get(False) == b'\xFF'
+        assert self.stack.empty()
 
-    def test_OP_NOT_inverts_bytestring_on_top_of_queue(self):
-        self.queue.put(b'\xf0\x0f')
-        functions.OP_NOT(self.tape, self.queue, self.cache)
-        assert self.queue.get(False) == b'\x0f\xf0'
+    def test_OP_NOT_inverts_bytestring_on_top_of_stack(self):
+        self.stack.put(b'\xf0\x0f')
+        functions.OP_NOT(self.tape, self.stack, self.cache)
+        assert self.stack.get(False) == b'\x0f\xf0'
 
         data = token_bytes(4)
-        self.queue.put(data)
-        functions.OP_DUP(self.tape, self.queue, self.cache)
-        functions.OP_NOT(self.tape, self.queue, self.cache)
-        functions.OP_XOR(self.tape, self.queue, self.cache)
-        assert self.queue.get(False) == b'\xff\xff\xff\xff'
+        self.stack.put(data)
+        functions.OP_DUP(self.tape, self.stack, self.cache)
+        functions.OP_NOT(self.tape, self.stack, self.cache)
+        functions.OP_XOR(self.tape, self.stack, self.cache)
+        assert self.stack.get(False) == b'\xff\xff\xff\xff'
 
-    def test_OP_RANDOM_puts_random_bytes_on_queue(self):
-        assert self.queue.empty()
+    def test_OP_RANDOM_puts_random_bytes_on_stack(self):
+        assert self.stack.empty()
         n_bytes = randint(1, 250)
         self.tape = classes.Tape(n_bytes.to_bytes(1, 'big'))
-        functions.OP_RANDOM(self.tape, self.queue, self.cache)
-        assert not self.queue.empty()
-        item = self.queue.get(False)
+        functions.OP_RANDOM(self.tape, self.stack, self.cache)
+        assert not self.stack.empty()
+        item = self.stack.get(False)
         assert type(item) is bytes
         assert len(item) == n_bytes
-        assert self.queue.empty()
+        assert self.stack.empty()
 
     def test_OP_RETURN_advances_tape_pointer_to_end(self):
         self.tape = classes.Tape(b'asdkjhk123')
         assert self.tape.pointer == 0
-        functions.OP_RETURN(self.tape, self.queue, self.cache)
+        functions.OP_RETURN(self.tape, self.stack, self.cache)
         assert self.tape.pointer == len(self.tape.data)
         with self.assertRaises(errors.ScriptExecutionError) as e:
             self.tape.read(1)
@@ -1008,7 +1001,7 @@ class TestFunctions(unittest.TestCase):
     def test_OP_SET_FLAG_raises_error_for_unrecognized_flag(self):
         self.tape = classes.Tape(b'\x03abc')
         with self.assertRaises(errors.ScriptExecutionError) as e:
-            functions.OP_SET_FLAG(self.tape, self.queue, self.cache)
+            functions.OP_SET_FLAG(self.tape, self.stack, self.cache)
         assert str(e.exception) == 'OP_SET_FLAG unrecognized flag'
 
     def test_OP_SET_FLAG_sets_tape_flag_to_default_value(self):
@@ -1016,7 +1009,7 @@ class TestFunctions(unittest.TestCase):
         functions.flags = {**original_flags, b'dummy_flag': 1}
         self.tape = classes.Tape(b'\x0adummy_flag')
         assert b'dummy_flag' not in self.tape.flags
-        functions.OP_SET_FLAG(self.tape, self.queue, self.cache)
+        functions.OP_SET_FLAG(self.tape, self.stack, self.cache)
         assert b'dummy_flag' in self.tape.flags
         functions.flags = original_flags
 
@@ -1024,210 +1017,207 @@ class TestFunctions(unittest.TestCase):
         self.tape = classes.Tape(b'\x0adummy_flag')
         self.tape.flags[b'dummy_flag'] = 1
         assert b'dummy_flag' in self.tape.flags
-        functions.OP_UNSET_FLAG(self.tape, self.queue, self.cache)
+        functions.OP_UNSET_FLAG(self.tape, self.stack, self.cache)
         assert b'dummy_flag' not in self.tape.flags
 
-    def test_OP_DEPTH_puts_queue_size_onto_queue(self):
-        assert self.queue.empty()
-        self.queue.put(b'123')
-        self.queue.put(b'321')
-        self.queue.put(b'asd')
-        functions.OP_DEPTH(self.tape, self.queue, self.cache)
-        assert not self.queue.empty()
-        item = self.queue.get(False)
+    def test_OP_DEPTH_puts_stack_size_onto_stack(self):
+        assert self.stack.empty()
+        self.stack.put(b'123')
+        self.stack.put(b'321')
+        self.stack.put(b'asd')
+        functions.OP_DEPTH(self.tape, self.stack, self.cache)
+        assert not self.stack.empty()
+        item = self.stack.get(False)
         assert functions.bytes_to_int(item) == 3
         items = []
-        while not self.queue.empty():
-            items.append(self.queue.get(False))
+        while not self.stack.empty():
+            items.append(self.stack.get(False))
         assert items == [b'asd', b'321', b'123']
 
-    def test_OP_SWAP_swaps_order_of_queue_items_given_indices_from_tape(self):
-        assert self.queue.empty()
+    def test_OP_SWAP_swaps_order_of_stack_items_given_indices_from_tape(self):
+        assert self.stack.empty()
         self.tape = classes.Tape(b'\x00\x02')
-        self.queue.put(b'bottom')
-        self.queue.put(b'middle')
-        self.queue.put(b'top')
-        functions.OP_SWAP(self.tape, self.queue, self.cache)
+        self.stack.put(b'bottom')
+        self.stack.put(b'middle')
+        self.stack.put(b'top')
+        functions.OP_SWAP(self.tape, self.stack, self.cache)
         items = []
-        while not self.queue.empty():
-            items.append(self.queue.get(False))
+        while not self.stack.empty():
+            items.append(self.stack.get(False))
         assert items == [b'bottom', b'middle', b'top']
 
-        self.queue = LifoQueue()
+        self.stack = classes.Stack()
         self.tape = classes.Tape(b'\x00\x01')
-        self.queue.put(b'bottom')
-        self.queue.put(b'middle')
-        self.queue.put(b'top')
-        functions.OP_SWAP(self.tape, self.queue, self.cache)
+        self.stack.put(b'bottom')
+        self.stack.put(b'middle')
+        self.stack.put(b'top')
+        functions.OP_SWAP(self.tape, self.stack, self.cache)
         items = []
-        while not self.queue.empty():
-            items.append(self.queue.get(False))
+        while not self.stack.empty():
+            items.append(self.stack.get(False))
         assert items == [b'middle', b'top', b'bottom']
 
-    def test_OP_SWAP_raises_ScriptExecutionError_for_queue_depth_overflow(self):
-        self.queue.put(b'sds')
+    def test_OP_SWAP_raises_ScriptExecutionError_for_stack_depth_overflow(self):
+        self.stack.put(b'sds')
         self.tape = classes.Tape(b'\x00\xff')
         with self.assertRaises(errors.ScriptExecutionError) as e:
-            functions.OP_SWAP(self.tape, self.queue, self.cache)
-        assert str(e.exception) == 'OP_SWAP queue size exceeded by index'
+            functions.OP_SWAP(self.tape, self.stack, self.cache)
+        assert str(e.exception) == 'OP_SWAP stack size exceeded by index'
 
         self.tape = classes.Tape(b'\xff\x00')
         with self.assertRaises(errors.ScriptExecutionError) as e:
-            functions.OP_SWAP(self.tape, self.queue, self.cache)
-        assert str(e.exception) == 'OP_SWAP queue size exceeded by index'
+            functions.OP_SWAP(self.tape, self.stack, self.cache)
+        assert str(e.exception) == 'OP_SWAP stack size exceeded by index'
 
-    def test_OP_SWAP2_swaps_top_two_queue_items(self):
-        self.queue.put(b'second')
-        self.queue.put(b'first')
-        functions.OP_SWAP2(self.tape, self.queue, self.cache)
-        assert self.queue.get(False) == b'second'
-        assert self.queue.get(False) == b'first'
+    def test_OP_SWAP2_swaps_top_two_stack_items(self):
+        self.stack.put(b'second')
+        self.stack.put(b'first')
+        functions.OP_SWAP2(self.tape, self.stack, self.cache)
+        assert self.stack.get(False) == b'second'
+        assert self.stack.get(False) == b'first'
 
-    def test_OP_REVERSE_reads_uint_from_tape_and_reverses_order_of_that_many_queue_items(self):
-        assert self.queue.empty()
-        self.queue.put(4)
-        self.queue.put(3)
-        self.queue.put(2)
-        self.queue.put(1)
+    def test_OP_REVERSE_reads_uint_from_tape_and_reverses_order_of_that_many_stack_items(self):
+        assert self.stack.empty()
+        self.stack.put(b'4')
+        self.stack.put(b'3')
+        self.stack.put(b'2')
+        self.stack.put(b'1')
         self.tape = classes.Tape(b'\x03')
-        functions.OP_REVERSE(self.tape, self.queue, self.cache)
-        items = []
-        while not self.queue.empty():
-            items.append(self.queue.get(False))
-        assert items == [3,2,1,4]
+        functions.OP_REVERSE(self.tape, self.stack, self.cache)
+        assert self.stack.list() == [b'4',b'1',b'2',b'3'], self.stack.list()
 
-    def test_OP_REVERSE_raises_ScriptExecutionError_for_queue_depth_overflow(self):
-        self.queue.put(b'sds')
+    def test_OP_REVERSE_raises_ScriptExecutionError_for_stack_depth_overflow(self):
+        self.stack.put(b'sds')
         self.tape = classes.Tape(b'\xff')
         with self.assertRaises(errors.ScriptExecutionError) as e:
-            functions.OP_REVERSE(self.tape, self.queue, self.cache)
-        assert str(e.exception) == 'OP_REVERSE queue size exceeded'
+            functions.OP_REVERSE(self.tape, self.stack, self.cache)
+        assert str(e.exception) == 'OP_REVERSE stack size exceeded'
 
-    def test_OP_CONCAT_concatenates_top_two_items_from_queue(self):
-        self.queue.put(b'123')
-        self.queue.put(b'321')
-        functions.OP_CONCAT(self.tape, self.queue, self.cache)
-        assert self.queue.get(False) == b'321123'
-        assert self.queue.empty()
+    def test_OP_CONCAT_concatenates_top_two_items_from_stack(self):
+        self.stack.put(b'123')
+        self.stack.put(b'321')
+        functions.OP_CONCAT(self.tape, self.stack, self.cache)
+        assert self.stack.get(False) == b'321123'
+        assert self.stack.empty()
 
-    def test_OP_SPLIT_splits_top_queue_item_at_uint_index_read_from_tape(self):
+    def test_OP_SPLIT_splits_top_stack_item_at_uint_index_read_from_tape(self):
         self.tape = classes.Tape(b'\x02')
-        self.queue.put(b'12345')
-        functions.OP_SPLIT(self.tape, self.queue, self.cache)
-        assert self.queue.get(False) == b'345'
-        assert self.queue.get(False) == b'12'
+        self.stack.put(b'12345')
+        functions.OP_SPLIT(self.tape, self.stack, self.cache)
+        assert self.stack.get(False) == b'345'
+        assert self.stack.get(False) == b'12'
 
     def test_OP_SPLIT_raises_ScriptExecutionError_for_length_index_overflow(self):
-        self.queue.put(b'sds')
+        self.stack.put(b'sds')
         self.tape = classes.Tape(b'\xff')
         with self.assertRaises(errors.ScriptExecutionError) as e:
-            functions.OP_SPLIT(self.tape, self.queue, self.cache)
+            functions.OP_SPLIT(self.tape, self.stack, self.cache)
         assert str(e.exception) == 'OP_SPLIT item len exceeded by index'
 
-    def test_OP_CONCAT_STR_concatenates_top_two_utf8_str_items_from_queue(self):
-        self.queue.put(bytes('123', 'utf-8'))
-        self.queue.put(bytes('abc', 'utf-8'))
-        functions.OP_CONCAT_STR(self.tape, self.queue, self.cache)
-        item = self.queue.get(False)
+    def test_OP_CONCAT_STR_concatenates_top_two_utf8_str_items_from_stack(self):
+        self.stack.put(bytes('123', 'utf-8'))
+        self.stack.put(bytes('abc', 'utf-8'))
+        functions.OP_CONCAT_STR(self.tape, self.stack, self.cache)
+        item = self.stack.get(False)
         assert str(item, 'utf-8') == 'abc123'
-        assert self.queue.empty()
+        assert self.stack.empty()
 
-    def test_OP_SPLIT_STR_splits_top_queue_utf8_str_at_uint_index_read_from_tape(self):
+    def test_OP_SPLIT_STR_splits_top_stack_utf8_str_at_uint_index_read_from_tape(self):
         self.tape = classes.Tape(b'\x02')
-        self.queue.put(bytes('12345', 'utf-8'))
-        functions.OP_SPLIT_STR(self.tape, self.queue, self.cache)
-        assert str(self.queue.get(False), 'utf-8') == '345'
-        assert str(self.queue.get(False), 'utf-8') == '12'
+        self.stack.put(bytes('12345', 'utf-8'))
+        functions.OP_SPLIT_STR(self.tape, self.stack, self.cache)
+        assert str(self.stack.get(False), 'utf-8') == '345'
+        assert str(self.stack.get(False), 'utf-8') == '12'
 
     def test_OP_SPLIT_STR_raises_ScriptExecutionError_for_str_length_overflow(self):
-        self.queue.put(b'sds')
+        self.stack.put(b'sds')
         self.tape = classes.Tape(b'\xff')
         with self.assertRaises(errors.ScriptExecutionError) as e:
-            functions.OP_SPLIT_STR(self.tape, self.queue, self.cache)
+            functions.OP_SPLIT_STR(self.tape, self.stack, self.cache)
         assert str(e.exception) == 'OP_SPLIT_STR item len exceeded by index'
 
-    def test_NOP_reads_int_from_tape_and_pulls_that_many_items_from_queue(self):
-        assert self.queue.empty()
-        self.queue.put(1)
-        self.queue.put(2)
-        self.queue.put(3)
+    def test_NOP_reads_int_from_tape_and_pulls_that_many_items_from_stack(self):
+        assert self.stack.empty()
+        self.stack.put(b'1')
+        self.stack.put(b'2')
+        self.stack.put(b'3')
         self.tape = classes.Tape(functions.int_to_bytes(2))
-        functions.NOP(self.tape, self.queue, self.cache)
-        assert self.queue.get(False) == 1
-        assert self.queue.empty()
+        functions.NOP(self.tape, self.stack, self.cache)
+        assert self.stack.get(False) == b'1'
+        assert self.stack.empty()
 
     def test_NOP_raises_ScriptExecutionError_for_negative_count(self):
         self.tape = classes.Tape(functions.int_to_bytes(-2))
         with self.assertRaises(errors.ScriptExecutionError) as e:
-            functions.NOP(self.tape, self.queue, self.cache)
+            functions.NOP(self.tape, self.stack, self.cache)
 
     def test_OP_CHECK_TRANSFER_errors_on_missing_or_invalid_contract_or_params(self):
         def setup_transfer():
             self.tape = classes.Tape(b'\x01')
-            self.queue.put(b'txn_proof')
-            self.queue.put(b'source')
-            self.queue.put(b'\x01')
-            self.queue.put(b'destination')
-            self.queue.put(b'constraint')
-            self.queue.put(b'amount')
-            self.queue.put(b'contractid')
+            self.stack.put(b'txn_proof')
+            self.stack.put(b'source')
+            self.stack.put(b'\x01')
+            self.stack.put(b'destination')
+            self.stack.put(b'constraint')
+            self.stack.put(b'amount')
+            self.stack.put(b'contractid')
 
         setup_transfer()
         with self.assertRaises(errors.ScriptExecutionError) as e:
-            functions.OP_CHECK_TRANSFER(self.tape, self.queue, self.cache)
+            functions.OP_CHECK_TRANSFER(self.tape, self.stack, self.cache)
         assert str(e.exception) == 'OP_CHECK_TRANSFER missing contract'
 
         setup_transfer()
         self.tape.contracts[b'contractid'] = InvalidContract(10)
         with self.assertRaises(errors.ScriptExecutionError) as e:
-            functions.OP_CHECK_TRANSFER(self.tape, self.queue, self.cache)
+            functions.OP_CHECK_TRANSFER(self.tape, self.stack, self.cache)
         assert str(e.exception) == 'contract must implement the CanCheckTransfer interface'
 
     def test_OP_CHECK_TRANSFER_works(self):
         def setup_transfer():
             self.tape = classes.Tape(b'\x00')
-            self.queue.put(b'txn_proof')
-            self.queue.put(b'source')
-            self.queue.put((1).to_bytes(1, 'big'))
-            self.queue.put(b'destination')
-            self.queue.put(b'constraint')
-            self.queue.put((10).to_bytes(1, 'big')) # amount
-            self.queue.put(b'contractid')
+            self.stack.put(b'txn_proof')
+            self.stack.put(b'source')
+            self.stack.put((1).to_bytes(1, 'big'))
+            self.stack.put(b'destination')
+            self.stack.put(b'constraint')
+            self.stack.put((10).to_bytes(1, 'big')) # amount
+            self.stack.put(b'contractid')
 
         amount = 10
         setup_transfer()
         self.tape.contracts[b'contractid'] = ValidContract(amount)
-        functions.OP_CHECK_TRANSFER(self.tape, self.queue, self.cache)
-        assert self.queue.get(False) == b'\xff'
-        assert self.queue.empty()
+        functions.OP_CHECK_TRANSFER(self.tape, self.stack, self.cache)
+        assert self.stack.get(False) == b'\xff'
+        assert self.stack.empty()
 
         amount = 9
         setup_transfer()
         self.tape.contracts[b'contractid'] = ValidContract(amount)
-        functions.OP_CHECK_TRANSFER(self.tape, self.queue, self.cache)
-        assert self.queue.get(False) == b'\x00'
-        assert self.queue.empty()
+        functions.OP_CHECK_TRANSFER(self.tape, self.stack, self.cache)
+        assert self.stack.get(False) == b'\x00'
+        assert self.stack.empty()
 
         amount = 11
         setup_transfer()
         self.tape.contracts[b'contractid'] = ValidContract(amount)
-        functions.OP_CHECK_TRANSFER(self.tape, self.queue, self.cache)
-        assert self.queue.get(False) == b'\xff'
-        assert self.queue.empty()
+        functions.OP_CHECK_TRANSFER(self.tape, self.stack, self.cache)
+        assert self.stack.get(False) == b'\xff'
+        assert self.stack.empty()
 
     def test_OP_CALL_reads_uint_from_tape_and_runs_that_definition(self):
         self.tape = classes.Tape(b'\x00')
         self.tape.definitions[b'\x00'] = classes.Tape(b'\x01')
-        assert self.queue.empty()
-        functions.OP_CALL(self.tape, self.queue, self.cache)
-        assert not self.queue.empty()
-        assert self.queue.get(False) == b'\xff'
+        assert self.stack.empty()
+        functions.OP_CALL(self.tape, self.stack, self.cache)
+        assert not self.stack.empty()
+        assert self.stack.get(False) == b'\xff'
 
     def test_OP_CALL_raises_ScriptExecutionError_when_callstack_limit_exceeded(self):
         self.tape.callstack_limit = -1
         self.tape.callstack_count = 1
         with self.assertRaises(errors.ScriptExecutionError) as e:
-            functions.OP_CALL(self.tape, self.queue, self.cache)
+            functions.OP_CALL(self.tape, self.stack, self.cache)
         assert str(e.exception) == 'callstack limit exceeded'
 
     def test_OP_CALL_does_not_reset_definition_pointer(self):
@@ -1235,53 +1225,53 @@ class TestFunctions(unittest.TestCase):
         subtape = classes.Tape(b'\x2b\x00\x03\x00\x2a\x00\x02\x03')
         self.tape.definitions[b'\x00'] = subtape
         subtape.definitions = self.tape.definitions
-        assert self.queue.empty()
-        self.queue.put(b'\x01', False)
-        functions.OP_CALL(self.tape, self.queue, self.cache)
+        assert self.stack.empty()
+        self.stack.put(b'\x01', False)
+        functions.OP_CALL(self.tape, self.stack, self.cache)
         assert self.tape.definitions[b'\x00'].pointer == 0
-        assert self.queue.qsize() == 2
-        assert self.queue.get(False) == b'\x03'
-        assert self.queue.get(False) == b'\x03'
+        assert self.stack.size() == 2
+        assert self.stack.get(False) == b'\x03'
+        assert self.stack.get(False) == b'\x03'
 
-    def test_OP_IF_reads_2uint_length_from_tape_pulls_top_queue_bool_and_executes_if_true(self):
+    def test_OP_IF_reads_2uint_length_from_tape_pulls_top_stack_bool_and_executes_if_true(self):
         length = b'\x00\x02'
         op_push0 = b'\x02'
         self.tape = classes.Tape(length + op_push0 + b'X')
-        assert self.queue.empty()
-        self.queue.put(b'\x01')
-        functions.OP_IF(self.tape, self.queue, self.cache)
+        assert self.stack.empty()
+        self.stack.put(b'\x01')
+        functions.OP_IF(self.tape, self.stack, self.cache)
         assert self.tape.has_terminated()
-        assert self.queue.get(False) == b'X'
-        assert self.queue.empty()
+        assert self.stack.get(False) == b'X'
+        assert self.stack.empty()
 
         length = b'\x00\x02'
         op_push0 = b'\x02'
         self.tape = classes.Tape(length + op_push0 + b'X')
-        assert self.queue.empty()
-        self.queue.put(b'\x00')
-        functions.OP_IF(self.tape, self.queue, self.cache)
+        assert self.stack.empty()
+        self.stack.put(b'\x00')
+        functions.OP_IF(self.tape, self.stack, self.cache)
         assert self.tape.has_terminated()
-        assert self.queue.empty()
+        assert self.stack.empty()
 
-    def test_OP_IF_ELSE_reads_2_definitions_from_tape_and_executes_first_one_if_top_queue_value(self):
+    def test_OP_IF_ELSE_reads_2_definitions_from_tape_and_executes_first_one_if_top_stack_value(self):
         length = b'\x00\x02'
         if_def = b'\x02Y'
         else_def = b'\x02N'
         self.tape = classes.Tape(length + if_def + length + else_def)
-        assert self.queue.empty()
-        self.queue.put(b'\x01')
-        functions.OP_IF_ELSE(self.tape, self.queue, self.cache)
+        assert self.stack.empty()
+        self.stack.put(b'\x01')
+        functions.OP_IF_ELSE(self.tape, self.stack, self.cache)
         assert self.tape.has_terminated()
-        assert self.queue.get(False) == b'Y'
-        assert self.queue.empty()
+        assert self.stack.get(False) == b'Y'
+        assert self.stack.empty()
 
         self.tape = classes.Tape(length + if_def + length + else_def)
-        assert self.queue.empty()
-        self.queue.put(b'\x00')
-        functions.OP_IF_ELSE(self.tape, self.queue, self.cache)
+        assert self.stack.empty()
+        self.stack.put(b'\x00')
+        functions.OP_IF_ELSE(self.tape, self.stack, self.cache)
         assert self.tape.has_terminated()
-        assert self.queue.get(False) == b'N'
-        assert self.queue.empty()
+        assert self.stack.get(False) == b'N'
+        assert self.stack.empty()
 
     def test_OP_TRY_EXCEPT_reads_2_definitions_from_tape_executes_properly(self):
         try_len = b'\x00\x02'
@@ -1289,39 +1279,39 @@ class TestFunctions(unittest.TestCase):
         try_def = b'\x00\x20'
         except_def = b'\x01'
         self.tape = classes.Tape(try_len + try_def + except_len + except_def)
-        assert self.queue.empty()
+        assert self.stack.empty()
         assert b'E' not in self.cache
-        functions.OP_TRY_EXCEPT(self.tape, self.queue, self.cache)
+        functions.OP_TRY_EXCEPT(self.tape, self.stack, self.cache)
         assert self.tape.has_terminated()
         assert b'E' in self.cache
         assert len(self.cache[b'E']) == 1
         exname, exstr = str(self.cache[b'E'][0], 'utf-8').split('|')
         assert exname == 'ScriptExecutionError'
         assert exstr == 'OP_VERIFY check failed'
-        assert not self.queue.empty()
-        item = self.queue.get(False)
+        assert not self.stack.empty()
+        item = self.stack.get(False)
         assert functions.bytes_to_bool(item)
 
-    def test_OP_EVAL_pulls_value_from_queue_and_runs_as_script(self):
+    def test_OP_EVAL_pulls_value_from_stack_and_runs_as_script(self):
         code = b'\x02F'
-        assert self.queue.empty()
-        self.queue.put(code)
-        functions.OP_EVAL(self.tape, self.queue, self.cache)
+        assert self.stack.empty()
+        self.stack.put(code)
+        functions.OP_EVAL(self.tape, self.stack, self.cache)
         assert self.tape.has_terminated()
-        assert not self.queue.empty()
-        assert self.queue.get(False) == b'F'
-        assert self.queue.empty()
+        assert not self.stack.empty()
+        assert self.stack.get(False) == b'F'
+        assert self.stack.empty()
 
     def test_OP_EVAL_raises_ScriptExecutionError_if_disallow_OP_EVAL_flag_set(self):
         self.tape.flags['disallow_OP_EVAL'] = True
         with self.assertRaises(errors.ScriptExecutionError) as e:
-            functions.OP_EVAL(self.tape, self.queue, self.cache)
+            functions.OP_EVAL(self.tape, self.stack, self.cache)
         assert str(e.exception) == 'OP_EVAL disallowed'
 
     def test_OP_EVAL_raises_ValueError_for_empty_script(self):
-        self.queue.put(b'')
+        self.stack.put(b'')
         with self.assertRaises(ValueError) as e:
-            functions.OP_EVAL(self.tape, self.queue, self.cache)
+            functions.OP_EVAL(self.tape, self.stack, self.cache)
         assert str(e.exception) == 'OP_EVAL encountered empty script'
 
     def test_OP_MERKLEVAL_single_branch(self):
@@ -1330,23 +1320,23 @@ class TestFunctions(unittest.TestCase):
         commitment_a = sha256(committed_branch_a).digest()
         commitment_b = sha256(committed_branch_b).digest()
         commitment_root = sha256(commitment_a + commitment_b).digest()
-        self.queue.put(commitment_b)
-        self.queue.put(committed_branch_a)
-        self.queue.put(b'\xff')
+        self.stack.put(commitment_b)
+        self.stack.put(committed_branch_a)
+        self.stack.put(b'\xff')
         self.tape = classes.Tape(commitment_root)
-        functions.OP_MERKLEVAL(self.tape, self.queue, self.cache)
-        assert not self.queue.empty()
-        assert self.queue.get(False) == b'A'
-        assert self.queue.empty()
+        functions.OP_MERKLEVAL(self.tape, self.stack, self.cache)
+        assert not self.stack.empty()
+        assert self.stack.get(False) == b'A'
+        assert self.stack.empty()
 
-        self.queue.put(commitment_a)
-        self.queue.put(committed_branch_b)
-        self.queue.put(b'\x00')
+        self.stack.put(commitment_a)
+        self.stack.put(committed_branch_b)
+        self.stack.put(b'\x00')
         self.tape = classes.Tape(commitment_root)
-        functions.OP_MERKLEVAL(self.tape, self.queue, self.cache)
-        assert not self.queue.empty()
-        assert self.queue.get(False) == b'B'
-        assert self.queue.empty()
+        functions.OP_MERKLEVAL(self.tape, self.stack, self.cache)
+        assert not self.stack.empty()
+        assert self.stack.get(False) == b'B'
+        assert self.stack.empty()
 
     def test_OP_MERKLEVAL_double_branch(self):
         committed_branch_a = b'\x02A'
@@ -1360,38 +1350,38 @@ class TestFunctions(unittest.TestCase):
         commitment_b = sha256(committed_branch_b_root).digest()
 
         commitment_root = sha256(commitment_a + commitment_b).digest()
-        self.queue.put(commitment_b)
-        self.queue.put(committed_branch_a)
-        self.queue.put(b'\xff')
+        self.stack.put(commitment_b)
+        self.stack.put(committed_branch_a)
+        self.stack.put(b'\xff')
         self.tape = classes.Tape(commitment_root)
-        functions.OP_MERKLEVAL(self.tape, self.queue, self.cache)
-        assert not self.queue.empty()
-        assert self.queue.get(False) == b'A'
-        assert self.queue.empty()
+        functions.OP_MERKLEVAL(self.tape, self.stack, self.cache)
+        assert not self.stack.empty()
+        assert self.stack.get(False) == b'A'
+        assert self.stack.empty()
 
-        self.queue.put(commitment_bb)
-        self.queue.put(committed_branch_ba)
-        self.queue.put(b'\xff')
-        self.queue.put(commitment_a)
-        self.queue.put(committed_branch_b_root)
-        self.queue.put(b'\x00')
+        self.stack.put(commitment_bb)
+        self.stack.put(committed_branch_ba)
+        self.stack.put(b'\xff')
+        self.stack.put(commitment_a)
+        self.stack.put(committed_branch_b_root)
+        self.stack.put(b'\x00')
         self.tape = classes.Tape(commitment_root)
-        functions.OP_MERKLEVAL(self.tape, self.queue, self.cache)
-        assert not self.queue.empty()
-        assert self.queue.get(False) == b'BA'
-        assert self.queue.empty()
+        functions.OP_MERKLEVAL(self.tape, self.stack, self.cache)
+        assert not self.stack.empty()
+        assert self.stack.get(False) == b'BA'
+        assert self.stack.empty()
 
-        self.queue.put(commitment_ba)
-        self.queue.put(committed_branch_bb)
-        self.queue.put(b'\x00')
-        self.queue.put(commitment_a)
-        self.queue.put(committed_branch_b_root)
-        self.queue.put(b'\x00')
+        self.stack.put(commitment_ba)
+        self.stack.put(committed_branch_bb)
+        self.stack.put(b'\x00')
+        self.stack.put(commitment_a)
+        self.stack.put(committed_branch_b_root)
+        self.stack.put(b'\x00')
         self.tape = classes.Tape(commitment_root)
-        functions.OP_MERKLEVAL(self.tape, self.queue, self.cache)
-        assert not self.queue.empty()
-        assert self.queue.get(False) == b'BB'
-        assert self.queue.empty()
+        functions.OP_MERKLEVAL(self.tape, self.stack, self.cache)
+        assert not self.stack.empty()
+        assert self.stack.get(False) == b'BB'
+        assert self.stack.empty()
 
     def test_OP_MERKLEVAL_raises_error_on_mismatching_hash(self):
         committed_branch_a = b'\x02A'
@@ -1399,173 +1389,173 @@ class TestFunctions(unittest.TestCase):
         commitment_a = sha256(committed_branch_a).digest()
         commitment_b = sha256(committed_branch_b).digest()
         commitment_root = sha256(commitment_a + commitment_b).digest()
-        self.queue.put(commitment_b)
-        self.queue.put(committed_branch_a + b'uncommitted code')
-        self.queue.put(b'\xff')
+        self.stack.put(commitment_b)
+        self.stack.put(committed_branch_a + b'uncommitted code')
+        self.stack.put(b'\xff')
         self.tape = classes.Tape(commitment_root)
 
         with self.assertRaises(errors.ScriptExecutionError) as e:
-            functions.OP_MERKLEVAL(self.tape, self.queue, self.cache)
+            functions.OP_MERKLEVAL(self.tape, self.stack, self.cache)
         assert str(e.exception) == 'OP_VERIFY check failed'
 
-    def test_OP_LESS_pulls_two_ints_from_queue_and_places_bool_on_queue(self):
+    def test_OP_LESS_pulls_two_ints_from_stack_and_places_bool_on_stack(self):
         val1 = functions.int_to_bytes(123)
         val2 = functions.int_to_bytes(321)
-        self.queue.put(val1)
-        self.queue.put(val2)
-        functions.OP_LESS(self.tape, self.queue, self.cache)
-        assert self.queue._qsize() == 1
-        result = self.queue.get(False)
+        self.stack.put(val1)
+        self.stack.put(val2)
+        functions.OP_LESS(self.tape, self.stack, self.cache)
+        assert self.stack.size() == 1
+        result = self.stack.get(False)
         assert result == b'\x00'
 
-        self.queue.put(val1)
-        self.queue.put(val1)
-        functions.OP_LESS(self.tape, self.queue, self.cache)
-        assert self.queue._qsize() == 1
-        result = self.queue.get(False)
+        self.stack.put(val1)
+        self.stack.put(val1)
+        functions.OP_LESS(self.tape, self.stack, self.cache)
+        assert self.stack.size() == 1
+        result = self.stack.get(False)
         assert result == b'\x00'
 
-        self.queue.put(val2)
-        self.queue.put(val1)
-        functions.OP_LESS(self.tape, self.queue, self.cache)
-        assert self.queue._qsize() == 1
-        result = self.queue.get(False)
+        self.stack.put(val2)
+        self.stack.put(val1)
+        functions.OP_LESS(self.tape, self.stack, self.cache)
+        assert self.stack.size() == 1
+        result = self.stack.get(False)
         assert result == b'\xff'
 
-    def test_OP_LESS_OR_EQUAL_pulls_two_ints_from_queue_and_places_bool_on_queue(self):
+    def test_OP_LESS_OR_EQUAL_pulls_two_ints_from_stack_and_places_bool_on_stack(self):
         val1 = functions.int_to_bytes(123)
         val2 = functions.int_to_bytes(321)
-        self.queue.put(val1)
-        self.queue.put(val2)
-        functions.OP_LESS_OR_EQUAL(self.tape, self.queue, self.cache)
-        assert self.queue._qsize() == 1
-        result = self.queue.get(False)
+        self.stack.put(val1)
+        self.stack.put(val2)
+        functions.OP_LESS_OR_EQUAL(self.tape, self.stack, self.cache)
+        assert self.stack.size() == 1
+        result = self.stack.get(False)
         assert result == b'\x00'
 
-        self.queue.put(val1)
-        self.queue.put(val1)
-        functions.OP_LESS_OR_EQUAL(self.tape, self.queue, self.cache)
-        assert self.queue._qsize() == 1
-        result = self.queue.get(False)
+        self.stack.put(val1)
+        self.stack.put(val1)
+        functions.OP_LESS_OR_EQUAL(self.tape, self.stack, self.cache)
+        assert self.stack.size() == 1
+        result = self.stack.get(False)
         assert result == b'\xff'
 
-        self.queue.put(val2)
-        self.queue.put(val1)
-        functions.OP_LESS_OR_EQUAL(self.tape, self.queue, self.cache)
-        assert self.queue._qsize() == 1
-        result = self.queue.get(False)
+        self.stack.put(val2)
+        self.stack.put(val1)
+        functions.OP_LESS_OR_EQUAL(self.tape, self.stack, self.cache)
+        assert self.stack.size() == 1
+        result = self.stack.get(False)
         assert result == b'\xff'
 
-    def test_OP_GET_VALUE_pulls_str_from_tape_and_puts_cache_vals_onto_queue(self):
+    def test_OP_GET_VALUE_pulls_str_from_tape_and_puts_cache_vals_onto_stack(self):
         key = bytes('test', 'utf-8')
         self.cache['test'] = 123
         self.tape.data = functions.int_to_bytes(len(key)) + key
-        functions.OP_GET_VALUE(self.tape, self.queue, self.cache)
-        assert self.queue.qsize() == 1
+        functions.OP_GET_VALUE(self.tape, self.stack, self.cache)
+        assert self.stack.size() == 1
         assert self.tape.has_terminated()
-        result = self.queue.get(False)
+        result = self.stack.get(False)
         assert result == functions.int_to_bytes(123)
 
         self.cache['test'] = [123, 12.34, 'abc', b'ac']
-        assert self.queue.qsize() == 0
+        assert self.stack.size() == 0
         self.tape.reset_pointer()
-        functions.OP_GET_VALUE(self.tape, self.queue, self.cache)
-        assert self.queue.qsize() == 4
+        functions.OP_GET_VALUE(self.tape, self.stack, self.cache)
+        assert self.stack.size() == 4
         result = [
-            self.queue.get(False),
-            self.queue.get(False),
-            self.queue.get(False),
-            self.queue.get(False),
+            self.stack.get(False),
+            self.stack.get(False),
+            self.stack.get(False),
+            self.stack.get(False),
         ]
         assert result[0] == b'ac'
         assert result[1] == bytes('abc', 'utf-8')
         assert result[2] == functions.float_to_bytes(12.34)
         assert result[3] == functions.int_to_bytes(123)
 
-    def test_OP_FLOAT_LESS_pulls_two_floats_from_queue_and_places_bool_on_queue(self):
+    def test_OP_FLOAT_LESS_pulls_two_floats_from_stack_and_places_bool_on_stack(self):
         val1 = functions.float_to_bytes(123.0)
         val2 = functions.float_to_bytes(321.0)
-        self.queue.put(val1)
-        self.queue.put(val2)
-        functions.OP_FLOAT_LESS(self.tape, self.queue, self.cache)
-        assert self.queue._qsize() == 1
-        result = self.queue.get(False)
+        self.stack.put(val1)
+        self.stack.put(val2)
+        functions.OP_FLOAT_LESS(self.tape, self.stack, self.cache)
+        assert self.stack.size() == 1
+        result = self.stack.get(False)
         assert result == b'\x00'
 
-        self.queue.put(val1)
-        self.queue.put(val1)
-        functions.OP_FLOAT_LESS(self.tape, self.queue, self.cache)
-        assert self.queue._qsize() == 1
-        result = self.queue.get(False)
+        self.stack.put(val1)
+        self.stack.put(val1)
+        functions.OP_FLOAT_LESS(self.tape, self.stack, self.cache)
+        assert self.stack.size() == 1
+        result = self.stack.get(False)
         assert result == b'\x00'
 
-        self.queue.put(val2)
-        self.queue.put(val1)
-        functions.OP_FLOAT_LESS(self.tape, self.queue, self.cache)
-        assert self.queue._qsize() == 1
-        result = self.queue.get(False)
+        self.stack.put(val2)
+        self.stack.put(val1)
+        functions.OP_FLOAT_LESS(self.tape, self.stack, self.cache)
+        assert self.stack.size() == 1
+        result = self.stack.get(False)
         assert result == b'\xff'
 
-    def test_OP_FLOAT_LESS_OR_EQUAL_pulls_two_floats_from_queue_and_places_bool_on_queue(self):
+    def test_OP_FLOAT_LESS_OR_EQUAL_pulls_two_floats_from_stack_and_places_bool_on_stack(self):
         val1 = functions.float_to_bytes(123.0)
         val2 = functions.float_to_bytes(321.0)
-        self.queue.put(val1)
-        self.queue.put(val2)
-        functions.OP_FLOAT_LESS_OR_EQUAL(self.tape, self.queue, self.cache)
-        assert self.queue._qsize() == 1
-        result = self.queue.get(False)
+        self.stack.put(val1)
+        self.stack.put(val2)
+        functions.OP_FLOAT_LESS_OR_EQUAL(self.tape, self.stack, self.cache)
+        assert self.stack.size() == 1
+        result = self.stack.get(False)
         assert result == b'\x00'
 
-        self.queue.put(val1)
-        self.queue.put(val1)
-        functions.OP_FLOAT_LESS_OR_EQUAL(self.tape, self.queue, self.cache)
-        assert self.queue._qsize() == 1
-        result = self.queue.get(False)
+        self.stack.put(val1)
+        self.stack.put(val1)
+        functions.OP_FLOAT_LESS_OR_EQUAL(self.tape, self.stack, self.cache)
+        assert self.stack.size() == 1
+        result = self.stack.get(False)
         assert result == b'\xff'
 
-        self.queue.put(val2)
-        self.queue.put(val1)
-        functions.OP_FLOAT_LESS_OR_EQUAL(self.tape, self.queue, self.cache)
-        assert self.queue._qsize() == 1
-        result = self.queue.get(False)
+        self.stack.put(val2)
+        self.stack.put(val1)
+        functions.OP_FLOAT_LESS_OR_EQUAL(self.tape, self.stack, self.cache)
+        assert self.stack.size() == 1
+        result = self.stack.get(False)
         assert result == b'\xff'
 
     def test_OP_INT_TO_FLOAT_works_correctly(self):
         val = functions.int_to_bytes(123)
-        self.queue.put(val)
-        functions.OP_INT_TO_FLOAT(self.tape, self.queue, self.cache)
-        result = self.queue.get(False)
+        self.stack.put(val)
+        functions.OP_INT_TO_FLOAT(self.tape, self.stack, self.cache)
+        result = self.stack.get(False)
         assert result == functions.float_to_bytes(123 * 1.0)
 
     def test_OP_FLOAT_TO_INT_works_correctly(self):
         val = functions.float_to_bytes(123.1)
-        self.queue.put(val)
-        functions.OP_FLOAT_TO_INT(self.tape, self.queue, self.cache)
-        result = self.queue.get(False)
+        self.stack.put(val)
+        functions.OP_FLOAT_TO_INT(self.tape, self.stack, self.cache)
+        result = self.stack.get(False)
         assert result == functions.int_to_bytes(123)
 
     def test_OP_LOOP_raises_error_for_too_many_executions(self):
         self.tape.data = b'\x00\x00'
-        self.queue.put(b'\x01')
+        self.stack.put(b'\x01')
         with self.assertRaises(errors.ScriptExecutionError) as e:
-            functions.OP_LOOP(self.tape, self.queue, self.cache)
+            functions.OP_LOOP(self.tape, self.stack, self.cache)
         assert 'OP_LOOP limit exceeded' in str(e.exception)
 
-    def test_OP_LOOP_executes_for_true_top_queue_value(self):
+    def test_OP_LOOP_executes_for_true_top_stack_value(self):
         self.tape.data = b'\x00\x01\x00'
-        self.queue.put(b'\x01')
-        assert self.queue.qsize() == 1
-        functions.OP_LOOP(self.tape, self.queue, self.cache)
-        assert self.queue.qsize() == 2
+        self.stack.put(b'\x01')
+        assert self.stack.size() == 1
+        functions.OP_LOOP(self.tape, self.stack, self.cache)
+        assert self.stack.size() == 2
 
-    def test_OP_LOOP_skips_execution_for_false_top_queue_value(self):
+    def test_OP_LOOP_skips_execution_for_false_top_stack_value(self):
         self.tape.data = b'\x00\x01\x00'
-        self.queue.put(b'\x00')
-        assert self.queue.qsize() == 1
-        functions.OP_LOOP(self.tape, self.queue, self.cache)
-        assert self.queue.qsize() == 1
+        self.stack.put(b'\x00')
+        assert self.stack.size() == 1
+        functions.OP_LOOP(self.tape, self.stack, self.cache)
+        assert self.stack.size() == 1
 
-    def test_OP_CHECK_MULTISIG_pulls_m_sigs_from_queue_then_n_vkeys_and_verifies(self):
+    def test_OP_CHECK_MULTISIG_pulls_m_sigs_from_stack_then_n_vkeys_and_verifies(self):
         # 3-of-3
         self.tape.data = b'\x00\x03\x03'
         msg = b'hi I am a protocol value that is signed'
@@ -1577,21 +1567,21 @@ class TestFunctions(unittest.TestCase):
         ]
         vkeys = [skey.verify_key for skey in skeys]
         sigs = [skey.sign(msg).signature for skey in skeys]
-        [self.queue.put(bytes(sig)) for sig in sigs]
-        [self.queue.put(bytes(vkey)) for vkey in vkeys]
-        functions.OP_CHECK_MULTISIG(self.tape, self.queue, self.cache)
-        assert self.queue.qsize() == 1
-        assert functions.bytes_to_bool(self.queue.get(False))
+        [self.stack.put(bytes(sig)) for sig in sigs]
+        [self.stack.put(bytes(vkey)) for vkey in vkeys]
+        functions.OP_CHECK_MULTISIG(self.tape, self.stack, self.cache)
+        assert self.stack.size() == 1
+        assert functions.bytes_to_bool(self.stack.get(False))
 
         # 2-of-3
         self.tape = classes.Tape(b'\x00\x02\x03')
-        [self.queue.put(bytes(sig)) for sig in sigs[:2]]
-        [self.queue.put(bytes(vkey)) for vkey in vkeys]
-        functions.OP_CHECK_MULTISIG(self.tape, self.queue, self.cache)
-        assert self.queue.qsize() == 1
-        assert functions.bytes_to_bool(self.queue.get(False))
+        [self.stack.put(bytes(sig)) for sig in sigs[:2]]
+        [self.stack.put(bytes(vkey)) for vkey in vkeys]
+        functions.OP_CHECK_MULTISIG(self.tape, self.stack, self.cache)
+        assert self.stack.size() == 1
+        assert functions.bytes_to_bool(self.stack.get(False))
 
-    def test_OP_CHECK_MULTISIG_puts_false_onto_queue_for_reused_sig(self):
+    def test_OP_CHECK_MULTISIG_puts_false_onto_stack_for_reused_sig(self):
         # 3-of-3
         self.tape.data = b'\x00\x03\x03'
         msg = b'hi I am a protocol value that is signed'
@@ -1603,13 +1593,13 @@ class TestFunctions(unittest.TestCase):
         ]
         vkeys = [skey.verify_key for skey in skeys]
         sigs = [skey.sign(msg).signature for skey in skeys]
-        [self.queue.put(bytes(sigs[0])) for _ in sigs]
-        [self.queue.put(bytes(vkey)) for vkey in vkeys]
-        functions.OP_CHECK_MULTISIG(self.tape, self.queue, self.cache)
-        assert self.queue.qsize() == 1
-        assert not functions.bytes_to_bool(self.queue.get(False))
+        [self.stack.put(bytes(sigs[0])) for _ in sigs]
+        [self.stack.put(bytes(vkey)) for vkey in vkeys]
+        functions.OP_CHECK_MULTISIG(self.tape, self.stack, self.cache)
+        assert self.stack.size() == 1
+        assert not functions.bytes_to_bool(self.stack.get(False))
 
-    def test_OP_CHECK_MULTISIG_puts_false_onto_queue_for_sig_using_wrong_key(self):
+    def test_OP_CHECK_MULTISIG_puts_false_onto_stack_for_sig_using_wrong_key(self):
         # 2-of-2
         self.tape.data = b'\x00\x02\x02'
         msg = b'hi I am a protocol value that is signed'
@@ -1621,11 +1611,11 @@ class TestFunctions(unittest.TestCase):
         ]
         vkeys = [skey.verify_key for skey in skeys]
         sigs = [skey.sign(msg).signature for skey in skeys]
-        [self.queue.put(bytes(sig)) for sig in sigs[1:]]
-        [self.queue.put(bytes(vkey)) for vkey in vkeys[:2]]
-        functions.OP_CHECK_MULTISIG(self.tape, self.queue, self.cache)
-        assert self.queue.qsize() == 1
-        assert not functions.bytes_to_bool(self.queue.get(False))
+        [self.stack.put(bytes(sig)) for sig in sigs[1:]]
+        [self.stack.put(bytes(vkey)) for vkey in vkeys[:2]]
+        functions.OP_CHECK_MULTISIG(self.tape, self.stack, self.cache)
+        assert self.stack.size() == 1
+        assert not functions.bytes_to_bool(self.stack.get(False))
 
     def test_OP_CHECK_MULTISIG_VERIFY_executes_without_error_for_good_paths(self):
         # 3-of-3
@@ -1639,17 +1629,17 @@ class TestFunctions(unittest.TestCase):
         ]
         vkeys = [skey.verify_key for skey in skeys]
         sigs = [skey.sign(msg).signature for skey in skeys]
-        [self.queue.put(bytes(sig)) for sig in sigs]
-        [self.queue.put(bytes(vkey)) for vkey in vkeys]
-        functions.OP_CHECK_MULTISIG_VERIFY(self.tape, self.queue, self.cache)
-        assert self.queue.qsize() == 0
+        [self.stack.put(bytes(sig)) for sig in sigs]
+        [self.stack.put(bytes(vkey)) for vkey in vkeys]
+        functions.OP_CHECK_MULTISIG_VERIFY(self.tape, self.stack, self.cache)
+        assert self.stack.size() == 0
 
         # 2-of-3
         self.tape = classes.Tape(b'\x00\x02\x03')
-        [self.queue.put(bytes(sig)) for sig in sigs[:2]]
-        [self.queue.put(bytes(vkey)) for vkey in vkeys]
-        functions.OP_CHECK_MULTISIG_VERIFY(self.tape, self.queue, self.cache)
-        assert self.queue.qsize() == 0
+        [self.stack.put(bytes(sig)) for sig in sigs[:2]]
+        [self.stack.put(bytes(vkey)) for vkey in vkeys]
+        functions.OP_CHECK_MULTISIG_VERIFY(self.tape, self.stack, self.cache)
+        assert self.stack.size() == 0
 
     def test_OP_CHECK_MULTISIG_VERIFY_raises_error_for_reused_sig(self):
         # 3-of-3
@@ -1663,11 +1653,11 @@ class TestFunctions(unittest.TestCase):
         ]
         vkeys = [skey.verify_key for skey in skeys]
         sigs = [skey.sign(msg).signature for skey in skeys]
-        [self.queue.put(bytes(sigs[0])) for _ in sigs]
-        [self.queue.put(bytes(vkey)) for vkey in vkeys]
+        [self.stack.put(bytes(sigs[0])) for _ in sigs]
+        [self.stack.put(bytes(vkey)) for vkey in vkeys]
         with self.assertRaises(errors.ScriptExecutionError) as e:
-            functions.OP_CHECK_MULTISIG_VERIFY(self.tape, self.queue, self.cache)
-        assert self.queue.qsize() == 0
+            functions.OP_CHECK_MULTISIG_VERIFY(self.tape, self.stack, self.cache)
+        assert self.stack.size() == 0
 
     def test_OP_CHECK_MULTISIG_VERIFY_raises_error_for_sig_using_wrong_key(self):
         # 2-of-2
@@ -1681,48 +1671,48 @@ class TestFunctions(unittest.TestCase):
         ]
         vkeys = [skey.verify_key for skey in skeys]
         sigs = [skey.sign(msg).signature for skey in skeys]
-        [self.queue.put(bytes(sig)) for sig in sigs[1:]]
-        [self.queue.put(bytes(vkey)) for vkey in vkeys[:2]]
+        [self.stack.put(bytes(sig)) for sig in sigs[1:]]
+        [self.stack.put(bytes(vkey)) for vkey in vkeys[:2]]
         with self.assertRaises(errors.ScriptExecutionError) as e:
-            functions.OP_CHECK_MULTISIG_VERIFY(self.tape, self.queue, self.cache)
-        assert self.queue.qsize() == 0
+            functions.OP_CHECK_MULTISIG_VERIFY(self.tape, self.stack, self.cache)
+        assert self.stack.size() == 0
 
     def test_OP_SIGN_creates_valid_signatures(self):
         seed = token_bytes(32)
         self.tape.data = b'\x02'
-        self.queue.put(seed)
+        self.stack.put(seed)
         self.cache['sigfield1'] = b'hello'
         self.cache['sigfield2'] = b'excluded by sigflag'
         self.cache['sigfield3'] = b'world'
-        functions.OP_SIGN(self.tape, self.queue, self.cache)
-        sig = self.queue.get(False)
-        assert self.queue.qsize() == 0
+        functions.OP_SIGN(self.tape, self.stack, self.cache)
+        sig = self.stack.get(False)
+        assert self.stack.size() == 0
         assert len(sig) == nacl.bindings.crypto_sign_BYTES + 1, 'invalid signature'
 
-        self.queue.put(sig)
-        self.queue.put(bytes(SigningKey(seed).verify_key))
+        self.stack.put(sig)
+        self.stack.put(bytes(SigningKey(seed).verify_key))
         self.tape.reset()
-        functions.OP_CHECK_SIG(self.tape, self.queue, self.cache)
-        result = self.queue.get(False)
-        assert self.queue.qsize() == 0
+        functions.OP_CHECK_SIG(self.tape, self.stack, self.cache)
+        result = self.stack.get(False)
+        assert self.stack.size() == 0
         assert result == b'\xff'
 
     def test_OP_SIGN_raises_error_for_invalid_key(self):
         seed = b'not a valid key length'
         self.tape.data = b'\x00'
-        self.queue.put(seed)
+        self.stack.put(seed)
         self.cache['sigfield1'] = b'test'
         with self.assertRaises(ValueError) as e:
-            functions.OP_SIGN(self.tape, self.queue, self.cache)
+            functions.OP_SIGN(self.tape, self.stack, self.cache)
         assert 'invalid' in str(e.exception)
 
-    def test_OP_SIGN_QUEUE_signs_message_from_queue_using_skey_seed_from_queue(self):
+    def test_OP_SIGN_QUEUE_signs_message_from_stack_using_skey_seed_from_stack(self):
         seed = token_bytes(nacl.bindings.crypto_sign_SEEDBYTES)
         msg = b'hello world'
-        self.queue.put(msg)
-        self.queue.put(seed)
-        functions.OP_SIGN_QUEUE(self.tape, self.queue, self.cache)
-        sig = self.queue.get(False)
+        self.stack.put(msg)
+        self.stack.put(seed)
+        functions.OP_SIGN_QUEUE(self.tape, self.stack, self.cache)
+        sig = self.stack.get(False)
         assert len(sig) == nacl.bindings.crypto_sign_BYTES
         SigningKey(seed).verify_key.verify(msg, sig)
 
@@ -1732,115 +1722,115 @@ class TestFunctions(unittest.TestCase):
         skey = SigningKey(seed)
         sig = skey.sign(msg).signature
 
-        self.queue.put(msg)
-        self.queue.put(sig)
-        self.queue.put(bytes(skey.verify_key)[:-1])
+        self.stack.put(msg)
+        self.stack.put(sig)
+        self.stack.put(bytes(skey.verify_key)[:-1])
         with self.assertRaises(ValueError) as e:
-            functions.OP_CHECK_SIG_QUEUE(self.tape, self.queue, self.cache)
+            functions.OP_CHECK_SIG_QUEUE(self.tape, self.stack, self.cache)
         assert 'invalid vkey' in str(e.exception)
 
-        self.queue.put(msg)
-        self.queue.put(sig[:-1])
-        self.queue.put(bytes(skey.verify_key))
+        self.stack.put(msg)
+        self.stack.put(sig[:-1])
+        self.stack.put(bytes(skey.verify_key))
         with self.assertRaises(ValueError) as e:
-            functions.OP_CHECK_SIG_QUEUE(self.tape, self.queue, self.cache)
+            functions.OP_CHECK_SIG_QUEUE(self.tape, self.stack, self.cache)
         assert 'invalid sig' in str(e.exception)
 
-    def test_OP_CHECK_SIG_QUEUE_puts_correct_bool_onto_queue(self):
+    def test_OP_CHECK_SIG_QUEUE_puts_correct_bool_onto_stack(self):
         seed = token_bytes(nacl.bindings.crypto_sign_SEEDBYTES)
         msg = b'hello world'
         skey = SigningKey(seed)
         sig = skey.sign(msg).signature
 
-        self.queue.put(msg)
-        self.queue.put(sig)
-        self.queue.put(bytes(skey.verify_key))
-        functions.OP_CHECK_SIG_QUEUE(self.tape, self.queue, self.cache)
-        assert self.queue.qsize() == 1
-        assert self.queue.get(False) == b'\xff'
+        self.stack.put(msg)
+        self.stack.put(sig)
+        self.stack.put(bytes(skey.verify_key))
+        functions.OP_CHECK_SIG_QUEUE(self.tape, self.stack, self.cache)
+        assert self.stack.size() == 1
+        assert self.stack.get(False) == b'\xff'
 
-        self.queue.put(msg)
-        self.queue.put(sig[1:] + sig[:1])
-        self.queue.put(bytes(skey.verify_key))
-        functions.OP_CHECK_SIG_QUEUE(self.tape, self.queue, self.cache)
-        assert self.queue.qsize() == 1
-        assert self.queue.get(False) == b'\x00'
+        self.stack.put(msg)
+        self.stack.put(sig[1:] + sig[:1])
+        self.stack.put(bytes(skey.verify_key))
+        functions.OP_CHECK_SIG_QUEUE(self.tape, self.stack, self.cache)
+        assert self.stack.size() == 1
+        assert self.stack.get(False) == b'\x00'
 
     def test_OP_INVOKE_e2e(self):
         contract_id = b'abcdef'
         class ABIContract:
             def abi(self, args: list[bytes]) -> list[bytes]:
                 return [b''.join(args)]
-        self.queue.put(b'world')
-        self.queue.put(b'hello')
-        self.queue.put(b'\x02')
-        self.queue.put(contract_id)
+        self.stack.put(b'world')
+        self.stack.put(b'hello')
+        self.stack.put(b'\x02')
+        self.stack.put(contract_id)
         self.tape.contracts[contract_id] = ABIContract()
-        functions.OP_INVOKE(self.tape, self.queue, self.cache)
-        assert self.queue.qsize() == 1
-        assert self.queue.get(False) == b'helloworld'
+        functions.OP_INVOKE(self.tape, self.stack, self.cache)
+        assert self.stack.size() == 1
+        assert self.stack.get(False) == b'helloworld'
 
-    def test_OP_XOR_takes_two_values_and_puts_XOR_of_them_onto_queue(self):
+    def test_OP_XOR_takes_two_values_and_puts_XOR_of_them_onto_stack(self):
         item1 = b'hello'
         item2 = b'world'
         expected = []
         for i in range(len(item1)):
             expected.append(item1[i] ^ item2[i])
         expected = bytes(expected)
-        self.queue.put(item1)
-        self.queue.put(item2)
-        functions.OP_XOR(self.tape, self.queue, self.cache)
-        assert self.queue.qsize() == 1
-        observed = self.queue.get(False)
+        self.stack.put(item1)
+        self.stack.put(item2)
+        functions.OP_XOR(self.tape, self.stack, self.cache)
+        assert self.stack.size() == 1
+        observed = self.stack.get(False)
         assert expected == observed, \
             f'expected {expected.hex()}, observed {observed.hex()}'
 
-    def test_OP_OR_takes_two_values_and_puts_OR_of_them_onto_queue(self):
+    def test_OP_OR_takes_two_values_and_puts_OR_of_them_onto_stack(self):
         item1 = b'\xf0'
         item2 = b'\x01'
         expected = b'\xf1'
-        self.queue.put(item1)
-        self.queue.put(item2)
-        functions.OP_OR(self.tape, self.queue, self.cache)
-        assert self.queue.qsize() == 1
-        observed = self.queue.get(False)
+        self.stack.put(item1)
+        self.stack.put(item2)
+        functions.OP_OR(self.tape, self.stack, self.cache)
+        assert self.stack.size() == 1
+        observed = self.stack.get(False)
         assert expected == observed, \
             f'expected {expected.hex()}, observed {observed.hex()}'
 
-    def test_OP_AND_takes_two_values_and_puts_AND_of_them_onto_queue(self):
+    def test_OP_AND_takes_two_values_and_puts_AND_of_them_onto_stack(self):
         item1 = b'\xf0'
         item2 = b'\x01'
         expected = b'\x00'
-        self.queue.put(item1)
-        self.queue.put(item2)
-        functions.OP_AND(self.tape, self.queue, self.cache)
-        assert self.queue.qsize() == 1
-        observed = self.queue.get(False)
+        self.stack.put(item1)
+        self.stack.put(item2)
+        functions.OP_AND(self.tape, self.stack, self.cache)
+        assert self.stack.size() == 1
+        observed = self.stack.get(False)
         assert expected == observed, \
             f'expected {expected.hex()}, observed {observed.hex()}'
 
     def test_OP_DERIVE_SCALAR_creates_32_byte_value_from_seed(self):
-        self.queue.put(b'yellow submarine')
-        functions.OP_DERIVE_SCALAR(self.tape, self.queue, self.cache)
-        assert self.queue.qsize() == 1
-        result = self.queue.get(False)
+        self.stack.put(b'yellow submarine')
+        functions.OP_DERIVE_SCALAR(self.tape, self.stack, self.cache)
+        assert self.stack.size() == 1
+        result = self.stack.get(False)
         assert len(result) == 32
 
     def test_OP_CLAMP_SCALAR_clamps_32_bytes_to_ed25519_scalar(self):
         seed = token_bytes(32)
-        self.queue.put(seed)
+        self.stack.put(seed)
         self.tape.data = b'\x00'
-        functions.OP_CLAMP_SCALAR(self.tape, self.queue, self.cache)
-        assert self.queue.qsize() == 1
-        x1 = self.queue.get(False)
+        functions.OP_CLAMP_SCALAR(self.tape, self.stack, self.cache)
+        assert self.stack.size() == 1
+        x1 = self.stack.get(False)
         assert len(x1) == 32
         assert not (x1[31] & 0b10000000)
 
         self.tape = classes.Tape(b'\x01')
-        self.queue.put(seed)
-        functions.OP_CLAMP_SCALAR(self.tape, self.queue, self.cache)
-        assert self.queue.qsize() == 1
-        x2 = self.queue.get(False)
+        self.stack.put(seed)
+        functions.OP_CLAMP_SCALAR(self.tape, self.stack, self.cache)
+        assert self.stack.size() == 1
+        x2 = self.stack.get(False)
         assert len(x2) == 32
         assert not (x2[31] & 0b10000000)
         assert not (x2[0] & 0b00000111)
@@ -1848,21 +1838,21 @@ class TestFunctions(unittest.TestCase):
 
     def test_OP_CLAMP_SCALAR_raises_ValueError_for_invalid_seed_size(self):
         seed = token_bytes(token_bytes(1)[0] % 32) # 31 random bytes
-        self.queue.put(seed)
+        self.stack.put(seed)
         self.tape.data = b'\x00'
         with self.assertRaises(ValueError) as e:
-            functions.OP_CLAMP_SCALAR(self.tape, self.queue, self.cache)
+            functions.OP_CLAMP_SCALAR(self.tape, self.stack, self.cache)
 
-    def test_OP_DERIVE_POINT_replaces_scalar_with_point_on_queue_and_sets_cache(self):
+    def test_OP_DERIVE_POINT_replaces_scalar_with_point_on_stack_and_sets_cache(self):
         seed = token_bytes(32)
         x = functions.derive_key_from_seed(seed)
-        self.queue.put(x)
+        self.stack.put(x)
         assert b'X' not in self.cache
         functions.set_tape_flags(self.tape)
-        functions.OP_DERIVE_POINT(self.tape, self.queue, self.cache)
-        assert self.queue.qsize() == 1
+        functions.OP_DERIVE_POINT(self.tape, self.stack, self.cache)
+        assert self.stack.size() == 1
         assert b'X' in self.cache
-        X = self.queue.get(False)
+        X = self.stack.get(False)
         assert X != x
 
     def test_OP_DERIVE_POINT_works_with_CHECK_SIG(self):
@@ -1870,18 +1860,18 @@ class TestFunctions(unittest.TestCase):
         seed = token_bytes(32)
         x = functions.derive_key_from_seed(seed)
         m = b'hello world'
-        self.queue.put(x)
-        functions.OP_DERIVE_POINT(self.tape, self.queue, self.cache)
-        X = self.queue.get(False)
+        self.stack.put(x)
+        functions.OP_DERIVE_POINT(self.tape, self.stack, self.cache)
+        X = self.stack.get(False)
         sig = SigningKey(seed).sign(m).signature
 
         self.tape = classes.Tape(b'\x00')
-        self.queue.put(m)
-        self.queue.put(sig)
-        self.queue.put(X)
-        functions.OP_CHECK_SIG_QUEUE(self.tape, self.queue, self.cache)
-        assert self.queue.qsize() == 1
-        assert self.queue.get(False) == b'\xff'
+        self.stack.put(m)
+        self.stack.put(sig)
+        self.stack.put(X)
+        functions.OP_CHECK_SIG_QUEUE(self.tape, self.stack, self.cache)
+        assert self.stack.size() == 1
+        assert self.stack.get(False) == b'\xff'
 
     def test_OP_SUBTRACT_POINTS_and_OP_SUBTRACT_SCALARS_work_properly(self):
         seed1 = token_bytes(32)
@@ -1899,62 +1889,62 @@ class TestFunctions(unittest.TestCase):
         assert X3_1 not in (X1, X2)
 
         self.tape.data = b'\x02'
-        self.queue.put(x2)
-        self.queue.put(x3)
-        functions.OP_SUBTRACT_SCALARS(self.tape, self.queue, self.cache)
-        x = self.queue.get(False)
+        self.stack.put(x2)
+        self.stack.put(x3)
+        functions.OP_SUBTRACT_SCALARS(self.tape, self.stack, self.cache)
+        x = self.stack.get(False)
         X = functions.derive_point_from_scalar(x)
         assert X == X1
 
         self.tape.reset()
-        self.queue.put(X2)
-        self.queue.put(X3_1)
-        functions.OP_SUBTRACT_POINTS(self.tape, self.queue, self.cache)
-        X = self.queue.get(False)
+        self.stack.put(X2)
+        self.stack.put(X3_1)
+        functions.OP_SUBTRACT_POINTS(self.tape, self.stack, self.cache)
+        X = self.stack.get(False)
         assert X == X1
 
-    def test_OP_MAKE_ADAPTER_SIG_PUBLIC_takes_3_from_and_puts_2_on_queue(self):
+    def test_OP_MAKE_ADAPTER_SIG_PUBLIC_takes_3_from_and_puts_2_on_stack(self):
         seed = token_bytes(32)
         T = functions.derive_point_from_scalar(
             functions.derive_key_from_seed(token_bytes(32))
         )
         m = b'hello world'
-        self.queue.put(seed)
-        self.queue.put(m)
-        self.queue.put(T)
+        self.stack.put(seed)
+        self.stack.put(m)
+        self.stack.put(T)
         functions.set_tape_flags(self.tape)
-        functions.OP_MAKE_ADAPTER_SIG_PUBLIC(self.tape, self.queue, self.cache)
+        functions.OP_MAKE_ADAPTER_SIG_PUBLIC(self.tape, self.stack, self.cache)
         assert b'T' in self.cache
         assert b'R' in self.cache
         assert b'sa' in self.cache
-        assert self.queue.qsize() == 2
-        sa = self.queue.get(False)
-        R = self.queue.get(False)
+        assert self.stack.size() == 2
+        sa = self.stack.get(False)
+        R = self.stack.get(False)
         assert len(sa) == 32 and sa not in (seed, T, m)
         assert len(R) == 32 and R not in (seed, T, m)
 
-    def test_OP_MAKE_ADAPTER_SIG_PRIVATE_takes_3_from_and_puts_3_on_queue(self):
+    def test_OP_MAKE_ADAPTER_SIG_PRIVATE_takes_3_from_and_puts_3_on_stack(self):
         seed1 = token_bytes(32)
         seed2 = token_bytes(32)
         m = b'hello world'
-        self.queue.put(m)
-        self.queue.put(seed2)
-        self.queue.put(seed1)
+        self.stack.put(m)
+        self.stack.put(seed2)
+        self.stack.put(seed1)
         functions.set_tape_flags(self.tape)
-        functions.OP_MAKE_ADAPTER_SIG_PRIVATE(self.tape, self.queue, self.cache)
+        functions.OP_MAKE_ADAPTER_SIG_PRIVATE(self.tape, self.stack, self.cache)
         assert b't' in self.cache
         assert b'T' in self.cache
         assert b'R' in self.cache
         assert b'sa' in self.cache
-        assert self.queue.qsize() == 3
-        sa = self.queue.get(False)
-        R = self.queue.get(False)
-        T = self.queue.get(False)
+        assert self.stack.size() == 3
+        sa = self.stack.get(False)
+        R = self.stack.get(False)
+        T = self.stack.get(False)
         assert len(sa) == 32 and sa not in (seed1, seed2, m)
         assert len(T) == 32 and T not in (seed1, seed2, m)
         assert len(R) == 32 and R not in (seed1, seed2, m)
 
-    def test_OP_CHECK_ADAPTER_SIG_takes_5_from_and_puts_1_on_queue(self):
+    def test_OP_CHECK_ADAPTER_SIG_takes_5_from_and_puts_1_on_stack(self):
         R = functions.derive_point_from_scalar(
             functions.derive_key_from_seed(token_bytes(32))
         )
@@ -1967,14 +1957,14 @@ class TestFunctions(unittest.TestCase):
         X = functions.derive_point_from_scalar(
             functions.derive_key_from_seed(token_bytes(32))
         )
-        self.queue.put(sa)
-        self.queue.put(R)
-        self.queue.put(m)
-        self.queue.put(T)
-        self.queue.put(X)
-        functions.OP_CHECK_ADAPTER_SIG(self.tape, self.queue, self.cache)
-        assert self.queue.qsize() == 1
-        assert self.queue.get(False) == b'\x00'
+        self.stack.put(sa)
+        self.stack.put(R)
+        self.stack.put(m)
+        self.stack.put(T)
+        self.stack.put(X)
+        functions.OP_CHECK_ADAPTER_SIG(self.tape, self.stack, self.cache)
+        assert self.stack.size() == 1
+        assert self.stack.get(False) == b'\x00'
 
     def test_OP_MAKE_ADAPTER_SIG_and_OP_VALIDATE_ADAPTER_SIG_e2e(self):
         seed = token_bytes(32)
@@ -1983,33 +1973,33 @@ class TestFunctions(unittest.TestCase):
         )
         X = bytes(SigningKey(seed).verify_key)
         m = b'hello world'
-        self.queue.put(seed)
-        self.queue.put(m)
-        self.queue.put(T)
-        functions.OP_MAKE_ADAPTER_SIG_PUBLIC(self.tape, self.queue, self.cache)
-        assert self.queue.qsize() == 2
-        sa = self.queue.get(False)
-        R = self.queue.get(False)
+        self.stack.put(seed)
+        self.stack.put(m)
+        self.stack.put(T)
+        functions.OP_MAKE_ADAPTER_SIG_PUBLIC(self.tape, self.stack, self.cache)
+        assert self.stack.size() == 2
+        sa = self.stack.get(False)
+        R = self.stack.get(False)
 
         # positive case
-        self.queue.put(sa)
-        self.queue.put(R)
-        self.queue.put(m)
-        self.queue.put(T)
-        self.queue.put(X)
-        functions.OP_CHECK_ADAPTER_SIG(self.tape, self.queue, self.cache)
-        assert self.queue.qsize() == 1
-        assert self.queue.get(False) == b'\xff'
+        self.stack.put(sa)
+        self.stack.put(R)
+        self.stack.put(m)
+        self.stack.put(T)
+        self.stack.put(X)
+        functions.OP_CHECK_ADAPTER_SIG(self.tape, self.stack, self.cache)
+        assert self.stack.size() == 1
+        assert self.stack.get(False) == b'\xff'
 
         # negative case
-        self.queue.put(sa)
-        self.queue.put(R)
-        self.queue.put(m + b'qws')
-        self.queue.put(T)
-        self.queue.put(X)
-        functions.OP_CHECK_ADAPTER_SIG(self.tape, self.queue, self.cache)
-        assert self.queue.qsize() == 1
-        assert self.queue.get(False) == b'\x00'
+        self.stack.put(sa)
+        self.stack.put(R)
+        self.stack.put(m + b'qws')
+        self.stack.put(T)
+        self.stack.put(X)
+        functions.OP_CHECK_ADAPTER_SIG(self.tape, self.stack, self.cache)
+        assert self.stack.size() == 1
+        assert self.stack.get(False) == b'\x00'
 
     def test_OP_MAKE_ADAPTER_SIG_and_OP_DECRYPT_ADAPTER_SIG_e2e(self):
         seed1 = token_bytes(32)
@@ -2018,34 +2008,34 @@ class TestFunctions(unittest.TestCase):
         T = functions.derive_point_from_scalar(t)
         X = bytes(SigningKey(seed1).verify_key)
         m = b'hello world'
-        self.queue.put(seed1)
-        self.queue.put(m)
-        self.queue.put(T)
+        self.stack.put(seed1)
+        self.stack.put(m)
+        self.stack.put(T)
         functions.set_tape_flags(self.tape)
-        functions.OP_MAKE_ADAPTER_SIG_PUBLIC(self.tape, self.queue, self.cache)
-        assert self.queue.qsize() == 2
-        sa = self.queue.get(False)
-        R = self.queue.get(False)
+        functions.OP_MAKE_ADAPTER_SIG_PUBLIC(self.tape, self.stack, self.cache)
+        assert self.stack.size() == 2
+        sa = self.stack.get(False)
+        R = self.stack.get(False)
 
-        self.queue.put(sa)
-        self.queue.put(R)
-        self.queue.put(seed2)
-        functions.OP_DECRYPT_ADAPTER_SIG(self.tape, self.queue, self.cache)
-        assert self.queue.qsize() == 2
+        self.stack.put(sa)
+        self.stack.put(R)
+        self.stack.put(seed2)
+        functions.OP_DECRYPT_ADAPTER_SIG(self.tape, self.stack, self.cache)
+        assert self.stack.size() == 2
         assert b's' in self.cache
         assert b'RT' in self.cache
-        RT = self.queue.get(False)
-        s = self.queue.get(False)
+        RT = self.stack.get(False)
+        s = self.stack.get(False)
 
         # check signature
         self.cache['sigfield1'] = m
         self.tape = classes.Tape(b'\x00')
         functions.set_tape_flags(self.tape)
-        self.queue.put(RT + s)
-        self.queue.put(X)
-        functions.OP_CHECK_SIG(self.tape, self.queue, self.cache)
-        assert self.queue.qsize() == 1
-        assert self.queue.get(False) == b'\xff'
+        self.stack.put(RT + s)
+        self.stack.put(X)
+        functions.OP_CHECK_SIG(self.tape, self.stack, self.cache)
+        assert self.stack.size() == 1
+        assert self.stack.get(False) == b'\xff'
 
     # cryptographic proofs
     def test_ed25519_maths_meet_homomorphic_one_way_condition(self):
@@ -2102,35 +2092,35 @@ class TestFunctions(unittest.TestCase):
     def test_run_tape_executes_ops_until_tape_has_terminated(self):
         code = bytes.fromhex('990099009900990099009900')
         self.tape = classes.Tape(code)
-        assert self.queue.empty()
+        assert self.stack.empty()
         assert not self.cache
-        functions.run_tape(self.tape, self.queue, self.cache)
+        functions.run_tape(self.tape, self.stack, self.cache)
         assert self.tape.has_terminated()
-        assert self.queue.empty()
+        assert self.stack.empty()
 
         code = bytes.fromhex('290000000202012a00')
         self.tape = classes.Tape(code)
-        assert self.queue.empty()
+        assert self.stack.empty()
         assert not self.cache
-        functions.run_tape(self.tape, self.queue, self.cache)
+        functions.run_tape(self.tape, self.stack, self.cache)
         assert self.tape.has_terminated()
-        assert not self.queue.empty()
-        item = self.queue.get(False)
+        assert not self.stack.empty()
+        item = self.stack.get(False)
         assert item == b'\xff'
-        item = self.queue.get(False)
+        item = self.stack.get(False)
         assert item == b'\x02'
 
-    def test_run_script_returns_tuple_of_tape_queue_and_cache(self):
+    def test_run_script_returns_tuple_of_tape_stack_and_cache(self):
         code = bytes.fromhex('990099009900990099009900')
         result = functions.run_script(code)
         assert isinstance(result, tuple)
         assert len(result) == 3
         assert isinstance(result[0], classes.Tape)
-        assert isinstance(result[1], LifoQueue)
+        assert isinstance(result[1], classes.Stack)
         assert isinstance(result[2], dict)
         assert result[0].has_terminated()
 
-    def test_run_auth_script_returns_True_only_if_queue_has_single_True_value(self):
+    def test_run_auth_script_returns_True_only_if_stack_has_single_True_value(self):
         assert functions.run_auth_script(b'\x00') == False
         assert functions.run_auth_script(b'\x00\x20') == False
         assert functions.run_auth_script(b'\x01') == True
@@ -2142,59 +2132,59 @@ class TestFunctions(unittest.TestCase):
         assert str(e.exception) == 'callstack limit exceeded'
 
     def test_OP_RETURN_exits_local_context_and_returns_to_outer_context(self):
-        # return from def before adding int false to queue
+        # return from def before adding int false to stack
         code = b'\x29\x00\x00\x02\x30\x00\x2a\x00\x01'
-        tape, queue, _ = functions.run_script(code)
+        tape, stack, _ = functions.run_script(code)
         assert tape.has_terminated()
-        assert queue.get(False) == b'\xff'
-        assert queue.empty()
+        assert stack.get(False) == b'\xff'
+        assert stack.empty()
 
-        # return from def after adding int false to queue
+        # return from def after adding int false to stack
         code = b'\x29\x00\x00\x02\x00\x30\x2a\x00\x01'
-        tape, queue, _ = functions.run_script(code)
+        tape, stack, _ = functions.run_script(code)
         assert tape.has_terminated()
-        assert queue.get(False) == b'\xff'
-        assert queue.get(False) == b'\x00'
-        assert queue.empty()
+        assert stack.get(False) == b'\xff'
+        assert stack.get(False) == b'\x00'
+        assert stack.empty()
 
     def test_OP_RETURN_within_OP_IF_exits_outer_context(self):
-        # return from def within OP_IF before adding int false to queue
+        # return from def within OP_IF before adding int false to stack
         code = b'\x29\x00\x00\x06\x2b\x00\x02\x30\x00\x01\x01\x2a\x00\x02\x02'
-        tape, queue, _ = functions.run_script(code)
+        tape, stack, _ = functions.run_script(code)
         assert tape.has_terminated()
-        assert queue.get(False) == b'\x02'
-        assert queue.empty()
+        assert stack.get(False) == b'\x02'
+        assert stack.empty()
 
     def test_OP_RETURN_within_OP_IF_ELSE_exits_outer_context(self):
-        # return from def within OP_IF before adding int false to queue
+        # return from def within OP_IF before adding int false to stack
         code = b'\x29\x00\x00\x08\x2c\x00\x02\x30\x00\x00\x00\x01\x01\x2a\x00\x02\x02'
-        tape, queue, _ = functions.run_script(code)
+        tape, stack, _ = functions.run_script(code)
         assert tape.has_terminated()
-        assert queue.get(False) == b'\x02'
-        assert queue.empty()
+        assert stack.get(False) == b'\x02'
+        assert stack.empty()
 
     def test_OP_RETURN_within_OP_TRY_EXCEPT_exits_outer_context(self):
-        # return from def within OP_TRY_EXCEPT before adding int false to queue
+        # return from def within OP_TRY_EXCEPT before adding int false to stack
         code = b'\x29\x00\x00\x07\x3d\x00\x01\x30\x00\x00\x01\x2a\x00\x02\x02'
-        tape, queue, _ = functions.run_script(code)
+        tape, stack, _ = functions.run_script(code)
         assert tape.has_terminated()
-        assert queue.get(False) == b'\x02'
-        assert queue.empty()
+        assert stack.get(False) == b'\x02'
+        assert stack.empty()
 
     def test_OP_RETURN_within_OP_EVAL_does_not_exit_outer_context(self):
-        # do not return from def within OP_EVAL before adding \xff to queue
+        # do not return from def within OP_EVAL before adding \xff to stack
         code = b'\x29\x00\x00\x05' + b'\x02\x30\x2d\x02\xff' + b'\x2a\x00'
-        tape, queue, _ = functions.run_script(code)
+        tape, stack, _ = functions.run_script(code)
         assert tape.has_terminated()
-        assert queue.get(False) == b'\xff'
-        assert queue.empty()
+        assert stack.get(False) == b'\xff'
+        assert stack.empty()
 
     def test_OP_RETURN_within_OP_EVAL_exits_outer_context_when_eval_return_flag_set(self):
-        # return from def within OP_EVAL before adding \xff to queue
+        # return from def within OP_EVAL before adding \xff to stack
         code = b'\x29\x00\x00\x05' + b'\x02\x30\x2d\x02\xff' + b'\x2a\x00'
-        tape, queue, _ = functions.run_script(code, additional_flags={'eval_return':True})
+        tape, stack, _ = functions.run_script(code, additional_flags={'eval_return':True})
         assert tape.has_terminated()
-        assert queue.empty()
+        assert stack.empty()
 
     def test_OP_LOOP_and_recursive_OP_CALL_raises_callstack_limit_error(self):
         """
@@ -2215,11 +2205,11 @@ class TestFunctions(unittest.TestCase):
             functions.opcodes_inverse['OP_CALL'][0].to_bytes(1, 'big') + b'\x00'
         )
         with self.assertRaises(errors.ScriptExecutionError) as e:
-            functions.run_tape(self.tape, self.queue, self.cache)
+            functions.run_tape(self.tape, self.stack, self.cache)
         assert 'callstack limit' in str(e.exception)
 
     def test_add_opcode_raises_errors_for_invalid_input(self):
-        function = lambda tape, queue, cache: queue.put('nonsense')
+        function = lambda tape, stack, cache: stack.put('nonsense')
         with self.assertRaises(TypeError) as e:
             functions.add_opcode('not an int', '', function)
         assert str(e.exception) == 'code must be int'
@@ -2240,18 +2230,18 @@ class TestFunctions(unittest.TestCase):
         assert str(e.exception) == 'name must start with OP_'
 
     def test_add_opcode_adds_function_e2e(self):
-        self.queue.put('123')
-        functions.run_tape(classes.Tape(b'\xff\x01'), self.queue, {})
-        assert self.queue.empty()
+        self.stack.put(b'123')
+        functions.run_tape(classes.Tape(b'\xff\x01'), self.stack, {})
+        assert self.stack.empty()
 
-        functions.add_opcode(255, 'OP_NONSENSE', lambda tape, queue, cache: queue.put('nonsense'))
+        functions.add_opcode(255, 'OP_NONSENSE', lambda tape, stack, cache: stack.put(b'nonsense'))
         assert self.original_opcodes != functions.opcodes
         assert self.original_opcodes_inverse != functions.opcodes_inverse
 
-        tape, queue, cache = functions.run_script(b'\xff\x01')
-        assert not queue.empty()
-        assert queue.get(False) == b'\xff'
-        assert queue.get(False) == 'nonsense'
+        tape, stack, cache = functions.run_script(b'\xff\x01')
+        assert not stack.empty()
+        assert stack.get(False) == b'\xff'
+        assert stack.get(False) == b'nonsense'
 
     def test_add_contract_raises_error_on_invalid_contract(self):
         assert b'123' not in functions._contracts
@@ -2276,7 +2266,7 @@ class TestFunctions(unittest.TestCase):
     def test_added_contracts_added_to_executing_scripts(self):
         contract = ValidContract(10)
         functions.add_contract(b'123', contract)
-        tape, queue, cache = functions.run_script(b'\x00')
+        tape, stack, cache = functions.run_script(b'\x00')
         assert b'123' in tape.contracts
         assert tape.contracts[b'123'] is contract
 
@@ -2333,20 +2323,20 @@ class TestFunctions(unittest.TestCase):
             hexdata = ''.join(f.read().split())
             unlocking_script1 = bytes.fromhex(hexdata)
             script = unlocking_script1 + locking_script
-            tape, queue, _ = functions.run_script(script, cache_vals)
+            tape, stack, _ = functions.run_script(script, cache_vals)
             assert tape.has_terminated()
-            assert not queue.empty()
-            item = queue.get(False)
+            assert not stack.empty()
+            item = stack.get(False)
             assert item == b'\xff'
 
         with open('tests/vectors/p2pk_unlocking_script2.hex', 'r') as f:
             hexdata = ''.join(f.read().split())
             unlocking_script2 = bytes.fromhex(hexdata)
             script = unlocking_script2 + locking_script
-            tape, queue, _ = functions.run_script(script, cache_vals)
+            tape, stack, _ = functions.run_script(script, cache_vals)
             assert tape.has_terminated()
-            assert not queue.empty()
-            item = queue.get(False)
+            assert not stack.empty()
+            item = stack.get(False)
             assert item == b'\xff'
 
     def test_p2sh_e2e(self):
@@ -2368,10 +2358,10 @@ class TestFunctions(unittest.TestCase):
             hexdata = ''.join(f.read().split())
             unlocking_script = bytes.fromhex(hexdata)
             script = unlocking_script + locking_script
-            tape, queue, _ = functions.run_script(script, cache_vals)
+            tape, stack, _ = functions.run_script(script, cache_vals)
             assert tape.has_terminated()
-            assert not queue.empty()
-            item = queue.get(False)
+            assert not stack.empty()
+            item = stack.get(False)
             assert item == b'\xff'
 
         functions.flags = original_flags
@@ -2460,20 +2450,20 @@ class TestFunctions(unittest.TestCase):
             hexdata = ''.join(f.read().split())
             unlocking_script = bytes.fromhex(hexdata)
             script = unlocking_script + locking_script
-            tape, queue, _ = functions.run_script(script, cache_vals)
+            tape, stack, _ = functions.run_script(script, cache_vals)
             assert tape.has_terminated()
-            assert not queue.empty()
-            item = queue.get(False)
+            assert not stack.empty()
+            item = stack.get(False)
             assert item == b'\xff'
 
         with open('tests/vectors/correspondent_unlocking_script2.hex', 'r') as f:
             hexdata = ''.join(f.read().split())
             unlocking_script = bytes.fromhex(hexdata)
             script = unlocking_script + locking_script
-            tape, queue, _ = functions.run_script(script, cache_vals)
+            tape, stack, _ = functions.run_script(script, cache_vals)
             assert tape.has_terminated()
-            assert not queue.empty()
-            item = queue.get(False)
+            assert not stack.empty()
+            item = stack.get(False)
             assert item == b'\xff'
 
         functions.flags = original_flags
@@ -2497,30 +2487,30 @@ class TestFunctions(unittest.TestCase):
             hexdata = ''.join(f.read().split())
             unlocking_script = bytes.fromhex(hexdata)
             script = unlocking_script + locking_script
-            tape, queue, _ = functions.run_script(script, cache_vals)
+            tape, stack, _ = functions.run_script(script, cache_vals)
             assert tape.has_terminated()
-            assert not queue.empty()
-            item = queue.get(False)
+            assert not stack.empty()
+            item = stack.get(False)
             assert item == b'\xff'
 
         with open('tests/vectors/merkleval_unlocking_script_ba.hex', 'r') as f:
             hexdata = ''.join(f.read().split())
             unlocking_script = bytes.fromhex(hexdata)
             script = unlocking_script + locking_script
-            tape, queue, _ = functions.run_script(script, cache_vals)
+            tape, stack, _ = functions.run_script(script, cache_vals)
             assert tape.has_terminated()
-            assert not queue.empty()
-            item = queue.get(False)
+            assert not stack.empty()
+            item = stack.get(False)
             assert item == b'\xff'
 
         with open('tests/vectors/merkleval_unlocking_script_bb.hex', 'r') as f:
             hexdata = ''.join(f.read().split())
             unlocking_script = bytes.fromhex(hexdata)
             script = unlocking_script + locking_script
-            tape, queue, _ = functions.run_script(script, cache_vals)
+            tape, stack, _ = functions.run_script(script, cache_vals)
             assert tape.has_terminated()
-            assert not queue.empty()
-            item = queue.get(False)
+            assert not stack.empty()
+            item = stack.get(False)
             assert item == b'\xff'
 
         functions.flags = original_flags

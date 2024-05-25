@@ -187,7 +187,7 @@ def generate_docs() -> list[str]:
         'Each `OP_` function has an alias that excludes the `OP_` prefix.\n\n'
         'All `OP_` functions have the following signature:\n\n'
         '```python\n'
-        'def OP_WHATEVER(tape: Tape, queue: LifoQueue, cache: dict) -> None:\n'
+        'def OP_WHATEVER(tape: Tape, stack: LifoQueue, cache: dict) -> None:\n'
         '    ...\n```\n\n'
         'All OPs advance the Tape pointer by the amount they read.\n'
     ]
@@ -318,11 +318,11 @@ def make_single_sig_witness(
     """Make an unlocking script that validates for a single sig locking
         script by signing the sigfields. Returns tapescript source code.
     """
-    _, queue, _ = run_script(
+    _, stack, _ = run_script(
         compile_script(f'push x{prvkey.hex()} sign x{sigflags}'),
         {**sigfields}
     )
-    sig = queue.get(False)
+    sig = stack.get(False)
     return f'push x{sig.hex()}'
 
 def make_single_sig_witness2(
@@ -332,7 +332,7 @@ def make_single_sig_witness2(
         33 bytes larger witness than make_single_sig_witness to save 8
         bytes in the locking script.
     """
-    _, queue, _ = run_script(
+    _, stack, _ = run_script(
         compile_script(f'''
             push x{prvkey.hex()}
             dup derive_scalar derive_point
@@ -340,8 +340,8 @@ def make_single_sig_witness2(
         '''),
         {**sigfields}
     )
-    sig = queue.get(False)
-    pubkey = queue.get(False)
+    sig = stack.get(False)
+    pubkey = stack.get(False)
     return f'push x{sig.hex()} push x{pubkey.hex()}'
 
 def make_multisig_lock(
@@ -389,12 +389,12 @@ def make_adapter_decrypt(tweak: bytes) -> str:
 
 def decrypt_adapter(adapter_witness: bytes, tweak: bytes) -> bytes:
     """Decrypt an adapter signature, returning the decrypted signature."""
-    _, queue, _ = run_script(
+    _, stack, _ = run_script(
         adapter_witness +
         compile_script(make_adapter_decrypt(tweak))
     )
-    RT = queue.get(False)
-    s = queue.get(False)
+    RT = stack.get(False)
+    s = stack.get(False)
     return RT + s
 
 def make_adapter_locks_prv(
@@ -422,7 +422,7 @@ def make_adapter_witness(
         'sigfield7' in sigfields or 'sigfield8' in sigfields, \
         'at least one sigfield[1-8] must be included'
 
-    _, queue, _ = run_script(
+    _, stack, _ = run_script(
         compile_script(f'''
             push x{prvkey.hex()}
             get_message x{sigflags}
@@ -431,8 +431,8 @@ def make_adapter_witness(
         '''),
         {**sigfields}
     )
-    sa = queue.get(False)
-    R = queue.get(False)
+    sa = stack.get(False)
+    R = stack.get(False)
 
     return f'''
         push x{sa.hex()}
@@ -472,24 +472,24 @@ def make_delegate_key_cert_sig(
         root_skey: bytes, delegate_pubkey: bytes, begin_ts: int, end_ts: int
     ) -> bytes:
     """Returns a signature for a key delegation cert."""
-    _, queue, _ = run_script(compile_script(f'''
+    _, stack, _ = run_script(compile_script(f'''
         push d{end_ts} push d{begin_ts} concat
         push x{delegate_pubkey.hex()} concat
         push x{root_skey.hex()} sign_queue
     '''))
-    assert queue.qsize() == 1
-    return queue.get(False)
+    assert stack.size() == 1
+    return stack.get(False)
 
 def make_delegate_key_unlock(
         prvkey: bytes, pubkey: bytes, begin_ts: int, end_ts: int,
         cert_sig: bytes, sigfields: dict, sigflags: str = '00'
     ) -> str:
-    _, queue, _ = run_script(
+    _, stack, _ = run_script(
         compile_script(f'push x{prvkey.hex()} sign x{sigflags}'),
         sigfields
     )
-    assert queue.qsize() == 1
-    sig = queue.get(False)
+    assert stack.size() == 1
+    sig = stack.get(False)
     return f'''
         push x{sig.hex()}
         push x{pubkey.hex()}
@@ -553,11 +553,11 @@ def make_htlc_witness(
         hash lock or the time lock path of an HTLC, depending upon
         whether or not the preimage matches.
     """
-    _, queue, _ = run_script(
+    _, stack, _ = run_script(
         compile_script(f'push x{prvkey.hex()} sign x{sigflags}'),
         {**sigfields}
     )
-    sig = queue.get(False)
+    sig = stack.get(False)
     return f'''
         push x{sig.hex()}
         push x{preimage.hex()}
@@ -649,7 +649,7 @@ def make_htlc2_witness(
         cases, in particular systems where witness data cannot be
         trimmed, the other version is more appropriate.
     """
-    _, queue, _ = run_script(
+    _, stack, _ = run_script(
         compile_script(f'''
             push x{prvkey.hex()}
             dup derive_scalar derive_point
@@ -657,8 +657,8 @@ def make_htlc2_witness(
         '''),
         {**sigfields}
     )
-    sig = queue.get(False)
-    pubkey = queue.get(False)
+    sig = stack.get(False)
+    pubkey = stack.get(False)
     return f'''
         push x{sig.hex()}
         push x{pubkey.hex()}
@@ -699,8 +699,8 @@ def make_ptlc_witness(
     '''
     if tweak_scalar:
         # create signature manually
-        _, queue, _ = run_script(compile_script(f'get_message x{sigflags}'), {**sigfields})
-        m = queue.get(False)
+        _, stack, _ = run_script(compile_script(f'get_message x{sigflags}'), {**sigfields})
+        m = stack.get(False)
         x = aggregate_scalars([derive_key_from_seed(prvkey), tweak_scalar])
         X = nacl.bindings.crypto_scalarmult_ed25519_base_noclamp(x) # G^x
         r = clamp_scalar(H_small(H_big(prvkey)[32:], m))
@@ -776,7 +776,7 @@ def cli_help() -> str:
         'and writes it to bin_file',
         '\tdecompile bin_file -- decompiles the bytecode and outputs to stdout',
         '\trun bin_file [cache_file] -- runs tapescript bytecode and prints the '
-        'resulting cache and queue',
+        'resulting cache and stack',
         '\tauth bin_file [cache_file] -- runs tapescript bytecode as auth script'
         ' and prints true if it was successful or false otherwise\n',
         'The optional cache_file parameter must be a json file with the '
@@ -856,17 +856,17 @@ def run_cli() -> None:
                 script = f.read()
             if len(argv) > 3:
                 cache = _parse_cache_json(argv[3])
-            _, queue, cache = run_script(script, cache)
+            _, stack, cache = run_script(script, cache)
             items = []
-            while queue.qsize():
-                items.append(queue.get(False).hex())
+            while stack.size():
+                items.append(stack.get(False).hex())
             items.reverse()
             cache = {
                 (f'bytes:{k.hex()}' if type(k) is bytes else k):
                 f'bytes:{v.hex()}' if type(v) is bytes else v
                 for k, v in cache.items()
             }
-            print(f'queue:\n' + '\n'.join(items))
+            print(f'stack:\n' + '\n'.join(items))
             print(f'cache:\n{cache}')
         case 'auth':
             _clert(len(argv) >= 3, 'Must supply bin_file parameter.')

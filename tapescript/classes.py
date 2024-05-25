@@ -1,7 +1,8 @@
 from __future__ import annotations
+from collections import deque
 from dataclasses import dataclass, field
 from typing import Callable
-from .errors import sert
+from .errors import sert, tert
 
 
 @dataclass
@@ -49,3 +50,52 @@ class Tape:
     def remaining(self) -> int:
         """Return the remaining number of symbols left in the tape."""
         return len(self.data) - self.pointer
+
+
+class Stack:
+    """Class to implement a Stack of bytes items."""
+    deque: deque
+    max_items: int
+    max_item_size: int
+
+    def __init__(self, max_items: int = 1024, max_item_size: int = 1024) -> None:
+        """Initialize an empty Stack."""
+        self.max_items = max_items
+        self.max_item_size = max_item_size
+        self.deque = deque(maxlen=self.max_items)
+
+    def get(self, _sync: bool = False) -> bytes:
+        """Get the top item of the Stack. Raises IndexError if the deque
+            is empty.
+        """
+        return self.deque.pop()
+
+    def put(self, item: bytes, _: bool = False) -> None:
+        """Put an item onto the Stack. Raises ScriptExecutionError if
+            the item is too large or if the Stack is full.
+        """
+        tert(type(item) is bytes, 'Stack item must be bytes')
+        sert(len(item) <= self.max_item_size, 'Stack item size too large')
+        sert(len(self.deque) < self.max_items, 'cannot put onto full Stack')
+        self.deque.append(item)
+
+    def size(self) -> int:
+        """Return the current number of items in the Stack."""
+        return len(self.deque)
+
+    def size_total(self) -> int:
+        """Return the number of bytes currently stored on the Stack."""
+        return sum([len(item) for item in self.deque])
+
+    def __len__(self) -> int:
+        """Return the current number of items in the Stack."""
+        return self.size()
+
+    def list(self) -> list:
+        return list(self.deque)
+
+    def empty(self) -> bool:
+        """Return True if there are no items on the Stack. Otherwise,
+            return False.
+        """
+        return len(self) == 0

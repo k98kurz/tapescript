@@ -133,7 +133,7 @@ class Txn:
 
     def entries_root(self) -> bytes:
         """Get the root hash for all entries."""
-        return sha256(b''.join([e.id() for e in self.entries])).digest()
+        return sha256(b''.join(sorted([e.id() for e in self.entries]))).digest()
 
     def id(self) -> bytes:
         return sha256(struct.pack(
