@@ -2015,8 +2015,8 @@ class TestFunctions(unittest.TestCase):
         assert self.stack.size() == 2
         assert b's' in self.cache
         assert b'RT' in self.cache
-        RT = self.stack.get()
         s = self.stack.get()
+        RT = self.stack.get()
 
         # check signature
         self.cache['sigfield1'] = m
