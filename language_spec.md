@@ -10,12 +10,13 @@ DAGs. The core mechanisms under the hood are the following:
 are read. It also keeps a dict of flags which control how certain ops execute
 and a dict of contracts mapping contract_id to dict contracts used for checking
 transfers between compatible protocols.
-2. Queue: the `LifoQueue` provides a memory structure similar to the stack used
-in Forth and Bitcoin script. Most ops interact with the queue, and most values
-are stored in the queue.
+2. Stack: the `Stack` provides a memory structure similar to the stack used
+in Forth and Bitcoin script. Most ops interact with the stack, and most values
+are stored in the stack. The stack can contain only `bytes` items; each item is
+limited in size; and the number of items is also limited.
 3. Cache: the `dict` cache is where special values are held, e.g. a timestamp or
 the parts of a message to be used for checking signatures. Additionally, it is
-possible to move items from queue to cache or vice versa with the limitation
+possible to move items from stack to cache or vice versa with the limitation
 that only `bytes` cache keys can be used for these operations while interpreter
 values are stored with `str` cache keys and thus inaccessible to scripts.
 
@@ -51,7 +52,7 @@ Everything between two hashtags or double quotes is disregarded as a comment.
 
 To call an op, write the op name followed by any argument(s). For example,
 `OP_PUSH s"hello world"` will convert the utf-8 string "hello world" into bytes
-and push it onto the queue, utilizing `OP_PUSH1`. Note that each op has an alias
+and push it onto the stack, utilizing `OP_PUSH1`. Note that each op has an alias
 equal to the name of the op without the `OP_` prefix.
 
 ### Subtapes
@@ -69,31 +70,35 @@ maximum size of 64KiB (2^16-1 bytes). The following features use subtapes:
 - `OP_LOOP`
 
 Note that `OP_EVAL` does not require any arguments because it reads the top item
-from the queue as the subtape definition rather than parsing one out from the
+from the stack as the subtape definition rather than parsing one out from the
 tape.
 
 ### Conditional programming
 
 Tapescript includes three conditional operators: `OP_IF`, `OP_IF_ELSE`, and
 `OP_MERKLEVAL`. `OP_IF_ELSE` is used under the hood for the human-readable
-syntax of `OP_IF ( if_body ) ELSE ( else_body )`.
+syntax of `OP_IF ( hoisted_statements ) { if_body } ELSE { else_body }`.
 
 #### `OP_IF`/`OP_IF_ELSE`
 
-Unlike in c- type languages, the condition is pulled from the queue by `OP_IF`/
+Unlike in c- type languages, the condition is pulled from the stack by `OP_IF`/
 `OP_IF_ELSE`, so the condition is not provided as an argument to the operators.
 
 ```s
-OP_IF (
-    OP_PUSH s"true value found on the queue"
-) ELSE (
-    OP_PUSH s"false value found on the queue"
-)
+OP_IF {
+    OP_PUSH s"true value found on the stack"
+} ELSE {
+    OP_PUSH s"false value found on the stack"
+}
 ```
 
-If `OP_TRUE` was called, or non-null bytes were put on the queue in some other
+However, conditional statement hoisting is available, so any statements in
+parentheses after `OP_IF` will be hoisted, e.g. `IF ( <statements> ) { <body> }`
+will be compiled as `<statements> IF { <body> }`.
+
+If `OP_TRUE` was called, or non-null bytes were put on the stack in some other
 way, before this script ran, the first branch will execute. If `OP_FALSE` was
-called, or if null bytes were put on the queue, before this script ran, the
+called, or if null bytes were put on the stack, before this script ran, the
 second branch will execute.
 
 The bodies for both clauses must be between parentheses, or the final clause
@@ -104,10 +109,10 @@ must be terminated by `END_IF`, e.g. `OP_IF OP_DUP ELSE OP_POP0 END_IF`.
 Tapescript includes a streamlined mechanism for branching scripts that hide the
 unexecuted branches behind cryptographic commitments. The syntax for a locking
 script using this mechanism is simply `OP_MERKLEVAL <root sha256 hash>`. This
-op reads 32 bytes from the tape as the root digest; pulls a bool from the queue;
+op reads 32 bytes from the tape as the root digest; pulls a bool from the stack;
 calls `OP_DUP` then `OP_SHA256`; calls `OP_SWAP d1 d2`; if not bool, calls
 `OP_SWAP2`; calls `OP_CONCAT`; calls `OP_SHA256`; pushes root hash onto the
-queue; calls `OP_EQUAL_VERIFY`; then calls `OP_EVAL`.
+stack; calls `OP_EQUAL_VERIFY`; then calls `OP_EVAL`.
 
 The unlocking script must provide the code of the branch to execute, the hash of
 the unexecuted branch, and anything needed to execute the branch (in reverse
@@ -185,15 +190,15 @@ OP_CALL d0
 OP_CALL d1
 ```
 
-This will define two functions, put the 2 bytes x0123 onto the queue, then call
-the two functions in sequence. The result will be a queue with x0123 and
+This will define two functions, put the 2 bytes x0123 onto the stack, then call
+the two functions in sequence. The result will be a stack with x0123 and
 `shake_256(sha256(b'\x01\x23').digest()).digest(20)`.
 
 ### Loops
 
 As of 0.4.0, tapescript supports loops. Loop logic is similar to conditional
 logic: using `OP_LOOP { clause }`, it is possible to run the `clause` in a loop
-as long as the top value of the queue evaluates to `True`. For example, to count
+as long as the top value of the stack evaluates to `True`. For example, to count
 down from 10 to 0:
 
 ```s
@@ -261,14 +266,14 @@ recommend 4 spaces per indentation level.
 - The opening bracket of a function should be at the end of the line starting
 `OP_DEF`, and the closing bracket of the function should be on its own line
 following the final statement of the function body. If `END_DEF` is used instead
-of brackets, then it should be on its own line.
+of brackets, then it should be on its own deindented line.
 - The opening parenthesis should be at the end of the line starting `OP_IF` or
 `ELSE`, and the closing parenthesis should be on a new line following the final
 statement of the conditional clause body.
 - `ELSE` should be on the same line as the closing parenthesis of the previous
-conditional clause, i.e. `) ELSE (` should be its own line.
+conditional clause, i.e. `} ELSE {` should be its own line.
 - If `END_IF` is used instead of a closing parenthesis, it should be on its own
-line following the final statement of the conditional clause.
+deindented line following the final statement of the conditional clause.
 - The type prefix of a value should be lowercase. If not, at least be consistent.
 - The opening bracket of a try...except block should be at the end of the line
 starting `OP_TRY`, and the closing bracket be on its own line following the
@@ -285,223 +290,223 @@ each does. See [docs.md](docs.md) for more in-depth details about each op.
 
 ### List of ops
 
-- `OP_FALSE` - puts x00 onto queue
-- `OP_TRUE` - puts x01 onto queue
-- `OP_PUSH val` - puts `val` onto queue; uses one of `OP_PUSH0`, `OP_PUSH1`,
+- `OP_FALSE` - puts x00 onto stack
+- `OP_TRUE` - puts x01 onto stack
+- `OP_PUSH val` - puts `val` onto stack; uses one of `OP_PUSH0`, `OP_PUSH1`,
 `OP_PUSH2`, and `OP_PUSH4`, depending on the size of the `val`
-- `OP_PUSH0 val` - puts `val` onto queue; `val` must be exactly 1 byte
-- `OP_PUSH1 size val` - puts `val` onto queue; `val` byte length must be <256;
+- `OP_PUSH0 val` - puts `val` onto stack; `val` must be exactly 1 byte
+- `OP_PUSH1 size val` - puts `val` onto stack; `val` byte length must be <256;
 `size` must be the length of the `val`
-- `OP_PUSH2 size val` - puts `val` onto queue; `val` byte length must be <65536;
+- `OP_PUSH2 size val` - puts `val` onto stack; `val` byte length must be <65536;
 `size` must be the length of the `val`
-- `OP_PUSH4 size val` - puts `val` onto queue; `val` byte length must be <2^32;
+- `OP_PUSH4 size val` - puts `val` onto stack; `val` byte length must be <2^32;
 `size` must be the length of the `val`
-- `OP_POP0` - takes the top item from the queue and puts in the cache at b'P'
-- `OP_POP1 count` - takes the top `count` items from the queue and puts them in the
+- `OP_POP0` - takes the top item from the stack and puts in the cache at b'P'
+- `OP_POP1 count` - takes the top `count` items from the stack and puts them in the
 cache at b'P'
-- `OP_SIZE` - counts the number of items on the queue and puts it onto the queue
+- `OP_SIZE` - counts the number of items on the stack and puts it onto the stack
 - `OP_WRITE_CACHE size cache_key count` - takes `count` number of items from the
-queue and stores them at `cache_key`; `size` must be the length of `cache_key`
+stack and stores them at `cache_key`; `size` must be the length of `cache_key`
 - `OP_READ_CACHE size cache_key` - takes values from the cache at `cache_key`
-and puts them onto the queue; `size` must be the length of `cache_key`
+and puts them onto the stack; `size` must be the length of `cache_key`
 - `OP_READ_CACHE_SIZE size cache_key` - counts the number of items in the cache
 at `cache_key`; `size` must be the length of `cache_key`
-- `OP_READ_CACHE_Q` - takes an item from the queue as a cache_key, reads the
-items in the cache at that location, and puts them onto the queue
-- `OP_READ_CACHE_Q_SIZE` - takes an item from the queue as a cache_key, counts the
-number of items in the cache at that location, and puts the count onto the queue
-- `OP_ADD_INTS count` - takes `count` number of ints from the queue, adds them
-together, and puts the sum onto the queue
-- `OP_SUBTRACT_INTS count` - takes `count` number of ints from the queue,
-subtracts them from the first one, and puts the difference onto the queue
-- `OP_MULT_INTS count` - takes `count` number of ints from the queue,
-multiplies them together, and puts the product onto the queue
-- `OP_DIV_INT size divisor` - takes an int from the queue, divides it by the
-`divisor`, and puts the quotient onto the queue; `size` must be the byte length
+- `OP_READ_CACHE_Q` - takes an item from the stack as a cache_key, reads the
+items in the cache at that location, and puts them onto the stack
+- `OP_READ_CACHE_Q_SIZE` - takes an item from the stack as a cache_key, counts the
+number of items in the cache at that location, and puts the count onto the stack
+- `OP_ADD_INTS count` - takes `count` number of ints from the stack, adds them
+together, and puts the sum onto the stack
+- `OP_SUBTRACT_INTS count` - takes `count` number of ints from the stack,
+subtracts them from the first one, and puts the difference onto the stack
+- `OP_MULT_INTS count` - takes `count` number of ints from the stack,
+multiplies them together, and puts the product onto the stack
+- `OP_DIV_INT size divisor` - takes an int from the stack, divides it by the
+`divisor`, and puts the quotient onto the stack; `size` must be the byte length
 of the divisor
-- `OP_DIV_INTS` - takes two ints from the queue, divides the first by the second,
-and puts the quotient onto the queue
-- `OP_MOD_INT size divisor` - takes an int from the queue, divides it by the
-`divisor`, and puts the remainder onto the queue; `size` must be the byte length
+- `OP_DIV_INTS` - takes two ints from the stack, divides the first by the second,
+and puts the quotient onto the stack
+- `OP_MOD_INT size divisor` - takes an int from the stack, divides it by the
+`divisor`, and puts the remainder onto the stack; `size` must be the byte length
 of the `divisor`
-- `OP_MOD_INTS` - takes two ints from the queue, divides the first by the second,
-and puts the remainder onto the queue
-- `OP_ADD_FLOATS count` - takes `count` number of floats from the queue, adds
-them together, and puts the sum onto the queue
-- `OP_SUBTRACT_FLOATS count` - takes `count` number of floats from the queue,
-subtracts them from the first one, and puts the difference onto the queue
-- `OP_DIV_FLOAT divisor` - takes a float from the queue, divides it by `divisor`,
-and puts the quotient onto the queue; `divisor` must be a 4-byte float
-- `OP_DIV_FLOATS` - takes 2 floats from the queue, divides the second by the
-first, and puts the quotient onto the queue
-- `OP_MOD_FLOAT divisor` - takes a float from the queue, divides it by `divisor`,
-and puts the remainder onto the queue
-- `OP_MOD_FLOATS` - takes 2 floats from the queue, divides the second by the
-first, and puts the remainder onto the queue
-- `OP_ADD_POINTS count` - takes `count` ed25519 points from the queue, adds them
-together, and puts the resulting ed25519 point onto the queue
-- `OP_COPY count` - copies the top value on the queue `count` times
-- `OP_DUP` - duplicates the top queue value
-- `OP_SHA256` - replaces the top value of the queue with its sha256 digest
-- `OP_SHAKE256 size` - replaces the top value of the queue with its `size`
+- `OP_MOD_INTS` - takes two ints from the stack, divides the first by the second,
+and puts the remainder onto the stack
+- `OP_ADD_FLOATS count` - takes `count` number of floats from the stack, adds
+them together, and puts the sum onto the stack
+- `OP_SUBTRACT_FLOATS count` - takes `count` number of floats from the stack,
+subtracts them from the first one, and puts the difference onto the stack
+- `OP_DIV_FLOAT divisor` - takes a float from the stack, divides it by `divisor`,
+and puts the quotient onto the stack; `divisor` must be a 4-byte float
+- `OP_DIV_FLOATS` - takes 2 floats from the stack, divides the second by the
+first, and puts the quotient onto the stack
+- `OP_MOD_FLOAT divisor` - takes a float from the stack, divides it by `divisor`,
+and puts the remainder onto the stack
+- `OP_MOD_FLOATS` - takes 2 floats from the stack, divides the second by the
+first, and puts the remainder onto the stack
+- `OP_ADD_POINTS count` - takes `count` ed25519 points from the stack, adds them
+together, and puts the resulting ed25519 point onto the stack
+- `OP_COPY count` - copies the top value on the stack `count` times
+- `OP_DUP` - duplicates the top stack value
+- `OP_SHA256` - replaces the top value of the stack with its sha256 digest
+- `OP_SHAKE256 size` - replaces the top value of the stack with its `size`
 length shake_256 digest
-- `OP_VERIFY` - takes a value from the queue and raises an error if it does not
+- `OP_VERIFY` - takes a value from the stack and raises an error if it does not
 evaluate to `True`
-- `OP_EQUAL` - takes 2 values from the queue and puts `True` onto the queue if
+- `OP_EQUAL` - takes 2 values from the stack and puts `True` onto the stack if
 they are the same or `False` if they are not
 - `OP_EQUAL_VERIFY` - calls `OP_EQUAL` and then `OP_VERIFY`
-- `OP_CHECK_SIG allowed_flags` - takes a VerifyKey and signature from the queue,
+- `OP_CHECK_SIG allowed_flags` - takes a VerifyKey and signature from the stack,
 builds a message from the cache values `sigfield[1-8]` depending upon the sig
 flags allowed by `allowed_flags` and appended to the signature, checks if the
-signature is valid for the VerifyKey and message, and puts `True` onto the queue
+signature is valid for the VerifyKey and message, and puts `True` onto the stack
 if the signature validated or `False` if it did not
 - `OP_CHECK_SIG_VERIFY allowed_flags` - calls `OP_CHECK_SIG allowed_flags` then
 `OP_VERIFY`
-- `OP_CHECK_TIMESTAMP` - takes an unsigned int from the queue as a constraint,
+- `OP_CHECK_TIMESTAMP` - takes an unsigned int from the stack as a constraint,
 takes a timestamp from the cache at "timestamp", compares the timestamp to the
-constraint, and puts `False` onto the queue if the timestamp is less than the
+constraint, and puts `False` onto the stack if the timestamp is less than the
 constraint or if the "ts_threshold" flag was set and exceeded by the difference
 between the timestamp and the current time (i.e. if the timestamp is more than
-ts_threshold into the future) and puts `True` onto the queue otherwise
+ts_threshold into the future) and puts `True` onto the stack otherwise
 - `OP_CHECK_TIMESTAMP_VERIFY` - calls `OP_CHECK_TIMESTAMP` then `OP_VERIFY`
-- `OP_CHECK_EPOCH` - takes an unsigned int from the queue as a constraint,
-subtracts the current time from the constraint, and puts `False` onto the queue
+- `OP_CHECK_EPOCH` - takes an unsigned int from the stack as a constraint,
+subtracts the current time from the constraint, and puts `False` onto the stack
 if the "epoch_threshold" flag is met or exceeded by the difference and puts
-`True` onto the queue otherwise
+`True` onto the stack otherwise
 - `OP_CHECK_EPOCH_VERIFY` - calls `OP_CHECK_EPOCH` then `OP_VERIFY`
 - `OP_DEF handle size def_body` - defines a function; see section above
 - `OP_CALL handle` - calls a function; see section above
 - `OP_IF length clause` - runs conditional code; see section above
 - `OP_IF_ELSE length1 clause1 length2 clause2` - runs conditional code; see
 section above
-- `OP_EVAL` - takes a value from the queue and runs it as a script
-- `OP_NOT` - takes a value from the queue and puts the inverse boolean value
-onto the queue
-- `OP_RANDOM size` - puts a random byte string `size` long onto the queue
+- `OP_EVAL` - takes a value from the stack and runs it as a script
+- `OP_NOT` - takes a value from the stack and puts the inverse boolean value
+onto the stack
+- `OP_RANDOM size` - puts a random byte string `size` long onto the stack
 - `OP_RETURN` - ends the script; since functions and conditional clauses are
 run as subtapes, `OP_RETURN` ends only the local execution and returns to the
 outer context
 - `OP_SET_FLAG number` - sets the tape flag `number` to the default value
 - `OP_UNSET_FLAG number` - unsets the tape flag `number`
-- `OP_DEPTH` - puts the size of the queue onto the queue
-- `OP_SWAP idx1 idx2` - swaps the items at the given indices on the queue
-- `OP_SWAP2` - swaps the order of the top two items on the queue
-- `OP_REVERSE count` - reverses the order of the top `count` items on the queue
-- `OP_CONCAT` - takes two values from the queue, concatenates the second onto
-the first, and puts the result onto the queue
-- `OP_SPLIT idx` - takes a value from the queue, splits it at the given `idx`,
-and puts the two resulting byte strings onto the queue
-- `OP_CONCAT_STR` - takes 2 utf-8 strings from the queue, concatenates the 2nd
-onto the 1st, and puts the result onto the queue
-- `OP_SPLIT_STR idx` - takes a utf-8 string from the queue, splits at `idx`, and
-puts the 2 resulting strings onto the queue
+- `OP_DEPTH` - puts the size of the stack onto the stack
+- `OP_SWAP idx1 idx2` - swaps the items at the given indices on the stack
+- `OP_SWAP2` - swaps the order of the top two items on the stack
+- `OP_REVERSE count` - reverses the order of the top `count` items on the stack
+- `OP_CONCAT` - takes two values from the stack, concatenates the second onto
+the first, and puts the result onto the stack
+- `OP_SPLIT idx` - takes a value from the stack, splits it at the given `idx`,
+and puts the two resulting byte strings onto the stack
+- `OP_CONCAT_STR` - takes 2 utf-8 strings from the stack, concatenates the 2nd
+onto the 1st, and puts the result onto the stack
+- `OP_SPLIT_STR idx` - takes a utf-8 string from the stack, splits at `idx`, and
+puts the 2 resulting strings onto the stack
 - `OP_CHECK_TRANSFER` - checks proofs of a transfer; see section below
 - `OP_MERKLEVAL hash` - enforces cryptographic commitment to branching script;
 see section above
 - `OP_TRY_EXCEPT size1 try_body size2 except_body` - executes the first block; if
-an exception is raised, it is serialized into a string and put on the queue,
+an exception is raised, it is serialized into a string and put on the stack,
 then the second block is executed
-- `OP_LESS` - pulls 2 values `v1` and `v2` from queue; puts `(v1<v2)` onto queue
-- `OP_LESS_OR_EQUAL` - pulls 2 values `v1` and `v2` from queue; puts `(v1<=v2)`
-onto queue
+- `OP_LESS` - pulls 2 values `v1` and `v2` from stack; puts `(v1<v2)` onto stack
+- `OP_LESS_OR_EQUAL` - pulls 2 values `v1` and `v2` from stack; puts `(v1<=v2)`
+onto stack
 - `OP_GET_VALUE key` - puts the read-only cache value(s) at the str `key` onto
-the queue
-- `OP_FLOAT_LESS` - takes floats `f1` and `f2` from the queue and puts `(f1<f2)`
-onto the queue
-- `OP_FLOAT_LESS_OR_EQUAL` - takes floats `f1` and `f2` from the queue and puts
-`(f1<=f2)` onto the queue
-- `OP_INT_TO_FLOAT` - takes int from queue and puts it back as a float
-- `OP_FLOAT_TO_INT` - takes float from queue and puts it back as an int
+the stack
+- `OP_FLOAT_LESS` - takes floats `f1` and `f2` from the stack and puts `(f1<f2)`
+onto the stack
+- `OP_FLOAT_LESS_OR_EQUAL` - takes floats `f1` and `f2` from the stack and puts
+`(f1<=f2)` onto the stack
+- `OP_INT_TO_FLOAT` - takes int from stack and puts it back as a float
+- `OP_FLOAT_TO_INT` - takes float from stack and puts it back as an int
 - `OP_LOOP length clause` - runs the clause in a loop as long as the top value
-on the queue is true; errors if the callstack limit is exceeded
+on the stack is true; errors if the callstack limit is exceeded
 - `OP_CHECK_MULTISIG allowed_flags m n` - takes `n` vkeys and `m` signatures
-from queue; puts true onto the queue if each of the signatures is valid for one
+from stack; puts true onto the stack if each of the signatures is valid for one
 of the vkeys and if each vkey is used only once; otherwise, puts false onto the
-queue
+stack
 - `OP_CHECK_MULTISIG_VERIFY allowed_flags m n` - calls `OP_CHECK_MULTISIG` then
 `OP_VERIFY`
-- `OP_SIGN allowed_flags` - pulls a signing key seed from the queue; generates a
-signature from the sigfields; puts the signature onto the queue
-- `OP_SIGN flags` - takes a signing key seed from the queue, signs a message
+- `OP_SIGN allowed_flags` - pulls a signing key seed from the stack; generates a
+signature from the sigfields; puts the signature onto the stack
+- `OP_SIGN flags` - takes a signing key seed from the stack, signs a message
 constructed from sigfields not blanked by the flags, and puts that signature
-onto the queue.
-- `OP_SIGN_QUEUE` - takes a signing key seed and message from the queue, signs
-the message, and puts the signature onto the queue.
+onto the stack.
+- `OP_SIGN_QUEUE` - takes a signing key seed and message from the stack, signs
+the message, and puts the signature onto the stack.
 - `OP_CHECK_SIG_QUEUE` - takes a verify key, signature, and message from the
-queue; puts `True` onto the queue if the signature was valid for the vkey and
-message, otherwise puts `False` onto the queue.
-- `OP_DERIVE_SCALAR` - takes a seed from queue; derives an ed25519 private key
-scalar from it; puts the scalar onto the queue and into cache[b'x'] if
+stack; puts `True` onto the stack if the signature was valid for the vkey and
+message, otherwise puts `False` onto the stack.
+- `OP_DERIVE_SCALAR` - takes a seed from stack; derives an ed25519 private key
+scalar from it; puts the scalar onto the stack and into cache[b'x'] if
 `tape.flags[1]`.
 - `OP_CLAMP_SCALAR is_key` - reads byte from tape as bool `is_key`; pulls a
-value from the queue; clamps the value as an ed25519 private key if `is_key`
-else as normal scalar; puts clamped scalar onto the queue.
-- `OP_ADD_SCALARS count` - takes `count` values from queue; uses ed25519 scalar
-addition to sum them; put the sum onto the queue.
-- `OP_SUBTRACT_SCALARS count` - takes `count` values from queue; uses ed25519
+value from the stack; clamps the value as an ed25519 private key if `is_key`
+else as normal scalar; puts clamped scalar onto the stack.
+- `OP_ADD_SCALARS count` - takes `count` values from stack; uses ed25519 scalar
+addition to sum them; put the sum onto the stack.
+- `OP_SUBTRACT_SCALARS count` - takes `count` values from stack; uses ed25519
 scalar subtraction to subtract `count-1` values from the first value; put the
-difference onto the queue.
-- `OP_DERIVE_POINT` - takes a value from the queue as a scalar; generates an
-ed25519 curve point from it; puts the point onto the queue and into cache[b'X']
+difference onto the stack.
+- `OP_DERIVE_POINT` - takes a value from the stack as a scalar; generates an
+ed25519 curve point from it; puts the point onto the stack and into cache[b'X']
 if `tape.flags[2]`.
-- `OP_SUBTRACT_POINTS count` - takes `count` values from the queue as ed25519
+- `OP_SUBTRACT_POINTS count` - takes `count` values from the stack as ed25519
 points; subtracts `count-1` of them from the first using ed25519 inverse group
-operator; puts difference onto the queue.
+operator; puts difference onto the stack.
 - `OP_MAKE_ADAPTER_SIG_PUBLIC` - takes tweak point `T`, message `m`, and prvkey
-`seed` from queue; derives key scalar `x` from `seed` and nonce `r` from `seed`
+`seed` from stack; derives key scalar `x` from `seed` and nonce `r` from `seed`
 and `m`; derives nonce point `R` from `r`; generates signature adapter `sa`;
-puts `R` and `sa` onto queue; sets cache[b'r'] to `r` if `tape.flags[3]`; sets
+puts `R` and `sa` onto stack; sets cache[b'r'] to `r` if `tape.flags[3]`; sets
 cache[b'R'] to `R` if `tape.flages[4]`; sets cache[b'T'] to `T` if
 `tape.flags[6]`; sets cache[b'sa'] if `tape.flags[9]`.
 - `OP_MAKE_ADAPTER_SIG_PRIVATE` - takes prvkey `seed`, tweak scalar `t`, and
-message `m` from the queue; derives prvkey scalar `x` from `seed`; derives
+message `m` from the stack; derives prvkey scalar `x` from `seed`; derives
 pubkey `X` from `x`; derives private nonce `r` from `seed` and `m`; derives
 public nonce point `R` from `r`; derives public tweak point `T` from `t`;
-creates signature adapter `sa`; puts `T`, `R`, and `sa` onto queue; sets cache
+creates signature adapter `sa`; puts `T`, `R`, and `sa` onto stack; sets cache
 keys b't' to `t` if `tape.flags[5]`, b'T' to `T` if `tapeflags[6]`, b'R' to `R`
 if `tape.flags[4]`, and b'sa' to `sa` if `tape.flags[8]` (can be used in code
 with @t, @T, @R, and @sa). Values `seed` and `t` should be 32 bytes each. Values
 `T`, `R`, and `sa` are all public 32 byte values and necessary for verification;
 `t` is used to decrypt the signature.
 - `OP_CHECK_ADAPTER_SIG` - takes public key `X`, tweak point `T`, message `m`,
-nonce point `R`, and signature adapter `sa` from the queue; puts `True` onto the
-queue if the signature adapter is valid and `False` otherwise.
+nonce point `R`, and signature adapter `sa` from the stack; puts `True` onto the
+stack if the signature adapter is valid and `False` otherwise.
 - `OP_DECRYPT_ADAPTER_SIG` - takes tweak scalar `t`, nonce point `R`, and
-signature adapter `sa` from queue; calculates nonce `RT`; decrypts signature
-`s` from `sa`; puts `s` onto queue; puts `RT` onto the queue; sets cache keys
+signature adapter `sa` from stack; calculates nonce `RT`; decrypts signature
+`s` from `sa`; puts `s` onto stack; puts `RT` onto the stack; sets cache keys
 b's' to `s` if `tape.flags[9]` and b'RT' to `RT` if `tape.flags[7]` (can be used
 in code with @s and @RT).
-- `OP_INVOKE` - takes an item from the queue as a contract ID; takes a uint from
-the queue as `count`; takes `count` items from the queue as arguments; tries to
+- `OP_INVOKE` - takes an item from the stack as a contract ID; takes a uint from
+the stack as `count`; takes `count` items from the stack as arguments; tries to
 invoke the contract's `abi` method, passing it the arguments; puts any return
-values onto the queue. Raises `ScriptExecutionError` if the contract is missing.
+values onto the stack. Raises `ScriptExecutionError` if the contract is missing.
 Raises `TypeError` if the return value type is not bytes or NoneType. If allowed
 by `tape.flags[0]`, will put any return values into cache at key b'IR'.
-- `OP_XOR` - takes two items from the queue; bitwise XORs them together; puts
-result onto the queue. Can be used in boolean logic as boolean values are just
+- `OP_XOR` - takes two items from the stack; bitwise XORs them together; puts
+result onto the stack. Can be used in boolean logic as boolean values are just
 bytes.
-- `OP_OR` - takes two items from the queue; bitwise ORs them together; puts
-result onto the queue. Can be used in boolean logic as boolean values are just
+- `OP_OR` - takes two items from the stack; bitwise ORs them together; puts
+result onto the stack. Can be used in boolean logic as boolean values are just
 bytes.
-- `OP_AND` - takes two items from the queue; bitwise ANDs them together; puts
-result onto the queue. Can be used in boolean logic as boolean values are just
+- `OP_AND` - takes two items from the stack; bitwise ANDs them together; puts
+result onto the stack. Can be used in boolean logic as boolean values are just
 bytes.
-- `NOP count` - removes `count` values from the queue; dummy ops useful for soft
+- `NOP count` - removes `count` values from the stack; dummy ops useful for soft
 fork updates
 
 ### `OP_CHECK_TRANSFER`
 
-Pulls an item from the queue, interpreting as an unsigned int `count`;
-takes an item from the queue as a `contract_id`; takes an item from the queue as
-an `amount`; takes an item from the queue as a serialized `constraint`; takes an
-item from the queue as a `destination` (address, locking script hash, etc);
-takes the `count` number of items from the queue as `sources`; takes the `count`
-number of items from the queue as `txn_proofs`; verifies that the aggregate of
+Pulls an item from the stack, interpreting as an unsigned int `count`;
+takes an item from the stack as a `contract_id`; takes an item from the stack as
+an `amount`; takes an item from the stack as a serialized `constraint`; takes an
+item from the stack as a `destination` (address, locking script hash, etc);
+takes the `count` number of items from the stack as `sources`; takes the `count`
+number of items from the stack as `txn_proofs`; verifies that the aggregate of
 the transfers to the `destination` from the `sources` equals or exceeds the
 `amount`; verifies that the transfers were valid using the proofs and the
 contract code; verifies the `constraint` was followed for each txn proof; and
-puts `True` onto the queue if successful and `False` otherwise. Sources and
-proofs must be in corresponding order on the queue.
+puts `True` onto the stack if successful and `False` otherwise. Sources and
+proofs must be in corresponding order on the stack.
 
 For this to work, the contract must be loaded into the tape's `contracts` dict
 at the bytes `contract_id` dict key. This can be done by passing a contracts dict
@@ -514,23 +519,23 @@ interface with following functions:
 - `verify_txn_constraint(txn_proof: bytes, constraint: bytes) -> bool`
 - `calc_txn_aggregates(txn_proofs: list[bytes], scope: bytes = None) -> dict[bytes, int]`
 
-The contract should be the source of the values put onto the queue and passed to
+The contract should be the source of the values put onto the stack and passed to
 the contract functions by `OP_CHECK_TRANSFER count` or at least sharing an
 interface with the source of those values.
 
 The first three functions will be called on each transaction proof, and a `False`
-returned for any of them will result in `False` placed onto the queue. Then,
+returned for any of them will result in `False` placed onto the stack. Then,
 `calc_txn_aggregates` will be called and supplied the list of txn proofs, and
 the result for the destination will be taken out of the result of that function
 call; if it is equal to or greater than the `amount` and all proofs were valid,
-it puts `True` onto the queue, else it puts `False` onto the queue.
+it puts `True` onto the stack, else it puts `False` onto the stack.
 
 ### `OP_INVOKE`
 
-Takes an item from the queue as `contract_id`; takes a uint from the queue as
-`argcount`; takes `argcount` items from the queue as arguments; tries to invoke
+Takes an item from the stack as `contract_id`; takes a uint from the stack as
+`argcount`; takes `argcount` items from the stack as arguments; tries to invoke
 the contract's `abi` method, passing it the arguments; puts any return values
-onto the queue. Raises `ScriptExecutionError` if the contract is missing or does
+onto the stack. Raises `ScriptExecutionError` if the contract is missing or does
 not implement the `CanBeInvoked` interface. Raises `TypeError` if the return
 value type is not bytes or NoneType. If allowed by tape.flag[0], will put any
 return values into cache at key b'IR'.
@@ -571,7 +576,7 @@ push x66b58394825b07bc65e504697654d7dd43640f26
 invoke
 '''
 
-_, queue, cache = run_script(compile_script(script))
-assert queue.qsize() == 1
-assert bytes_to_int(queue.get(False)) == 10
+_, stack, cache = run_script(compile_script(script))
+assert stack.qsize() == 1
+assert bytes_to_int(stack.get()) == 10
 ```
