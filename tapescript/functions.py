@@ -983,20 +983,19 @@ def OP_CHECK_TRANSFER(tape: Tape, stack: Stack, cache: dict) -> None:
     stack.put(b'\xff' if all_proofs_valid and amount <= aggregate else b'\x00')
 
 def OP_MERKLEVAL(tape: Tape, stack: Stack, cache: dict) -> None:
-    """Read 32 bytes from the tape as the root digest; pull a bool from
-        the stack; call OP_DUP then OP_SHA256; call OP_SWAP 1 2; if not
-        bool, call OP_SWAP2; call OP_CONCAT; call OP_SHA256; push root
-        hash onto the stack; call OP_EQUAL_VERIFY; call OP_EVAL.
+    """Read 32 bytes from the tape as the root digest; call OP_DUP then
+        OP_SHA256 twice; move stack item at index 2 to the top and call
+        OP_SHA256 once; call OP_XOR; call OP_SHA256; push root hash
+        onto the stack; call OP_EQUAL_VERIFY; call OP_EVAL.
     """
     root_hash = tape.read(32)
-    is_branch_A = bytes_to_bool(stack.get())
     OP_DUP(tape, stack, cache)
     OP_SHA256(tape, stack, cache)
-    OP_SWAP(Tape(b'\x01\x02'), stack, cache)
-    if is_branch_A:
-        OP_SWAP2(tape, stack, cache)
-    OP_CONCAT(tape, stack, cache)
     OP_SHA256(tape, stack, cache)
+    OP_SWAP(Tape(b'\x01\x02'), stack, cache)
+    OP_SWAP2(tape, stack, cache)
+    OP_SHA256(tape, stack, cache)
+    OP_XOR(tape, stack, cache)
     stack.put(root_hash)
     OP_EQUAL_VERIFY(tape, stack, cache)
     OP_EVAL(tape, stack, cache)

@@ -36,6 +36,11 @@ class DoesThing:
     def does_thing(self):
         ...
 
+def merkleval_root(commitment1: bytes, commitment2: bytes) -> bytes:
+    return functions.xor(
+        sha256(commitment1).digest(),
+        sha256(commitment2).digest(),
+    )
 
 class TestFunctions(unittest.TestCase):
     tape: classes.Tape
@@ -1310,10 +1315,9 @@ class TestFunctions(unittest.TestCase):
         committed_branch_b = b'\x02B'
         commitment_a = sha256(committed_branch_a).digest()
         commitment_b = sha256(committed_branch_b).digest()
-        commitment_root = sha256(commitment_a + commitment_b).digest()
+        commitment_root = merkleval_root(commitment_a, commitment_b)
         self.stack.put(commitment_b)
         self.stack.put(committed_branch_a)
-        self.stack.put(b'\xff')
         self.tape = classes.Tape(commitment_root)
         functions.OP_MERKLEVAL(self.tape, self.stack, self.cache)
         assert not self.stack.empty()
@@ -1322,7 +1326,6 @@ class TestFunctions(unittest.TestCase):
 
         self.stack.put(commitment_a)
         self.stack.put(committed_branch_b)
-        self.stack.put(b'\x00')
         self.tape = classes.Tape(commitment_root)
         functions.OP_MERKLEVAL(self.tape, self.stack, self.cache)
         assert not self.stack.empty()
@@ -1336,14 +1339,13 @@ class TestFunctions(unittest.TestCase):
         commitment_a = sha256(committed_branch_a).digest()
         commitment_ba = sha256(committed_branch_ba).digest()
         commitment_bb = sha256(committed_branch_bb).digest()
-        commitment_b_root = sha256(commitment_ba + commitment_bb).digest()
+        commitment_b_root = merkleval_root(commitment_ba, commitment_bb)
         committed_branch_b_root = b'\x3c' + commitment_b_root
         commitment_b = sha256(committed_branch_b_root).digest()
 
-        commitment_root = sha256(commitment_a + commitment_b).digest()
+        commitment_root = merkleval_root(commitment_a, commitment_b)
         self.stack.put(commitment_b)
         self.stack.put(committed_branch_a)
-        self.stack.put(b'\xff')
         self.tape = classes.Tape(commitment_root)
         functions.OP_MERKLEVAL(self.tape, self.stack, self.cache)
         assert not self.stack.empty()
@@ -1352,10 +1354,8 @@ class TestFunctions(unittest.TestCase):
 
         self.stack.put(commitment_bb)
         self.stack.put(committed_branch_ba)
-        self.stack.put(b'\xff')
         self.stack.put(commitment_a)
         self.stack.put(committed_branch_b_root)
-        self.stack.put(b'\x00')
         self.tape = classes.Tape(commitment_root)
         functions.OP_MERKLEVAL(self.tape, self.stack, self.cache)
         assert not self.stack.empty()
@@ -1364,10 +1364,8 @@ class TestFunctions(unittest.TestCase):
 
         self.stack.put(commitment_ba)
         self.stack.put(committed_branch_bb)
-        self.stack.put(b'\x00')
         self.stack.put(commitment_a)
         self.stack.put(committed_branch_b_root)
-        self.stack.put(b'\x00')
         self.tape = classes.Tape(commitment_root)
         functions.OP_MERKLEVAL(self.tape, self.stack, self.cache)
         assert not self.stack.empty()
@@ -1379,10 +1377,9 @@ class TestFunctions(unittest.TestCase):
         committed_branch_b = b'\x02B'
         commitment_a = sha256(committed_branch_a).digest()
         commitment_b = sha256(committed_branch_b).digest()
-        commitment_root = sha256(commitment_a + commitment_b).digest()
+        commitment_root = merkleval_root(commitment_a, commitment_b)
         self.stack.put(commitment_b)
         self.stack.put(committed_branch_a + b'uncommitted code')
-        self.stack.put(b'\xff')
         self.tape = classes.Tape(commitment_root)
 
         with self.assertRaises(errors.ScriptExecutionError) as e:
