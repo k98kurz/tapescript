@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import Protocol, runtime_checkable
 
 
@@ -49,4 +50,37 @@ class CanBeInvoked(Protocol):
             Binary Interface. Takes a list of bytes as args and returns
             either a list of bytes or None.
         """
+        ...
+
+
+@runtime_checkable
+class ScriptProtocol(Protocol):
+    """Represent a script as a pairing of source and byte code."""
+    src: str
+    bytes: bytes
+
+    @classmethod
+    def from_src(cls, src: str) -> ScriptProtocol:
+        """Create an instance from tapescript source code."""
+        ...
+
+    @classmethod
+    def from_bytes(cls, code: bytes) -> ScriptProtocol:
+        """Create an instance from tapescript byte code."""
+        ...
+
+    def commitment(self) -> bytes:
+        """Return a cryptographic commitment for the Script."""
+        ...
+
+    def __bytes__(self) -> bytes:
+        """Return the tapescript byte code."""
+        ...
+
+    def __str__(self) -> str:
+        """Return the tapescript source code."""
+        ...
+
+    def __add__(self, other: ScriptProtocol) -> ScriptProtocol:
+        """Add two instances together."""
         ...

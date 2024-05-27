@@ -27,7 +27,7 @@ from .functions import (
     reset_signature_extensions,
     run_sig_extensions,
 )
-from .interfaces import CanCheckTransfer, CanBeInvoked
+from .interfaces import CanCheckTransfer, CanBeInvoked, ScriptProtocol
 from .parsing import (
     compile_script,
     decompile_script,

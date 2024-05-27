@@ -1,7 +1,7 @@
 from __future__ import annotations
 from .classes import Tape, Stack
 from .errors import tert, vert, sert
-from .interfaces import CanCheckTransfer, CanBeInvoked
+from .interfaces import CanCheckTransfer, CanBeInvoked, ScriptProtocol
 from hashlib import sha256, shake_256, sha512
 from math import ceil, floor, isnan, log2
 from nacl.exceptions import BadSignatureError
@@ -1119,6 +1119,8 @@ def OP_LOOP(tape: Tape, stack: Stack, cache: dict) -> None:
     while bytes_to_bool(condition):
         sert(count < tape.callstack_limit, 'OP_LOOP limit exceeded')
         run_tape(subtape, stack, cache)
+        if 'returned' in cache:
+            return
         subtape.reset_pointer()
         count += 1
         condition = stack.get()
@@ -1864,11 +1866,14 @@ def set_tape_flags(tape: Tape, additional_flags: dict = {}) -> Tape:
             tape.flags[key] = additional_flags[key]
     return tape
 
-def run_script(script: bytes, cache_vals: dict = {},
+def run_script(script: bytes|ScriptProtocol, cache_vals: dict = {},
                contracts: dict = {},
                additional_flags: dict = {},
                plugins: dict = {}) -> tuple[Tape, Stack, dict]:
     """Run the given script byte code. Returns a tape, stack, and dict."""
+    tert(type(script) is bytes or isinstance(script, ScriptProtocol),
+         'script must be bytes or ScriptProtocol implementation')
+    script = bytes(script)
     tape = Tape(script)
     stack = Stack()
     cache = {'timestamp': int(time()), **cache_vals}
@@ -1889,8 +1894,8 @@ def run_tape(tape: Tape, stack: Stack, cache: dict,
             op = nopcodes[op_code][1]
         op(tape, stack, cache)
 
-def run_auth_script(script: bytes, cache_vals: dict = {}, contracts: dict = {},
-                    plugins: dict = {}) -> bool:
+def run_auth_script(script: bytes|ScriptProtocol, cache_vals: dict = {},
+                    contracts: dict = {}, plugins: dict = {}) -> bool:
     """Run the given auth script byte code. Returns True iff the stack
         has a single \\xff value after script execution and no errors were
         raised; otherwise, returns False.
