@@ -10,7 +10,7 @@ class Tape:
     """Class for reading the byte code of the script."""
     data: bytes
     pointer: int = field(default=0)
-    callstack_limit: int = field(default=64)
+    callstack_limit: int = field(default=128)
     callstack_count: int = field(default=0)
     definitions: dict[bytes, Tape] = field(default_factory=dict)
     flags: dict[str|int, int|bool] = field(default_factory=dict)
