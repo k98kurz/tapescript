@@ -1,3 +1,4 @@
+from __future__ import annotations
 from .AMHL import AMHL
 from .classes import Tape
 from .errors import tert, vert, yert
@@ -26,7 +27,9 @@ from .functions import (
     aggregate_scalars,
     H_big,
     H_small,
+    xor,
 )
+from dataclasses import dataclass, field
 from hashlib import sha256, shake_256
 from sys import argv
 from time import time
@@ -35,64 +38,162 @@ import nacl.bindings
 import json
 
 
-def _combine_two(branch_a: str, branch_b: str) -> list[str]:
-    """Takes two script branches, hashes them, and returns a root script
-        using OP_MERKLEVAL and two unlocking scripts that execute the
-        supplied branches after the locking script executes.
+@dataclass
+class Script:
+    """Represent a script as a pairing of source and byte code."""
+    src: str = field()
+    bytes: bytes = field()
+
+    @classmethod
+    def from_src(cls, src: str) -> Script:
+        return cls(src, compile_script(src))
+
+    @classmethod
+    def from_bytes(cls, code: bytes) -> Script:
+        return cls(decompile_script(code), code)
+
+    def commitment(self) -> bytes:
+        return sha256(self.bytes).digest()
+
+
+@dataclass
+class ScriptLeaf:
+    """A leaf in a Merklized script tree."""
+    hash: bytes = field()
+    script: Script|None = field(default=None)
+    parent: ScriptNode = field(default=None)
+
+    @classmethod
+    def from_script(cls, script: Script) -> ScriptLeaf:
+        return cls(script.commitment(), script)
+
+    @classmethod
+    def from_src(cls, src: str) -> ScriptLeaf:
+        """Create an instance from the source code."""
+        return cls.from_script(Script.from_src(src))
+
+    @classmethod
+    def from_code(cls, code: bytes) -> ScriptLeaf:
+        """Create an instance from the byte code."""
+        return cls.from_script(Script.from_bytes(code))
+
+    def commitment(self) -> bytes:
+        return self.hash
+
+    def unlocking_script(self) -> Script:
+        """Calculate an unlocking script recursively, traveling up the
+            parents. Returns a Script with the source and byte codes.
+        """
+        vert(self.parent is not None,
+             'leaf must be part of a tree to generate an unlocking script')
+        other = self.parent.right if self.parent.left is self else self.parent.left
+        commitment = other.commitment()
+        src = f'push x{commitment.hex()}\npush x{self.script.bytes.hex()}'
+        script = Script.from_src(src)
+
+        previous = self.parent.unlocking_script()
+        return Script(f'{script.src}\n{previous.src}', script.bytes + previous.bytes)
+
+
+class ScriptNode:
+    """A node in a Merklized script tree."""
+    left: ScriptLeaf|ScriptNode
+    right: ScriptLeaf|ScriptNode
+    parent: ScriptNode
+
+    def __init__(self, left: ScriptLeaf|ScriptNode, right: ScriptLeaf|ScriptNode) -> None:
+        left.parent = self
+        right.parent = self
+        self.left = left
+        self.right = right
+        self.parent = None
+
+    def root(self) -> bytes:
+        """Calculate and return the local root between the two branches."""
+        return xor(
+            sha256(self.left.commitment()).digest(),
+            sha256(self.right.commitment()).digest()
+        )
+
+    def locking_script(self) -> Script:
+        """Calculates the locking script for the node. Returns a tuple
+            with the source and byte codes.
+        """
+        return Script.from_src(f'OP_MERKLEVAL x{self.root().hex()}')
+
+    def commitment(self) -> bytes:
+        """Calculates the commitment to execute this ScriptNode and
+            returns as bytes.
+        """
+        return self.locking_script().commitment()
+
+    def unlocking_script(self) -> Script:
+        """Calculates a recursive unlocking script for the node. Returns
+            a Script with the source and byte codes.
+        """
+        if not self.parent:
+            return Script('', b'')
+
+        other = self.parent.right if self.parent.left is self else self.parent.left
+        commitment = other.commitment()
+        src = f'push x{commitment.hex()}\npush x{self.locking_script().bytes.hex()}'
+        script = Script.from_src(src)
+        previous = self.parent.unlocking_script()
+        return Script(f'{script.src}\n{previous.src}', script.bytes + previous.bytes)
+
+
+def create_script_tree_prioritized(leaves: list[str], tree: ScriptNode = None) -> ScriptNode:
+    """Construct a script tree from the leaves using a ScriptLeaf for
+        each leaf script, combining the last two into a ScriptNode and
+        then recursively combining a ScriptLeaf for the last of the
+        remaining script leaves with the previously generated ScriptNode
+        until all leaves have been included, priorizing the lower index
+        leaf scripts with smaller unlocking script sizes.
     """
-    compiled_a = compile_script(branch_a)
-    compiled_b = compile_script(branch_b)
-    hash_a = sha256(compiled_a).digest()
-    hash_b = sha256(compiled_b).digest()
-    root = sha256(hash_a + hash_b).digest()
+    tert(type(leaves) in (list, tuple), 'leaves must be list or tuple of str')
+    for branch in leaves:
+        tert(type(branch) is str, 'leaves must be list or tuple of str')
+        vert(len(branch) > 0, 'leaves must not be empty')
+    vert(len(leaves) >= 1, 'must be at least 1 branch')
 
-    root_script = f'OP_MERKLEVAL x{root.hex()}\n'
-    script_a = f'OP_PUSH x{hash_b.hex()}\nOP_PUSH x{compiled_a.hex()}\nOP_TRUE\n'
-    script_b = f'OP_PUSH x{hash_a.hex()}\nOP_PUSH x{compiled_b.hex()}\nOP_FALSE\n'
+    if tree:
+        node = ScriptNode(
+            ScriptLeaf.from_src(leaves.pop()),
+            tree
+        )
+        if len(leaves):
+            return create_script_tree_prioritized(leaves, node)
+        return node
 
-    return [root_script, script_a, script_b]
+    if len(leaves) == 1:
+        leaves.append('false') # filler branch
 
-def _format_scripts(levels: list) -> tuple[str, list[str]]:
-    """Turns a list of script levels into a top-level locking script and
-        the unlocking scripts for each branch.
+    # combine final 2 leaves
+    node = ScriptNode(
+        right=ScriptLeaf.from_src(leaves.pop()),
+        left=ScriptLeaf.from_src(leaves.pop())
+    )
+
+    if len(leaves):
+        return create_script_tree_prioritized(leaves, node)
+    return node
+
+def create_merklized_script_prioritized(leaves: list[str]) -> tuple[Script, list[Script]]:
+    """Produces a Merklized, branching script structure with one leaf
+        and one node at every level except for the last node, which is
+        balanced. Returns a tuple of root locking script and list of
+        unlocking scripts. The tree is unbalanced; execution is
+        optimized for earlier branches (lower index leaf scripts), and
+        execution is linearly worse for each subsequent branch.
     """
-    locking_script = levels[0][0]
-    branches = [levels[0][1]]
-    partial = levels[0][2]
-
-    for i in range(1, len(levels)):
-        branches.append(levels[i][1] + partial)
-        partial = levels[i][2] + partial
-
-    branches.append(partial)
-
-    return (locking_script, branches)
-
-def create_merklized_script(branches: list[str], levels: list = None) -> tuple[str, list[str]]:
-    """Produces a Merklized, branching script structure with a branch on
-        the left at every level. Returns a tuple of root script and list
-        of branch execution scripts.
-    """
-    tert(type(branches) in (list, tuple), 'branches must be list or tuple of str')
-    for branch in branches:
-        tert(type(branch) is str, 'branches must be list or tuple of str')
-        vert(len(branch) > 0, 'branches must not be empty')
-    vert(len(branches) >= 1, 'must be at least 1 branch')
-
-    if len(branches) == 1:
-        branches.append('OP_FALSE') # filler branch
-    levels = levels or []
-
-    # combine final 2 branches
-    scripts = _combine_two(branches[-2], branches[-1])
-    levels.append(scripts)
-    remaining_branches = [*branches[:-2], scripts[0]]
-
-    if len(remaining_branches) == 1:
-        levels.reverse()
-        return _format_scripts(levels)
-
-    return create_merklized_script(remaining_branches, levels)
+    tree = create_script_tree_prioritized(leaves)
+    lock = tree.locking_script()
+    scripts = [tree.left.unlocking_script()]
+    while type(tree.right) is ScriptNode:
+        tree = tree.right
+        scripts.append(tree.left.unlocking_script())
+    scripts.append(tree.right.unlocking_script())
+    return (lock, scripts)
 
 def _format_docstring(docstring: str) -> str:
     """Takes a docstring, tokenizes it, and returns a str formatted to
@@ -114,7 +215,7 @@ def _format_docstring(docstring: str) -> str:
 
     return '\n'.join(lines)
 
-def _format_function_doc(function: Callable) -> str:
+def _format_function_doc(function: Callable, extra_indent: int = 0) -> str:
     """Documents a function with header hashtags, annotations, and
         docstring.
     """
@@ -136,14 +237,19 @@ def _format_function_doc(function: Callable) -> str:
     if hasattr(return_annotation, '__name__'):
         return_annotation = return_annotation.__name__
 
-    val = '\n\n## `'
-    val += name
-    val += '('
-    val += annotations
-    val += '): -> '
-    val += return_annotation
-    val += f'`\n\n{docstring}'
+    val = f'\n\n##{"".join(["#" for _ in range(extra_indent)])} `{name}'
+    val += f'({annotations}): -> {return_annotation}`'
+    val += f'\n\n{docstring}'
     return val
+
+def _format_class_doc(cls: type) -> str:
+    """Documents a class. Imports from autodox because I did not want to
+        replicate code, but it is not ordinarily called during package
+        use, so autodox is not considered a main dependency.
+    """
+    if 'dox_a_class' not in dir():
+        from autodox import dox_a_class
+    return dox_a_class(cls, {'header_level': 2})
 
 def _get_op_aliases() -> dict[str, list[str]]:
     """Find and return all aliases for all ops."""
@@ -187,7 +293,7 @@ def generate_docs() -> list[str]:
         'Each `OP_` function has an alias that excludes the `OP_` prefix.\n\n'
         'All `OP_` functions have the following signature:\n\n'
         '```python\n'
-        'def OP_WHATEVER(tape: Tape, stack: LifoQueue, cache: dict) -> None:\n'
+        'def OP_WHATEVER(tape: Tape, stack: Stack, cache: dict) -> None:\n'
         '    ...\n```\n\n'
         'All OPs advance the Tape pointer by the amount they read.\n'
     ]
@@ -214,9 +320,38 @@ def generate_docs() -> list[str]:
     paragraphs.append(_format_function_doc(decompile_script))
     paragraphs.append(_format_function_doc(add_opcode_parsing_handlers))
     paragraphs.append('\n\n# Tools')
-    paragraphs.append(_format_function_doc(create_merklized_script))
-    paragraphs.append(_format_function_doc(generate_docs))
-    paragraphs.append(_format_function_doc(add_soft_fork) + '\n\n')
+    paragraphs.append(_format_class_doc(ScriptLeaf))
+    paragraphs.append(_format_class_doc(ScriptNode))
+    paragraphs.append(_format_function_doc(create_script_tree_prioritized))
+    paragraphs.append(_format_function_doc(create_merklized_script_prioritized))
+    paragraphs.append(_format_function_doc(make_adapter_lock_pub))
+    paragraphs.append(_format_function_doc(make_adapter_lock_prv))
+    paragraphs.append(_format_function_doc(make_single_sig_lock))
+    paragraphs.append(_format_function_doc(make_single_sig_lock2))
+    paragraphs.append(_format_function_doc(make_single_sig_witness))
+    paragraphs.append(_format_function_doc(make_single_sig_witness2))
+    paragraphs.append(_format_function_doc(make_multisig_lock))
+    paragraphs.append(_format_function_doc(make_adapter_locks_pub))
+    paragraphs.append(_format_function_doc(make_adapter_decrypt))
+    paragraphs.append(_format_function_doc(decrypt_adapter))
+    paragraphs.append(_format_function_doc(make_adapter_locks_prv))
+    paragraphs.append(_format_function_doc(make_adapter_witness))
+    paragraphs.append(_format_function_doc(make_delegate_key_lock))
+    paragraphs.append(_format_function_doc(make_delegate_key_cert_sig))
+    paragraphs.append(_format_function_doc(make_delegate_key_unlock))
+    paragraphs.append(_format_function_doc(make_htlc_sha256_lock))
+    paragraphs.append(_format_function_doc(make_htlc_shake256_lock))
+    paragraphs.append(_format_function_doc(make_htlc_witness))
+    paragraphs.append(_format_function_doc(make_htlc2_sha256_lock))
+    paragraphs.append(_format_function_doc(make_htlc2_shake256_lock))
+    paragraphs.append(_format_function_doc(make_htlc2_witness))
+    paragraphs.append(_format_function_doc(make_ptlc_lock))
+    paragraphs.append(_format_function_doc(make_ptlc_witness))
+    paragraphs.append(_format_function_doc(make_ptlc_refund_witness))
+    paragraphs.append(_format_function_doc(setup_amhl))
+    paragraphs.append(_format_function_doc(release_left_amhl_lock))
+    paragraphs.append(_format_function_doc(add_soft_fork))
+    paragraphs.append(_format_function_doc(generate_docs) + '\n\n')
 
     with open('tapescript/notes.md', 'r') as f:
         paragraphs.append(f.read())

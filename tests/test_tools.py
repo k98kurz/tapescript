@@ -63,14 +63,50 @@ class TestTools(unittest.TestCase):
 
         return super().tearDown()
 
-    def test_create_merklized_script_returns_tuple_of_str_and_list(self):
-        result = tools.create_merklized_script(['OP_PUSH d123'])
+    def test_merklized_script_tree_classes_e2e(self):
+        tree = tools.ScriptNode(
+            tools.ScriptNode(
+                tools.ScriptLeaf.from_src('push s"hello world"'),
+                tools.ScriptLeaf.from_src('true'),
+            ),
+            tools.ScriptNode(
+                tools.ScriptLeaf.from_src('push s"hello world"'),
+                tools.ScriptLeaf.from_src('true'),
+            )
+        )
+
+        unlock = tree.right.right.unlocking_script()
+        assert type(unlock) is tools.Script
+
+        lock = tree.locking_script()
+        assert type(lock) is tools.Script
+
+        assert functions.run_auth_script(unlock.bytes + lock.bytes)
+
+        # prove that all mirror trees validate for same root
+        tree2 = tools.ScriptNode(
+            tools.ScriptLeaf.from_src('push s"I hacked it" pop0 true'),
+            tools.ScriptLeaf.from_src('push s"I hacked it" pop0 true'),
+        )
+        unlock = tree2.right.unlocking_script()
+        assert functions.run_auth_script(unlock.bytes + lock.bytes)
+
+        # prove that a different tree will not validate for the same root
+        tree3 = tools.ScriptNode(
+            tools.ScriptLeaf.from_src('push s"some script" pop0 true'),
+            tools.ScriptLeaf.from_src('push s"different innit" pop0 true'),
+        )
+        unlock = tree3.right.unlocking_script()
+        assert not functions.run_auth_script(unlock.bytes + lock.bytes)
+
+    def test_create_merklized_script_prioritized_returns_tuple_of_Script_and_list_of_Scripts(self):
+        result = tools.create_merklized_script_prioritized(['OP_PUSH d123'])
         assert type(result) is tuple
         assert len(result) == 2
 
         # locking script
-        assert type(result[0]) is str
-        parts = result[0].split()
+        assert type(result[0]) is tools.Script
+        parts = result[0].src.split()
         assert len(parts) == 2
         assert parts[0] == 'OP_MERKLEVAL'
         assert parts[1][0] == 'x'
@@ -80,23 +116,24 @@ class TestTools(unittest.TestCase):
         assert type(result[1]) is list
         assert len(result[1]) == 2 # given branch + filler
         for unlocking_script in result[1]:
-            assert type(unlocking_script) is str
+            assert type(unlocking_script) is tools.Script
 
-    def test_create_merklized_script_1_branch_e2e(self):
-        result = tools.create_merklized_script(['OP_PUSH d123'])
-        locking_script = parsing.compile_script(result[0])
-        unlocking_script = parsing.compile_script(result[1][0])
+    def test_create_merklized_script_prioritized_1_branch_e2e(self):
+        lock, unlocks = tools.create_merklized_script_prioritized(['OP_PUSH d123'])
+        locking_script = lock.bytes
+        unlocking_script = unlocks[0].bytes
 
         tape, stack, cache = functions.run_script(unlocking_script + locking_script)
         assert tape.has_terminated()
         assert not stack.empty()
-        assert int.from_bytes(stack.get(), 'big') == 123
+        item = stack.get()
+        assert int.from_bytes(item, 'big') == 123, item.hex()
         assert stack.empty()
 
-    def test_create_merklized_script_2_branches_e2e(self):
-        result = tools.create_merklized_script(['OP_PUSH d123', 'OP_PUSH x0123'])
-        locking_script = parsing.compile_script(result[0])
-        unlocking_scripts = [parsing.compile_script(s) for s in result[1]]
+    def test_create_merklized_script_prioritized_2_branches_e2e(self):
+        lock, unlocks = tools.create_merklized_script_prioritized(['OP_PUSH d123', 'OP_PUSH x0123'])
+        locking_script = lock.bytes
+        unlocking_scripts = [s.bytes for s in unlocks]
         assert len(unlocking_scripts) == 2
 
         tape, stack, cache = functions.run_script(unlocking_scripts[0] + locking_script)
@@ -111,12 +148,12 @@ class TestTools(unittest.TestCase):
         assert stack.get() == b'\x01\x23'
         assert stack.empty()
 
-    def test_create_merklized_script_3_branches_e2e(self):
-        result = tools.create_merklized_script([
+    def test_create_merklized_script_prioritized_3_branches_e2e(self):
+        lock, unlocks = tools.create_merklized_script_prioritized([
             'OP_PUSH d123', 'OP_PUSH x0123', 'OP_PUSH s"hello world"'
         ])
-        locking_script = parsing.compile_script(result[0])
-        unlocking_scripts = [parsing.compile_script(s) for s in result[1]]
+        locking_script = lock.bytes
+        unlocking_scripts = [s.bytes for s in unlocks]
         assert len(unlocking_scripts) == 3
 
         tape, stack, cache = functions.run_script(unlocking_scripts[0] + locking_script)
@@ -137,11 +174,11 @@ class TestTools(unittest.TestCase):
         assert str(stack.get(), 'utf-8') == 'hello world'
         assert stack.empty()
 
-    def test_create_merklized_script_20_branches_e2e(self):
+    def test_create_merklized_script_prioritized_20_branches_e2e(self):
         scripts = [f'OP_PUSH d{i}' for i in range(20)]
-        result = tools.create_merklized_script(scripts)
-        locking_script = parsing.compile_script(result[0])
-        unlocking_scripts = [parsing.compile_script(s) for s in result[1]]
+        lock, unlocks = tools.create_merklized_script_prioritized(scripts)
+        locking_script = lock.bytes
+        unlocking_scripts = [s.bytes for s in unlocks]
         assert len(unlocking_scripts) == 20
 
         for i in range(20):
@@ -216,13 +253,13 @@ class TestTools(unittest.TestCase):
         good_scripts = [good_unlocking_script_src for i in range(20)]
         bad_scripts = [bad_unlocking_script_src for i in range(20)]
 
-        result = tools.create_merklized_script(good_scripts)
-        good_locking_script = parsing.compile_script(result[0])
-        good_unlocking_scripts = [parsing.compile_script(s) for s in result[1]]
+        result = tools.create_merklized_script_prioritized(good_scripts)
+        good_locking_script = result[0].bytes
+        good_unlocking_scripts = [s.bytes for s in result[1]]
 
-        result = tools.create_merklized_script(bad_scripts)
-        bad_locking_script = parsing.compile_script(result[0])
-        bad_unlocking_scripts = [parsing.compile_script(s) for s in result[1]]
+        result = tools.create_merklized_script_prioritized(bad_scripts)
+        bad_locking_script = result[0].bytes
+        bad_unlocking_scripts = [s.bytes for s in result[1]]
 
         for i in range(20):
             branch = good_unlocking_scripts[i] + good_locking_script + locking_script_old
@@ -240,13 +277,13 @@ class TestTools(unittest.TestCase):
         good_scripts = [good_unlocking_script_src for i in range(20)]
         bad_scripts = [bad_unlocking_script_src for i in range(20)]
 
-        result = tools.create_merklized_script(good_scripts)
-        good_locking_script = parsing.compile_script(result[0])
-        good_unlocking_scripts = [parsing.compile_script(s) for s in result[1]]
+        result = tools.create_merklized_script_prioritized(good_scripts)
+        good_locking_script = result[0].bytes
+        good_unlocking_scripts = [s.bytes for s in result[1]]
 
-        result = tools.create_merklized_script(bad_scripts)
-        bad_locking_script = parsing.compile_script(result[0])
-        bad_unlocking_scripts = [parsing.compile_script(s) for s in result[1]]
+        result = tools.create_merklized_script_prioritized(bad_scripts)
+        bad_locking_script = result[0].bytes
+        bad_unlocking_scripts = [s.bytes for s in result[1]]
 
         for i in range(20):
             branch = good_unlocking_scripts[i] + good_locking_script + locking_script_old

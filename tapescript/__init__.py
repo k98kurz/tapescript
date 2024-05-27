@@ -34,7 +34,11 @@ from .parsing import (
     add_opcode_parsing_handlers
 )
 from .tools import (
-    create_merklized_script,
+    Script,
+    ScriptLeaf,
+    ScriptNode,
+    create_script_tree_prioritized,
+    create_merklized_script_prioritized,
     generate_docs,
     add_soft_fork,
     make_adapter_lock_pub,
