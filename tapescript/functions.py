@@ -200,6 +200,44 @@ def OP_PUSH2(tape: Tape, stack: Stack, cache: dict) -> None:
     size = int.from_bytes(tape.read(2), 'big')
     stack.put(tape.read(size))
 
+def OP_GET_MESSAGE(tape: Tape, stack: Stack, cache: dict) -> None:
+    """Reads a byte from tape as the sigflags; constructs the message
+        that will be used by OP_SIGN and OP_CHECK_SIG/_VERIFY from the
+        sigfields; puts the result onto the stack.
+    """
+    run_sig_extensions(tape, stack, cache)
+    sig_flag = int.from_bytes(tape.read(1), 'big')
+
+    sig_flag1 = sig_flag & 0b00000001
+    sig_flag2 = sig_flag & 0b00000010
+    sig_flag3 = sig_flag & 0b00000100
+    sig_flag4 = sig_flag & 0b00001000
+    sig_flag5 = sig_flag & 0b00010000
+    sig_flag6 = sig_flag & 0b00100000
+    sig_flag7 = sig_flag & 0b01000000
+    sig_flag8 = sig_flag & 0b10000000
+
+    message = b''
+
+    if 'sigfield1' in cache and not sig_flag1:
+        message += cache['sigfield1']
+    if 'sigfield2' in cache and not sig_flag2:
+        message += cache['sigfield2']
+    if 'sigfield3' in cache and not sig_flag3:
+        message += cache['sigfield3']
+    if 'sigfield4' in cache and not sig_flag4:
+        message += cache['sigfield4']
+    if 'sigfield5' in cache and not sig_flag5:
+        message += cache['sigfield5']
+    if 'sigfield6' in cache and not sig_flag6:
+        message += cache['sigfield6']
+    if 'sigfield7' in cache and not sig_flag7:
+        message += cache['sigfield7']
+    if 'sigfield8' in cache and not sig_flag8:
+        message += cache['sigfield8']
+
+    stack.put(message)
+
 def OP_POP0(tape: Tape, stack: Stack, cache: dict) -> None:
     """Remove the first item from the stack and put it in the cache at
         key b'P' (can be put back onto the stack with @P).
@@ -1480,44 +1518,6 @@ def OP_AND(tape: Tape, stack: Stack, cache: dict) -> None:
         item2 += b'\x00'
     result = and_bytes(item1, item2)
     stack.put(result)
-
-def OP_GET_MESSAGE(tape: Tape, stack: Stack, cache: dict) -> None:
-    """Reads a byte from tape as the sigflags; constructs the message
-        that will be used by OP_SIGN and OP_CHECK_SIG/_VERIFY from the
-        sigfields; puts the result onto the stack.
-    """
-    run_sig_extensions(tape, stack, cache)
-    sig_flag = int.from_bytes(tape.read(1), 'big')
-
-    sig_flag1 = sig_flag & 0b00000001
-    sig_flag2 = sig_flag & 0b00000010
-    sig_flag3 = sig_flag & 0b00000100
-    sig_flag4 = sig_flag & 0b00001000
-    sig_flag5 = sig_flag & 0b00010000
-    sig_flag6 = sig_flag & 0b00100000
-    sig_flag7 = sig_flag & 0b01000000
-    sig_flag8 = sig_flag & 0b10000000
-
-    message = b''
-
-    if 'sigfield1' in cache and not sig_flag1:
-        message += cache['sigfield1']
-    if 'sigfield2' in cache and not sig_flag2:
-        message += cache['sigfield2']
-    if 'sigfield3' in cache and not sig_flag3:
-        message += cache['sigfield3']
-    if 'sigfield4' in cache and not sig_flag4:
-        message += cache['sigfield4']
-    if 'sigfield5' in cache and not sig_flag5:
-        message += cache['sigfield5']
-    if 'sigfield6' in cache and not sig_flag6:
-        message += cache['sigfield6']
-    if 'sigfield7' in cache and not sig_flag7:
-        message += cache['sigfield7']
-    if 'sigfield8' in cache and not sig_flag8:
-        message += cache['sigfield8']
-
-    stack.put(message)
 
 def NOP(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as a signed int
