@@ -106,26 +106,20 @@ class TestSigExt(unittest.TestCase):
         }
 
         # locks
-        siglock1_src = tools.make_single_sig_lock(self.pubkeyA)
-        siglock2_src = f'@= sigext [ x02 ] {siglock1_src}'
-        siglock1_bin = parsing.compile_script(siglock1_src)
-        siglock2_bin = parsing.compile_script(siglock2_src)
-        multilock1_src = tools.make_multisig_lock([self.pubkeyA, self.pubkeyB], 2)
-        multilock1_bin = parsing.compile_script(multilock1_src)
-        multilock2_src = f'@= sigext [ x02 ] {multilock1_src}'
-        multilock2_bin = parsing.compile_script(multilock2_src)
+        siglock1 = tools.make_single_sig_lock(self.pubkeyA)
+        siglock2 = tools.Script.from_src(f'@= sigext [ x02 ] {siglock1.src}')
+        multilock1 = tools.make_multisig_lock([self.pubkeyA, self.pubkeyB], 2)
+        multilock2 = tools.Script.from_src(f'@= sigext [ x02 ] {multilock1.src}')
 
         # witnesses
-        sigwit1_src = tools.make_single_sig_witness(self.prvkeyA, sigfields)
-        sigwit1_bin = parsing.compile_script(sigwit1_src)
+        sigwit1 = tools.make_single_sig_witness(self.prvkeyA, sigfields)
         functions.add_signature_extension(hash_sigfields)
         _, stack, _ = functions.run_script(
             parsing.compile_script(f'@= sigext [ x02 ] push x{self.prvkeyA.hex()} sign x00'),
             {**sigfields}
         )
         sig: bytes = stack.get()
-        sigwit2_src = f'push x{sig.hex()}'
-        sigwit2_bin = parsing.compile_script(sigwit2_src)
+        sigwit2 = tools.Script.from_src(f'push x{sig.hex()}')
 
         functions.reset_signature_extensions()
         _, stack, _ = functions.run_script(
@@ -133,8 +127,7 @@ class TestSigExt(unittest.TestCase):
             {**sigfields}
         )
         sig = stack.get()
-        multiwit1_src = f'{sigwit1_src} push x{sig.hex()}'
-        multiwit1_bin = parsing.compile_script(multiwit1_src)
+        multiwit1 = tools.Script.from_src(f'{sigwit1.src} push x{sig.hex()}')
 
         functions.add_signature_extension(hash_sigfields)
         _, stack, _ = functions.run_script(
@@ -142,34 +135,33 @@ class TestSigExt(unittest.TestCase):
             {**sigfields}
         )
         sig = stack.get()
-        multiwit2_src = f'{sigwit2_src} push x{sig.hex()}'
-        multiwit2_bin = parsing.compile_script(multiwit2_src)
+        multiwit2 = tools.Script.from_src(f'{sigwit2.src} push x{sig.hex()}')
 
         # auth tests using the VM-wide plugin management functions
         functions.reset_signature_extensions()
-        assert functions.run_auth_script(sigwit1_bin + siglock1_bin, sigfields)
-        assert not functions.run_auth_script(sigwit2_bin + siglock2_bin, sigfields)
-        assert functions.run_auth_script(multiwit1_bin + multilock1_bin, sigfields)
-        assert not functions.run_auth_script(multiwit2_bin + multilock2_bin, sigfields)
+        assert functions.run_auth_script(sigwit1 + siglock1, sigfields)
+        assert not functions.run_auth_script(sigwit2 + siglock2, sigfields)
+        assert functions.run_auth_script(multiwit1 + multilock1, sigfields)
+        assert not functions.run_auth_script(multiwit2 + multilock2, sigfields)
 
         functions.add_signature_extension(hash_sigfields)
-        assert functions.run_auth_script(sigwit1_bin + siglock1_bin, sigfields)
-        assert functions.run_auth_script(sigwit2_bin + siglock2_bin, sigfields)
-        assert functions.run_auth_script(multiwit1_bin + multilock1_bin, sigfields)
-        assert functions.run_auth_script(multiwit2_bin + multilock2_bin, sigfields)
+        assert functions.run_auth_script(sigwit1 + siglock1, sigfields)
+        assert functions.run_auth_script(sigwit2 + siglock2, sigfields)
+        assert functions.run_auth_script(multiwit1 + multilock1, sigfields)
+        assert functions.run_auth_script(multiwit2 + multilock2, sigfields)
 
         # auth tests using plugin injection
         functions.reset_signature_extensions()
-        assert functions.run_auth_script(sigwit1_bin + siglock1_bin, sigfields)
-        assert not functions.run_auth_script(sigwit2_bin + siglock2_bin, sigfields)
-        assert functions.run_auth_script(multiwit1_bin + multilock1_bin, sigfields)
-        assert not functions.run_auth_script(multiwit2_bin + multilock2_bin, sigfields)
+        assert functions.run_auth_script(sigwit1 + siglock1, sigfields)
+        assert not functions.run_auth_script(sigwit2 + siglock2, sigfields)
+        assert functions.run_auth_script(multiwit1 + multilock1, sigfields)
+        assert not functions.run_auth_script(multiwit2 + multilock2, sigfields)
 
         plugins = {'signature_extensions': [hash_sigfields]}
-        assert functions.run_auth_script(sigwit1_bin + siglock1_bin, sigfields, plugins=plugins)
-        assert functions.run_auth_script(sigwit2_bin + siglock2_bin, sigfields, plugins=plugins)
-        assert functions.run_auth_script(multiwit1_bin + multilock1_bin, sigfields, plugins=plugins)
-        assert functions.run_auth_script(multiwit2_bin + multilock2_bin, sigfields, plugins=plugins)
+        assert functions.run_auth_script(sigwit1 + siglock1, sigfields, plugins=plugins)
+        assert functions.run_auth_script(sigwit2 + siglock2, sigfields, plugins=plugins)
+        assert functions.run_auth_script(multiwit1 + multilock1, sigfields, plugins=plugins)
+        assert functions.run_auth_script(multiwit2 + multilock2, sigfields, plugins=plugins)
 
 if __name__ == '__main__':
     unittest.main()
