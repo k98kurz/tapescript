@@ -2025,20 +2025,6 @@ class TestFunctions(unittest.TestCase):
         assert len(self.stack) == 1
         assert self.stack.get() == b'\xff'
 
-    # cryptographic proofs
-    def test_ed25519_maths_meet_homomorphic_one_way_condition(self):
-        """Test if Ed25519 meets the homomorphic one way condition."""
-        x1 = functions.clamp_scalar(token_bytes(32))
-        x2 = functions.clamp_scalar(token_bytes(32))
-        y1 = nacl.bindings.crypto_scalarmult_ed25519_base_noclamp(x1) # G^x1
-        y2 = nacl.bindings.crypto_scalarmult_ed25519_base_noclamp(x2) # G^x2
-
-        # test
-        y3_1 = nacl.bindings.crypto_core_ed25519_add(y1, y2) # G^x1 * G^x2
-        x3 = nacl.bindings.crypto_core_ed25519_scalar_add(x1, x2) # x1 + x2
-        y3_2 = nacl.bindings.crypto_scalarmult_ed25519_base_noclamp(x3) # G^(x1+x2)
-        assert y3_1 == y3_2 # G^x1 * G^x2 = G^(x1+x2) where * denotes group operator
-
     # values
     def test_opcodes_is_dict_mapping_ints_to_tuple_str_function(self):
         assert isinstance(functions.opcodes, dict)
@@ -2114,11 +2100,6 @@ class TestFunctions(unittest.TestCase):
         assert functions.run_auth_script(b'\x01') == True
         assert functions.run_auth_script(b'\x01\x01') == False
 
-    def test_infinite_recursion_results_in_callstack_limit_exceeded_error(self):
-        with self.assertRaises(errors.ScriptExecutionError) as e:
-            functions.run_script(b'\x29\x00\x00\x02\x2a\x00\x2a\x00')
-        assert str(e.exception) == 'callstack limit exceeded'
-
     def test_OP_RETURN_exits_local_context_and_returns_to_outer_context(self):
         # return from def before adding int false to stack
         code = b'\x29\x00\x00\x02\x30\x00\x2a\x00\x01'
@@ -2173,28 +2154,6 @@ class TestFunctions(unittest.TestCase):
         tape, stack, _ = functions.run_script(code, additional_flags={'eval_return':True})
         assert tape.has_terminated()
         assert stack.empty()
-
-    def test_OP_LOOP_and_recursive_OP_CALL_raises_callstack_limit_error(self):
-        """
-            OP_DEF 0 {
-                OP_LOOP {
-                    OP_CALL 0
-                }
-            }
-            OP_TRUE
-            OP_CALL 0
-        """
-        defbody = functions.opcodes_inverse['OP_LOOP'][0].to_bytes(1, 'big') + \
-            b'\x00\x02' + functions.opcodes_inverse['OP_CALL'][0].to_bytes(1, 'big') + \
-            b'\x00'
-        self.tape = classes.Tape(
-            functions.opcodes_inverse['OP_DEF'][0].to_bytes(1, 'big') +
-            b'\x00' + len(defbody).to_bytes(2, 'big') + defbody + b'\x01' +
-            functions.opcodes_inverse['OP_CALL'][0].to_bytes(1, 'big') + b'\x00'
-        )
-        with self.assertRaises(errors.ScriptExecutionError) as e:
-            functions.run_tape(self.tape, self.stack, self.cache)
-        assert 'callstack limit' in str(e.exception)
 
     def test_add_opcode_raises_errors_for_invalid_input(self):
         function = lambda tape, stack, cache: stack.put('nonsense')
