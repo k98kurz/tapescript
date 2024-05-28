@@ -32,6 +32,15 @@ with changed `CONCAT`.
   - `OP_CSQ` (`CSQ`) -> `OP_CSS` (`CSS`)
 - Added `OP_CAT` alias for `OP_CONCAT`
 - Added `OP_CATS` alias for `OP_CONCAT_STR`
+- Added new classes `Script`, `ScriptLeaf`, and `ScriptNode` and replaced the
+`create_merklized_script` function with `create_merklized_script_prioritized` to
+make using the new `OP_MERKLEVAL` easier.
+- Updated all tool functions to use the `Script` class
+- Added `Script.__bytes__`, `Script.__str__`, and `Script.__add__`
+- Added `ScriptProtocol` representing `Script` functionality
+- Added `ScriptProtocol` compatibility to script running functions
+- Fix: `OP_LOOP` now exits if `OP_RETURN` is called within the loop body
+- Added `OP_CHECK_TEMPLATE` (`OP_CT2`) and `OP_CHECK_TEMPLATE_VERIFY` (`OP_CTV2`)
 
 ## 0.4.1
 
