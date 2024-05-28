@@ -95,8 +95,8 @@ equal
 equal_verify
 check_sig x22
 csv x33
-check_timestamp
-ctv
+cts
+ctsv
 check_epoch
 cev
 eval
@@ -159,8 +159,8 @@ xor
 or
 and
 msg x00
-ct2 x00
-ctv2 x00
+ct x00
+ctv x00
 nop91 d1
 nop92 d1
 nop93 d1

@@ -30,6 +30,8 @@ with changed `CONCAT`.
   - `OP_RCQ` (`RCQ`) -> `OP_RCS` (`RCS`)
   - `OP_RCQS` (`RCQS`) -> `OP_RCSZ` (`RCSZ`)
   - `OP_CSQ` (`CSQ`) -> `OP_CSS` (`CSS`)
+  - `OP_CTV` (`CTV`) -> `OP_CTSV` (`CTSV`)
+- Added `OP_CTS` alias for `OP_CHECK_TIMESTAMP`
 - Added `OP_CAT` alias for `OP_CONCAT`
 - Added `OP_CATS` alias for `OP_CONCAT_STR`
 - Added new classes `Script`, `ScriptLeaf`, and `ScriptNode` and replaced the
@@ -40,7 +42,7 @@ make using the new `OP_MERKLEVAL` easier.
 - Added `ScriptProtocol` representing `Script` functionality
 - Added `ScriptProtocol` compatibility to script running functions
 - Fix: `OP_LOOP` now exits if `OP_RETURN` is called within the loop body
-- Added `OP_CHECK_TEMPLATE` (`OP_CT2`) and `OP_CHECK_TEMPLATE_VERIFY` (`OP_CTV2`)
+- Added `OP_CHECK_TEMPLATE` (`OP_CT`) and `OP_CHECK_TEMPLATE_VERIFY` (`OP_CTV`)
 
 ## 0.4.1
 
