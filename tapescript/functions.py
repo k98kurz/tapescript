@@ -1735,10 +1735,10 @@ opcode_aliases['OP_CAT'] = 'OP_CONCAT'
 opcode_aliases['CAT'] = 'OP_CONCAT'
 opcode_aliases['OP_CATS'] = 'OP_CONCAT_STR'
 opcode_aliases['CATS'] = 'OP_CONCAT_STR'
-opcode_aliases['OP_CT'] = 'OP_CHECK_TEMPLATE'
-opcode_aliases['CT'] = 'OP_CHECK_TEMPLATE'
-opcode_aliases['OP_CTV'] = 'OP_CHECK_TEMPLATE_VERIFY'
-opcode_aliases['CTV'] = 'OP_CHECK_TEMPLATE_VERIFY'
+opcode_aliases['OP_CT2'] = 'OP_CHECK_TEMPLATE'
+opcode_aliases['CT2'] = 'OP_CHECK_TEMPLATE'
+opcode_aliases['OP_CTV2'] = 'OP_CHECK_TEMPLATE_VERIFY'
+opcode_aliases['CTV2'] = 'OP_CHECK_TEMPLATE_VERIFY'
 
 nopcodes_inverse = {
     nopcodes[key][0]: (key, nopcodes[key][1]) for key in nopcodes

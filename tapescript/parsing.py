@@ -554,7 +554,8 @@ def get_args(
             'OP_COPY' | 'OP_SHAKE256' | 'OP_RANDOM' | 'OP_REVERSE' | \
             'OP_SPLIT' | 'OP_SPLIT_STR' | 'OP_CHECK_SIG' | 'OP_SIGN' | \
             'OP_CHECK_SIG_VERIFY' | 'OP_CLAMP_SCALAR' | 'OP_ADD_SCALARS' | \
-            'OP_SUBTRACT_SCALARS' | 'OP_SUBTRACT_POINTS' | 'OP_GET_MESSAGE':
+            'OP_SUBTRACT_SCALARS' | 'OP_SUBTRACT_POINTS' | \
+            'OP_GET_MESSAGE' | 'OP_CHECK_TEMPLATE' | 'OP_CHECK_TEMPLATE_VERIFY':
             # ops that have tape argument of form [-128 to 127]
             # human-readable syntax of OP_[whatever] [int]
             return _get_OP_PUSH0_type_args(opname, symbols, symbols_to_advance, symbol_index)
@@ -1111,7 +1112,8 @@ def decompile_script(script: bytes, indent: int = 0) -> list[str]:
                 # human-readable syntax of OP_[whatever] [int]
                 val = bytes_to_int(tape.read(1))
                 add_line(f'{op_name} d{val}')
-            case 'OP_CHECK_SIG' | 'OP_CHECK_SIG_VERIFY' | 'OP_SIGN' | 'OP_GET_MESSAGE':
+            case 'OP_CHECK_SIG' | 'OP_CHECK_SIG_VERIFY' | 'OP_SIGN' | \
+                'OP_GET_MESSAGE' | 'OP_CHECK_TEMPLATE' | 'OP_CHECK_TEMPLATE_VERIFY':
                 # ops that have tape argument of form x[00-ff]
                 # human-readable syntax of OP_[whatever] x[00-ff]
                 val = tape.read(1)
