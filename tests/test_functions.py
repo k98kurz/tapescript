@@ -2025,6 +2025,24 @@ class TestFunctions(unittest.TestCase):
         assert len(self.stack) == 1
         assert self.stack.get() == b'\xff'
 
+    def test_OP_CHECK_TEMPLATE(self):
+        self.tape.data = b'\x01'
+        template = b'hello world'
+        self.stack.put(template)
+        self.cache = {'sigfield1': template}
+
+        functions.OP_CHECK_TEMPLATE(self.tape, self.stack, self.cache)
+        assert len(self.stack) == 1
+        assert self.stack.get() == b'\xff'
+
+        self.tape.reset_pointer()
+        template = b'something else'
+        self.stack.put(template)
+
+        functions.OP_CHECK_TEMPLATE(self.tape, self.stack, self.cache)
+        assert len(self.stack) == 1
+        assert self.stack.get() == b'\x00'
+
     # values
     def test_opcodes_is_dict_mapping_ints_to_tuple_str_function(self):
         assert isinstance(functions.opcodes, dict)

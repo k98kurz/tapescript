@@ -8,7 +8,7 @@ from nacl.exceptions import BadSignatureError
 from nacl.signing import SigningKey, VerifyKey
 from secrets import token_bytes
 from time import time
-from typing import Callable, _ProtocolMeta
+from typing import Any, Callable, _ProtocolMeta
 import nacl.bindings
 import struct
 
@@ -1519,6 +1519,51 @@ def OP_AND(tape: Tape, stack: Stack, cache: dict) -> None:
     result = and_bytes(item1, item2)
     stack.put(result)
 
+def OP_CHECK_TEMPLATE(tape: Tape, stack: Stack, cache: dict) -> None:
+    """Reads 1 byte from the tape, interpreting as sigflags; pull an
+        item from the stack for each indicated sigfield as a template;
+        check that all indicated sigfields validate against the template
+        using the plugin system; put True onto the stack if every
+        sigfield validated against its template by at least one ctv
+        plugin function, and False otherwise. Runs the signature
+        extension plugins first.
+    """
+    run_sig_extensions(tape, stack, cache)
+    sig_flag = int.from_bytes(tape.read(1), 'big')
+    all_valid = True
+
+    sig_flags = {
+        '1': sig_flag & 0b00000001,
+        '2': sig_flag & 0b00000010,
+        '3': sig_flag & 0b00000100,
+        '4': sig_flag & 0b00001000,
+        '5': sig_flag & 0b00010000,
+        '6': sig_flag & 0b00100000,
+        '7': sig_flag & 0b01000000,
+        '8': sig_flag & 0b10000000,
+    }
+
+    for i, flag in sig_flags.items():
+        if not flag:
+            continue
+        template = stack.get()
+        field = cache[f'sigfield{i}']
+        s = Stack()
+        s.put(field)
+        s.put(template)
+        result = run_plugins('check_template', Tape(b''), s, cache)
+        if not len(result):
+            all_valid = all_valid and template == field
+        else:
+            all_valid = all_valid and any(result)
+
+    stack.put(b'\xff' if all_valid else b'\x00')
+
+def OP_CHECK_TEMPLATE_VERIFY(tape: Tape, stack: Stack, cache: dict) -> None:
+    """Runs OP_CHECK_TEMPLATE and then OP_VERIFY."""
+    OP_CHECK_TEMPLATE(tape, stack, cache)
+    OP_VERIFY(tape, stack, cache)
+
 def NOP(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as a signed int
         and pull that many values from the stack. Does nothing with the
@@ -1622,6 +1667,8 @@ opcodes = [
     ('OP_XOR', OP_XOR),
     ('OP_OR', OP_OR),
     ('OP_AND', OP_AND),
+    ('OP_CHECK_TEMPLATE', OP_CHECK_TEMPLATE),
+    ('OP_CHECK_TEMPLATE_VERIFY', OP_CHECK_TEMPLATE_VERIFY),
 ]
 opcodes: dict[int, tuple[str, Callable]] = {x: opcodes[x] for x in range(len(opcodes))}
 
@@ -1688,6 +1735,10 @@ opcode_aliases['OP_CAT'] = 'OP_CONCAT'
 opcode_aliases['CAT'] = 'OP_CONCAT'
 opcode_aliases['OP_CATS'] = 'OP_CONCAT_STR'
 opcode_aliases['CATS'] = 'OP_CONCAT_STR'
+opcode_aliases['OP_CT'] = 'OP_CHECK_TEMPLATE'
+opcode_aliases['CT'] = 'OP_CHECK_TEMPLATE'
+opcode_aliases['OP_CTV'] = 'OP_CHECK_TEMPLATE_VERIFY'
+opcode_aliases['CTV'] = 'OP_CHECK_TEMPLATE_VERIFY'
 
 nopcodes_inverse = {
     nopcodes[key][0]: (key, nopcodes[key][1]) for key in nopcodes
@@ -1739,6 +1790,11 @@ _plugins: dict[str, list[Callable]] = {}
 # CHECK_MULTISIG, SIGN, and GET_MESSAGE and take the same arguments as an op
 _plugins['signature_extensions'] = []
 
+# CTV plugin funcs are called to compare each sigfield against a template, and
+# they take the same arguments as an op. However, the tape they get is empty,
+# and the stack contains just the sigfield and the template (template on top).
+# If no extensions are loaded, a simple equality comparison will be done.
+_plugins['check_template'] = []
 
 def _check_contract(contract: object) -> None:
     """Check a contract against required interfaces. Raise
@@ -1797,10 +1853,10 @@ def add_opcode(code: int, name: str, function: Callable) -> None:
         del nopcodes[code]
         del nopcodes_inverse[nopname]
 
-def add_plugin(scope: str, plugin: Callable[[Tape, Stack, dict], None]) -> None:
+def add_plugin(scope: str, plugin: Callable[[Tape, Stack, dict], Any]) -> None:
     """Adds a plugin for the given scope."""
     tert(type(scope) is str, 'scope must be str')
-    tert(callable(plugin), f'plugin (for {scope}) must be Callable[[Tape, Stack, dict], None]')
+    tert(callable(plugin), f'plugin (for {scope}) must be Callable[[Tape, Stack, dict], Any]')
 
     if scope not in _plugins:
         _plugins[scope] = []
@@ -1826,12 +1882,14 @@ def reset_plugins(scope: str) -> None:
         for plugin in _plugins[scope]
     ]
 
-def run_plugins(scope: str, tape: Tape, stack: Stack, cache: dict) -> None:
+def run_plugins(scope: str, tape: Tape, stack: Stack, cache: dict) -> list:
     """Runs all plugins of the given scope."""
+    result = []
     if scope not in tape.plugins:
-        return
+        return result
     for plugin in tape.plugins[scope]:
-        plugin(tape, stack, cache)
+        result.append(plugin(tape, stack, cache))
+    return result
 
 def add_signature_extension(plugin: Callable[[Tape, Stack, dict], None]) -> None:
     """Adds a signature extension plugin to be run before the following
