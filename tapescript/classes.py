@@ -15,7 +15,7 @@ class Tape:
     definitions: dict[bytes, Tape] = field(default_factory=dict)
     flags: dict[str|int, int|bool] = field(default_factory=dict)
     contracts: dict[bytes, object] = field(default_factory=dict)
-    plugins: dict[str, list[Callable]] = field(default_factory=list)
+    plugins: dict[str, list[Callable]] = field(default_factory=dict)
 
     def read(self, size: int, move_pointer: bool = True) -> bytes:
         """Read symbols from the data."""

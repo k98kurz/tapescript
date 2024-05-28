@@ -5,9 +5,7 @@ from nacl.signing import SigningKey
 import unittest
 
 
-'''Example implementation of a signature extension plugin utilizing the
-    b'sigext' cache location.
-'''
+
 
 def hash_sigfields(tape: classes.Tape, stack: classes.Stack, cache: dict) -> None:
     """When called for the first time, backup the original sigfields to
@@ -109,6 +107,9 @@ class TestPlugins(unittest.TestCase):
 
 
 class TestSigExt(unittest.TestCase):
+    '''Example implementation of a signature extension plugin utilizing
+        the b'sigext' cache location.
+    '''
     prvkeyA: bytes
     prvkeyB: bytes
     pubkeyA: bytes
@@ -205,6 +206,20 @@ class TestSigExt(unittest.TestCase):
         assert functions.run_auth_script(sigwit2 + siglock2, sigfields, plugins=plugins)
         assert functions.run_auth_script(multiwit1 + multilock1, sigfields, plugins=plugins)
         assert functions.run_auth_script(multiwit2 + multilock2, sigfields, plugins=plugins)
+
+
+class TestCTExt(unittest.TestCase):
+    '''Example implementation of a check_template extension plugin.'''
+    def tearDown(self) -> None:
+        functions._plugins['check_template'] = []
+        return super().tearDown()
+
+    def test_check_template_ext_e2e(self):
+        ishelloworld = lambda tape, stack, cache: [stack.get(), stack.get()][1] == b'hello world'
+        script = tools.Script.from_src('push x0102 check_template x01')
+        functions.add_plugin('check_template', ishelloworld)
+        assert functions.run_auth_script(script,{ 'sigfield1': b'hello world' })
+        assert not functions.run_auth_script(script,{ 'sigfield1': b'hello world1' })
 
 
 if __name__ == '__main__':

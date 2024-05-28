@@ -1551,7 +1551,8 @@ def OP_CHECK_TEMPLATE(tape: Tape, stack: Stack, cache: dict) -> None:
         s = Stack()
         s.put(field)
         s.put(template)
-        result = run_plugins('check_template', Tape(b''), s, cache)
+        t = Tape(b'', plugins={**tape.plugins}, contracts={**tape.contracts})
+        result = run_plugins('check_template', t, s, cache)
         if not len(result):
             all_valid = all_valid and template == field
         else:
