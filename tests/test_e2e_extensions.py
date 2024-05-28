@@ -65,6 +65,49 @@ def hash_sigfields(tape: classes.Tape, stack: classes.Stack, cache: dict) -> Non
             cache[f'sigfield{n}'] = sha256(cache[f'sigfield{n}']).digest()
 
 
+class TestPlugins(unittest.TestCase):
+    original_plugins: dict
+
+    def setUp(self) -> None:
+        self.original_plugins = { **functions._plugins }
+        functions._plugins['test'] = []
+        for k, v in self.original_plugins.items():
+            self.original_plugins[k] = [*v]
+        return super().setUp()
+
+    def tearDown(self) -> None:
+        functions._plugins = { **self.original_plugins }
+        for k, v in functions._plugins.items():
+            functions._plugins[k] = [*v]
+        return super().tearDown()
+
+    def test_add_plugin(self):
+        len1 = len(functions._plugins['test'])
+        functions.add_plugin('test', hash_sigfields)
+        len2 = len(functions._plugins['test'])
+        assert len2 == len1 + 1
+
+    def test_remove_plugin(self):
+        functions.add_plugin('test', hash_sigfields)
+        len1 = len(functions._plugins['test'])
+        functions.remove_plugin('test', hash_sigfields)
+        len2 = len(functions._plugins['test'])
+        assert len2 == len1 - 1
+
+    def test_run_plugins(self):
+        hashcheck = lambda tape, stack, cache: cache.update({'foo': 'bar'})
+        functions.add_plugin('test', hashcheck)
+        cache = {}
+        assert 'foo' not in cache
+        functions.run_plugins(
+            'test',
+            classes.Tape(b'', plugins=functions._plugins),
+            classes.Stack(),
+            cache
+        )
+        assert cache.get('foo', None) == 'bar', cache
+
+
 class TestSigExt(unittest.TestCase):
     prvkeyA: bytes
     prvkeyB: bytes
@@ -162,6 +205,7 @@ class TestSigExt(unittest.TestCase):
         assert functions.run_auth_script(sigwit2 + siglock2, sigfields, plugins=plugins)
         assert functions.run_auth_script(multiwit1 + multilock1, sigfields, plugins=plugins)
         assert functions.run_auth_script(multiwit2 + multilock2, sigfields, plugins=plugins)
+
 
 if __name__ == '__main__':
     unittest.main()
