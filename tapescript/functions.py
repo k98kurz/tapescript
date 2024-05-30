@@ -136,6 +136,28 @@ def aggregate_scalars(scalars: list[bytes]) -> bytes:
 
     return sum
 
+def sign_with_scalar(scalar: bytes, message: bytes, seed: bytes = None) -> bytes:
+    """Creates a valid signature given an ed25519 scalar that validates
+        with the corresponding point.
+    """
+    tert(type(scalar) is bytes, 'scalar must be bytes')
+    tert(type(message) is bytes, 'message must be bytes')
+
+    vert(nacl.bindings.crypto_core_ed25519_SCALARBYTES == len(scalar),
+         'scalar must be a valid ed25519 scalar')
+
+    seed = seed or H_small(scalar + message)
+    x, m = scalar, message
+    X = nacl.bindings.crypto_scalarmult_ed25519_base_noclamp(x) # G^x
+    nonce = H_big(seed)[32:]
+    r = clamp_scalar(H_small(H_big(nonce, m))) # H(nonce || m)
+    R = nacl.bindings.crypto_scalarmult_ed25519_base_noclamp(r) # G^r
+    c = clamp_scalar(H_small(R, X, m)) # H(R + T || X || m)
+    s = nacl.bindings.crypto_core_ed25519_scalar_add(
+        r, nacl.bindings.crypto_core_ed25519_scalar_mul(c, x)
+    ) # r + H(R || X || m) * x
+    return R + s
+
 def not_bytes(b1: bytes) -> bytes:
     """Perform a bitwise NOT operation. Implementation is specific to
         the Python memory model.
@@ -1528,7 +1550,8 @@ def OP_CHECK_TEMPLATE(tape: Tape, stack: Stack, cache: dict) -> None:
         plugin function, and False otherwise. Runs the signature
         extension plugins first.
     """
-    run_sig_extensions(tape, stack, cache)
+    if tape.flags.get(10, True):
+        run_sig_extensions(tape, stack, cache)
     sig_flag = int.from_bytes(tape.read(1), 'big')
     all_valid = True
 
@@ -1564,6 +1587,50 @@ def OP_CHECK_TEMPLATE_VERIFY(tape: Tape, stack: Stack, cache: dict) -> None:
     """Runs OP_CHECK_TEMPLATE and then OP_VERIFY."""
     OP_CHECK_TEMPLATE(tape, stack, cache)
     OP_VERIFY(tape, stack, cache)
+
+def OP_TAPROOT(tape: Tape, stack: Stack, cache: dict) -> None:
+    """Reads 32 bytes from the tape as root; gets an item from the
+        stack, then put it back onto the stack; if the item has length
+        32, it is an ed25519 public key, otherwise it is a signature; if
+        it was a public key, then it is executing the committed script;
+        if it is a signature, then it is executing the key-spend path.
+        For key-spend, pull the sigflags from cache b'trsf' or
+        'taproot_sigflags', but replace with 0x00 if it does not
+        disallow exclusion of at least one sigfield (i.e. has at least
+        one null bit), then run `OP_CHECK_SIG`. For committed script
+        execution, first `SWAP2` so the script is on top; then `DUP`;
+        `SWAP 1 2` so the pubkey is second from the top; `SHA256` the
+        top item to get the script commitment; `CLAMP_SALAR 0x00`,
+        `DERIVE_POINT`, and `ADD_POINTS 2` to combine the pubkey and the
+        script commitment; if the result was the root, then `OP_EVAL`,
+        otherwise remove the script and put 0x00 onto the stack.
+    """
+    root = tape.read(32)
+    pubkey_or_sig = stack.get()
+    is_pubkey = len(pubkey_or_sig) == 32
+    stack.put(pubkey_or_sig)
+
+    if is_pubkey:
+        OP_SWAP2(tape, stack, cache)
+        OP_DUP(tape, stack, cache)
+        OP_SWAP(Tape(uint_to_bytes(1) + uint_to_bytes(2)), stack, cache)
+        OP_SHA256(tape, stack, cache)
+        OP_CLAMP_SCALAR(Tape(b'\x00'), stack, cache)
+        OP_DERIVE_POINT(tape, stack, cache)
+        OP_ADD_POINTS(Tape(uint_to_bytes(2)), stack, cache)
+        if not bytes_are_same(stack.get(), root):
+            _ = stack.get() # remove script
+            stack.put(b'\x00')
+            return
+        OP_EVAL(tape, stack, cache)
+    else:
+        # take sigflags from cache address b'trsf' or default
+        sigflags = cache.get(b'trsf', cache.get('taproot_sigflags', [b'\x00']))[0]
+        # ensure that at least one field is not allowed to be excluded (null bit)
+        if not bytes_to_bool(not_bytes(sigflags)) or len(sigflags) != 1:
+            sigflags = b'\x00'
+        stack.put(root)
+        OP_CHECK_SIG(Tape(sigflags), stack, cache)
 
 def NOP(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as a signed int
@@ -1670,6 +1737,7 @@ opcodes = [
     ('OP_AND', OP_AND),
     ('OP_CHECK_TEMPLATE', OP_CHECK_TEMPLATE),
     ('OP_CHECK_TEMPLATE_VERIFY', OP_CHECK_TEMPLATE_VERIFY),
+    ('OP_TAPROOT', OP_TAPROOT),
 ]
 opcodes: dict[int, tuple[str, Callable]] = {x: opcodes[x] for x in range(len(opcodes))}
 
@@ -1742,6 +1810,8 @@ opcode_aliases['OP_CT'] = 'OP_CHECK_TEMPLATE'
 opcode_aliases['CT'] = 'OP_CHECK_TEMPLATE'
 opcode_aliases['OP_CTV'] = 'OP_CHECK_TEMPLATE_VERIFY'
 opcode_aliases['CTV'] = 'OP_CHECK_TEMPLATE_VERIFY'
+opcode_aliases['OP_TR'] = 'OP_TAPROOT'
+opcode_aliases['TR'] = 'OP_TAPROOT'
 
 nopcodes_inverse = {
     nopcodes[key][0]: (key, nopcodes[key][1]) for key in nopcodes
@@ -1749,6 +1819,7 @@ nopcodes_inverse = {
 
 # flags are intended to change how specific opcodes function
 flags = {
+    # TODO: ts_threshold and epoc_threshold should become standard cache items
     'ts_threshold': 60,
     'epoch_threshold': 60,
     0: True,
@@ -1761,6 +1832,7 @@ flags = {
     7: True,
     8: True,
     9: True,
+    10: True,
 }
 
 flags_to_set = [
@@ -1776,6 +1848,7 @@ flags_to_set = [
     7,
     8,
     9,
+    10,
 ]
 
 # contracts are intended for use with OP_CHECK_TRANSFER
@@ -1920,12 +1993,24 @@ def set_tape_flags(tape: Tape, additional_flags: dict = {}) -> Tape:
         the tape.
     """
     for key in flags:
-        if type(key) in (str, int) and key in flags_to_set:
-            tape.flags[key] = flags[key]
+        if type(key) in (str, int):
+            tape.flags[key] = flags[key] if key in flags_to_set else False
     for key in additional_flags:
         if type(key) in (str, int):
             tape.flags[key] = additional_flags[key]
     return tape
+
+def run_tape(tape: Tape, stack: Stack, cache: dict,
+             additional_flags: dict = {}) -> None:
+    """Run the given tape using the stack and cache."""
+    tape = set_tape_flags(tape, additional_flags)
+    while not tape.has_terminated():
+        op_code = tape.read(1)[0]
+        if op_code in opcodes:
+            op = opcodes[op_code][1]
+        else:
+            op = nopcodes[op_code][1]
+        op(tape, stack, cache)
 
 def run_script(script: bytes|ScriptProtocol, cache_vals: dict = {},
                contracts: dict = {},
@@ -1942,18 +2027,6 @@ def run_script(script: bytes|ScriptProtocol, cache_vals: dict = {},
     tape.plugins = {**_plugins, **plugins}
     run_tape(tape, stack, cache, additional_flags=additional_flags)
     return (tape, stack, cache)
-
-def run_tape(tape: Tape, stack: Stack, cache: dict,
-             additional_flags: dict = {}) -> None:
-    """Run the given tape using the stack and cache."""
-    tape = set_tape_flags(tape, additional_flags)
-    while not tape.has_terminated():
-        op_code = tape.read(1)[0]
-        if op_code in opcodes:
-            op = opcodes[op_code][1]
-        else:
-            op = nopcodes[op_code][1]
-        op(tape, stack, cache)
 
 def run_auth_script(script: bytes|ScriptProtocol, cache_vals: dict = {},
                     contracts: dict = {}, plugins: dict = {}) -> bool:

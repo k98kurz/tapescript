@@ -729,6 +729,51 @@ class TestTools(unittest.TestCase):
             {**sigfields, 'timestamp': int(time()) + timeout + 1}
         )
 
+    def test_make_taproot_lock_and_witnesses_e2e(self):
+        sigfields = {'sigfield1': b'hello ', 'sigfield2': b'world'}
+        script = tools.Script.from_src('true')
+        t = functions.clamp_scalar(script.commitment())
+        T = functions.derive_point_from_scalar(t)
+        X = bytes(self.pubkeyA)
+        x = functions.derive_key_from_seed(bytes(self.prvkeyA))
+        root = functions.aggregate_points((X, T))
+        sig = functions.sign_with_scalar(
+            functions.aggregate_scalars([x, t]),
+            b'hello world'
+        )
+
+        lock = tools.make_taproot_lock(X, script)
+        assert lock.src == f'taproot x{root.hex()}'
+
+        unlock1 = tools.make_taproot_witness_keyspend(
+            bytes(self.prvkeyA),
+            sigfields,
+            script
+        )
+        assert unlock1.src == f'push x{sig.hex()}', \
+            f'\nexpected push x{sig.hex()}\nobserved {unlock1.src}'
+
+        unlock2 = tools.make_taproot_witness_scriptspend(X, script)
+        assert unlock2.src == f'push x{script.bytes.hex()} push x{X.hex()}'
+
+        assert functions.run_auth_script(unlock1 + lock, sigfields)
+        assert functions.run_auth_script(unlock2 + lock, sigfields)
+
+        sig = functions.sign_with_scalar(
+            functions.aggregate_scalars((x, t)),
+            b'world'
+        )
+
+        unlock1 = tools.make_taproot_witness_keyspend(
+            bytes(self.prvkeyA),
+            sigfields,
+            script,
+            sigflags='01'
+        )
+        assert unlock1.src == f'@= trsf [ x01 ] push x{sig.hex()}01', \
+            f'\nexpected @= trsf [ x01 ] push x{sig.hex()}01\nobserved {unlock1.src}'
+        assert functions.run_auth_script(unlock1 + lock, sigfields)
+
     def test_AMHL_primitive(self):
         """Test for setup, locking, and release of an Anonymous Multi-
             Hop Lock using the homomorphic one-way ability of ed25519.

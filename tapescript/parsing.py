@@ -573,8 +573,8 @@ def get_args(
             return _get_OP_SWAP_type_args(opname, symbols, symbols_to_advance, symbol_index)
         case 'OP_CHECK_MULTISIG' | 'OP_CHECK_MULTISIG_VERIFY':
             return _get_OP_CHECK_MULTISIG_args(opname, symbols, symbols_to_advance, symbol_index)
-        case 'OP_MERKLEVAL':
-            # op has tape argument of form [val]
+        case 'OP_MERKLEVAL' | 'OP_TAPROOT':
+            # op has tape argument of form [32-byte val]
             return _get_OP_MERKLEVAL_args(opname, symbols, symbols_to_advance, symbol_index)
         case _:
             if opname[:3] == 'NOP':
@@ -1142,10 +1142,10 @@ def decompile_script(script: bytes, indent: int = 0) -> list[str]:
                 idx1 = tape.read(1)[0]
                 idx2 = tape.read(1)[0]
                 add_line(f'{op_name} x{flag} d{idx1} d{idx2}')
-            case 'OP_MERKLEVAL':
+            case 'OP_MERKLEVAL' | 'OP_TAPROOT':
                 # op has tape argument of form [32-byte val]
                 digest = tape.read(32)
-                add_line(f'OP_MERKLEVAL x{digest.hex()}')
+                add_line(f'{op_name} x{digest.hex()}')
             case _:
                 if op_name[:3] == 'NOP':
                     val = tape.read(1)[0]

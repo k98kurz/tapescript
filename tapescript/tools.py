@@ -25,6 +25,7 @@ from .functions import (
     derive_point_from_scalar,
     aggregate_points,
     aggregate_scalars,
+    sign_with_scalar,
     H_big,
     H_small,
     xor,
@@ -869,21 +870,65 @@ def make_ptlc_witness(
         _, stack, _ = run_script(compile_script(f'get_message x{sigflags}'), {**sigfields})
         m = stack.get()
         x = aggregate_scalars([derive_key_from_seed(prvkey), tweak_scalar])
-        X = nacl.bindings.crypto_scalarmult_ed25519_base_noclamp(x) # G^x
-        r = clamp_scalar(H_small(H_big(prvkey)[32:], m))
-        R = nacl.bindings.crypto_scalarmult_ed25519_base_noclamp(r) # G^r
-        c = clamp_scalar(H_small(R, X, m)) # clamp(H(R || X || m))
-        s = nacl.bindings.crypto_core_ed25519_scalar_add(
-            r, nacl.bindings.crypto_core_ed25519_scalar_mul(c, x)
-        )
-        return Script.from_src(f'push x{R.hex() + s.hex()}{sigflags} true')
+        sig = sign_with_scalar(x, m)
+        return Script.from_src(f'push x{sig.hex()}{sigflags} true')
     return Script.from_src(f'{make_single_sig_witness(prvkey, sigfields, sigflags).src} true')
 
-def make_ptlc_refund_witness(prvkey: bytes, sigfields: dict, sigflags: str = '00') -> Script:
+def make_ptlc_refund_witness(
+        prvkey: bytes, sigfields: dict, sigflags: str = '00') -> Script:
     '''Returns the tapescript source for a PTLC witness unlcoking the
         time locked refund branch.
     '''
     return Script.from_src(f'{make_single_sig_witness(prvkey, sigfields, sigflags).src} false')
+
+def make_taproot_lock(
+        pubkey: bytes, script: Script = None, script_commitment: bytes = None
+    ) -> Script:
+    """Returns a tapescript Script for a taproot locking script that can
+        either be unlocked with a signature that validates using the
+        taproot root commitment as a public key or by supplying both the
+        committed script and the committed public key to execute the
+        committed script.
+    """
+    tert(isinstance(script, Script) or type(script_commitment) is bytes,
+         'must supply either committed_script or script_commitment')
+    script_commitment = script_commitment or script.commitment()
+    vert(len(script_commitment) == 32, 'script_commitment must be 32 bytes')
+    X = derive_point_from_scalar(clamp_scalar(script_commitment))
+    root = aggregate_points((pubkey, X))
+    return Script.from_src(f'taproot x{root.hex()}')
+
+def make_taproot_witness_keyspend(
+        prvkey: bytes, sigfields: dict, committed_script: Script = None,
+        script_commitment: bytes = None, sigflags: str = '00') -> Script:
+    """Returns a tapescript Script witness for a taproot keyspend."""
+    tert(type(prvkey) is bytes, 'prvkey must be the 32 byte prvkey seed')
+    vert(len(prvkey) == 32, 'prvkey must be the 32 byte prvkey seed')
+    tert(isinstance(sigfields, dict), 'must supply sigfields dict')
+    tert(isinstance(committed_script, Script) or type(script_commitment) is bytes,
+         'must supply either committed_script or script_commitment')
+    vert(sigflags != 'ff', 'cannot use sigflag xFF; must sign at least 1 sigfield')
+
+    script_commitment = script_commitment or committed_script.commitment()
+    t = clamp_scalar(script_commitment)
+    x = derive_key_from_seed(prvkey)
+    _, stack, _ = run_script(Script.from_src(f'msg x{sigflags}'), sigfields)
+    message = stack.get()
+    sig = sign_with_scalar(aggregate_scalars((x, t)), message)
+
+    if sigflags != '00':
+        return Script.from_src(f'@= trsf [ x{sigflags} ] push x{sig.hex()}{sigflags}')
+    return Script.from_src(f'push x{sig.hex()}')
+
+def make_taproot_witness_scriptspend(
+        pubkey: bytes, committed_script: Script) -> Script:
+    """Returns a tapescript Script witness for a taproot scriptspend,
+        i.e. a witness that causes the committed script to be executed.
+    """
+    tert(type(pubkey) is bytes, 'pubkey must be the 32 byte committed pubkey')
+    vert(len(pubkey) == 32, 'pubkey must be the 32 byte committed pubkey')
+    tert(isinstance(committed_script, ScriptProtocol), 'committed_script must be ScriptProtocol')
+    return Script.from_src(f'push x{committed_script.bytes.hex()} push x{pubkey.hex()}')
 
 def setup_amhl(
         seed: bytes, pubkeys: tuple[bytes]|list[bytes], sigflags: str = '00',

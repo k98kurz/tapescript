@@ -43,6 +43,7 @@ make using the new `OP_MERKLEVAL` easier.
 - Added `ScriptProtocol` compatibility to script running functions
 - Fix: `OP_LOOP` now exits if `OP_RETURN` is called within the loop body
 - Added `OP_CHECK_TEMPLATE` (`OP_CT`) and `OP_CHECK_TEMPLATE_VERIFY` (`OP_CTV`)
+- Added `OP_TAPROOT` (`OP_TR`)
 
 ## 0.4.1
 

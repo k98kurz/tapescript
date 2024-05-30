@@ -2043,6 +2043,62 @@ class TestFunctions(unittest.TestCase):
         assert len(self.stack) == 1
         assert self.stack.get() == b'\x00'
 
+    def test_OP_TAPROOT(self):
+        # get keypair
+        seed = token_bytes(32)
+        skey = functions.derive_key_from_seed(seed)
+        pubk = functions.derive_point_from_scalar(skey)
+
+        # setup script
+        # script_src = 'push d1 less'
+        script_bin = b'\x01'
+        script_hash = sha256(script_bin).digest()
+        script_scalar = functions.clamp_scalar(script_hash)
+        script_point = functions.derive_point_from_scalar(script_scalar)
+
+        # combine pubk and script point
+        root = functions.aggregate_points([pubk, script_point])
+
+        tape = classes.Tape(root)
+        stack = classes.Stack()
+        cache = {'sigfield1': b'nope ', 'sigfield2': b'hello world'}
+
+        # create message and signature
+        message = cache['sigfield2']
+        sig = functions.sign_with_scalar(functions.aggregate_scalars([skey, script_scalar]), message)
+
+        # test unlock1 (key spend): should result in True value
+        tape.reset_pointer()
+        cache[b'trsf'] = [b'\x01']
+        assert len(stack) == 0
+        stack.put(sig + b'\x01')
+        functions.OP_TAPROOT(tape, stack, cache)
+        assert len(stack) == 1
+        assert stack.get() == b'\xff'
+
+        # test malformed unlock1: should result in False value
+        tape.reset_pointer()
+        stack.put(bytes(reversed(sig)))
+        functions.OP_TAPROOT(tape, stack, cache)
+        assert len(stack) == 1
+        assert stack.get() == b'\x00'
+
+        # test unlock2 (committed script): should result in True value
+        tape.reset_pointer()
+        stack.put(script_bin)
+        stack.put(pubk)
+        functions.OP_TAPROOT(tape, stack, cache)
+        assert len(stack) == 1
+        assert stack.get() == b'\xff'
+
+        # test malformed unlock2: should result in False value
+        tape.reset_pointer()
+        stack.put(script_bin + b'\x01')
+        stack.put(pubk)
+        functions.OP_TAPROOT(tape, stack, cache)
+        assert len(stack) == 1
+        assert stack.get() == b'\x00'
+
     # values
     def test_opcodes_is_dict_mapping_ints_to_tuple_str_function(self):
         assert isinstance(functions.opcodes, dict)
