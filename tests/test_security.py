@@ -1,4 +1,4 @@
-from context import classes, errors, functions, interfaces, tools
+from context import classes, errors, functions, tools
 from secrets import token_bytes
 import nacl.bindings
 import unittest
@@ -46,6 +46,46 @@ class TestSecurityAssumptions(unittest.TestCase):
         x3 = nacl.bindings.crypto_core_ed25519_scalar_add(x1, x2) # x1 + x2
         y3_2 = nacl.bindings.crypto_scalarmult_ed25519_base_noclamp(x3) # G^(x1+x2)
         assert y3_1 == y3_2 # G^x1 * G^x2 = G^(x1+x2) where * denotes group operator
+
+    # problem cases to avoid
+    def test_prove_all_mirror_trees_validate_each_other(self):
+        tree = tools.ScriptNode(
+            tools.ScriptNode(
+                tools.ScriptLeaf.from_src('push s"hello world"'),
+                tools.ScriptLeaf.from_src('true'),
+            ),
+            tools.ScriptNode(
+                tools.ScriptLeaf.from_src('push s"hello world"'),
+                tools.ScriptLeaf.from_src('true'),
+            )
+        )
+        lock = tree.locking_script()
+
+        # prove that a different symmetrical tree will validate for the same root
+        tree2 = tools.ScriptNode(
+            tools.ScriptLeaf.from_src('push s"I hacked it" pop0 true'),
+            tools.ScriptLeaf.from_src('push s"I hacked it" pop0 true'),
+        )
+        unlock = tree2.right.unlocking_script()
+        assert functions.run_auth_script(unlock.bytes + lock.bytes)
+
+        # prove that an asymmetrical tree will not validate for the same root
+        tree3 = tools.ScriptNode(
+            tools.ScriptLeaf.from_src('push s"some script" pop0 true'),
+            tools.ScriptLeaf.from_src('push s"different innit" pop0 true'),
+        )
+        unlock = tree3.right.unlocking_script()
+        assert not functions.run_auth_script(unlock.bytes + lock.bytes)
+
+        # prove that any arbitrary symmetrical tree will validate for the same root
+        for i in range(100):
+            t = token_bytes(i+1)
+            tree2 = tools.ScriptNode(
+                tools.ScriptLeaf.from_src(f'push x{t.hex()} pop0 true'),
+                tools.ScriptLeaf.from_src(f'push x{t.hex()} pop0 true'),
+            )
+            unlock = tree2.right.unlocking_script()
+            assert functions.run_auth_script(unlock.bytes + lock.bytes)
 
     # patched DoS attack vectors
     def test_memory_exhaustion_DoS_attacks_result_in_ScriptExecutionError(self):

@@ -121,24 +121,7 @@ class TestTools(unittest.TestCase):
 
         lock = tree.locking_script()
         assert type(lock) is tools.Script
-
         assert functions.run_auth_script(unlock.bytes + lock.bytes)
-
-        # prove that all mirror trees validate for same root
-        tree2 = tools.ScriptNode(
-            tools.ScriptLeaf.from_src('push s"I hacked it" pop0 true'),
-            tools.ScriptLeaf.from_src('push s"I hacked it" pop0 true'),
-        )
-        unlock = tree2.right.unlocking_script()
-        assert functions.run_auth_script(unlock.bytes + lock.bytes)
-
-        # prove that a different tree will not validate for the same root
-        tree3 = tools.ScriptNode(
-            tools.ScriptLeaf.from_src('push s"some script" pop0 true'),
-            tools.ScriptLeaf.from_src('push s"different innit" pop0 true'),
-        )
-        unlock = tree3.right.unlocking_script()
-        assert not functions.run_auth_script(unlock.bytes + lock.bytes)
 
     def test_create_merklized_script_prioritized_returns_tuple_of_Script_and_list_of_Scripts(self):
         result = tools.create_merklized_script_prioritized(['OP_PUSH d123'])
