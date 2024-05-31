@@ -30,13 +30,14 @@ outlined below.
 
 All symbols must be separated by whitespace, but which whitespace is used does
 not matter. (Making source code easy on the eyes is still recommended, as it is
-in any language; see [Style](## Style) section for detailed recommendations.)
+in any language; see the Style section below for detailed recommendations.)
 Any op name, value, or bracket/parenthesis is a symbol.
 
 ### Values
 
 All values in human-readable tapescript are prefixed by an encoding char:
-- `d`: any value starting with `d` is an int or decimal float (e.g. `d123`)
+- `d`: any value starting with `d` is a decimal int (e.g. `d123`)
+- `f`: any value starting with `f` is a decimal float (e.g. `f-3.21`)
 - `s`: any value starting with `s` is is a string (e.g. `s"hello world"`)
 - `x`: any value starting with `x` is hexadecimal bytes (e.g. `x00ff`)
 
