@@ -5,8 +5,6 @@ from nacl.signing import SigningKey
 import unittest
 
 
-
-
 def hash_sigfields(tape: classes.Tape, stack: classes.Stack, cache: dict) -> None:
     """When called for the first time, backup the original sigfields to
         a new cache location, then transform the sigfields not excluded.
@@ -64,6 +62,7 @@ def hash_sigfields(tape: classes.Tape, stack: classes.Stack, cache: dict) -> Non
 
 
 class TestPlugins(unittest.TestCase):
+    '''General tests of the plugin system.'''
     original_plugins: dict
 
     def setUp(self) -> None:

@@ -1,5 +1,5 @@
 from __future__ import annotations
-from context import functions, parsing
+from context import functions, tools
 from dataclasses import dataclass, field
 from hashlib import sha256
 from nacl.signing import SigningKey, VerifyKey
@@ -15,34 +15,41 @@ import unittest
     requires looking up the UTXO data before creating or verifying any
     witness data. I did not want to implement an entire blockchain for
     this test and was interested only in the eltoo mechanism itself.
+
+    The Eltoo proposed OP_CHECKSEQUENCEVERIFY is simulated by putting
+    the state integer into sigfield3 and comparing in the locking script
+    with OP_LESS OP_VERIFY. For channel updates, inputs are encoded in
+    sigfield1 and excluded from signature checks using sigflag of 0x01.
+    For channel closures (i.e. time lock branch), a sigflag of 0x00 is
+    used to require signature commitment to the whole transaction.
 '''
 
 
 @dataclass
 class UTXO:
-    lock: bytes = field(default=b'\x01')
+    lock: tools.Script = field(default_factory=lambda: tools.Script.from_src('true'))
     amount: int = field(default=0)
     spent: bool = field(default=False)
     txn: Txn|None = field(default=None)
 
     def pack(self) -> bytes:
         return struct.pack(
-            f'!{len(self.lock)}sh?',
-            self.lock,
+            f'!{len(self.lock.bytes)}sH?',
+            self.lock.bytes,
             self.amount,
             self.spent
         )
 
     @classmethod
     def unpack(cls, data: bytes) -> UTXO:
-        lock, amount, spent = struct.unpack(f'!{len(data)-3}sh?', data)
-        return cls(lock=lock,amount=amount,spent=spent)
+        lock, amount, spent = struct.unpack(f'!{len(data)-3}sH?', data)
+        return cls(lock=tools.Script.from_bytes(lock),amount=amount,spent=spent)
 
 @dataclass
 class Entry:
     inputs: list[UTXO] = field(default_factory=list)
     outputs: list[UTXO] = field(default_factory=list)
-    witnesses: list[bytes] = field(default_factory=list)
+    witnesses: list[tools.Script] = field(default_factory=list)
 
     def pack_inputs(self) -> bytes:
         inputs = b''
@@ -61,7 +68,7 @@ class Entry:
     def pack_witnesses(self) -> bytes:
         witnesses = b''
         for w in self.witnesses:
-            witnesses += struct.pack(f'!h{len(w)}s', w)
+            witnesses += struct.pack(f'!h{len(w.bytes)}s', w.bytes)
         return witnesses
 
     def pack(self) -> bytes:
@@ -69,7 +76,7 @@ class Entry:
         outputs = self.pack_outputs()
         witnesses = self.pack_witnesses()
         return struct.pack(
-            f'!hhh{len(inputs)}s{len(outputs)}s{len(witnesses)}s',
+            f'!HHH{len(inputs)}s{len(outputs)}s{len(witnesses)}s',
             len(inputs),
             len(outputs),
             len(witnesses),
@@ -82,7 +89,7 @@ class Entry:
         inputs = self.pack_inputs()
         outputs = self.pack_outputs()
         return struct.pack(
-            f'!hh{len(inputs)}s{len(outputs)}s',
+            f'!HH{len(inputs)}s{len(outputs)}s',
             len(inputs),
             len(outputs),
             inputs,
@@ -94,22 +101,22 @@ class Entry:
 
     @classmethod
     def unpack(cls, data: bytes) -> Entry:
-        ilen, olen, wlen, data = struct.unpack(f'!hhh{len(data)-6}s', data)
+        ilen, olen, wlen, data = struct.unpack(f'!HHH{len(data)-6}s', data)
         idata, odata, wdata = struct.unpack(f'!{ilen}s{olen}s{wlen}s', data)
         inputs = []
         while len(idata):
-            ilen, idata = struct.unpack(f'!h{len(idata)-2}s', idata)
+            ilen, idata = struct.unpack(f'!H{len(idata)-2}s', idata)
             inputs.append(UTXO.unpack(idata[:ilen]))
             idata = idata[ilen:]
         outputs = []
         while len(odata):
-            olen, odata = struct.unpack(f'!h{len(odata)-2}s', odata)
+            olen, odata = struct.unpack(f'!H{len(odata)-2}s', odata)
             outputs.append(UTXO.unpack(odata[:olen]))
             odata = odata[olen:]
         witnesses = []
         while len(wdata):
-            wlen, wdata = struct.unpack(f'!h{len(wdata)-2}s', wdata)
-            witnesses.append(wdata[:wlen])
+            wlen, wdata = struct.unpack(f'!H{len(wdata)-2}s', wdata)
+            witnesses.append(tools.Script.from_bytes(wdata[:wlen]))
             wdata = wdata[wlen:]
         return cls(inputs=inputs, outputs=outputs, witnesses=witnesses)
 
@@ -154,15 +161,15 @@ class Txn:
         return cls(sequence=sequence, timestamp=timestamp, entries=entries)
 
 
-def eltoo_setup_lock(pubkeyA: bytes, pubkeyB: bytes) -> bytes:
-    return parsing.compile_script(f'''
+def eltoo_setup_lock(pubkeyA: bytes, pubkeyB: bytes) -> tools.Script:
+    return tools.Script.from_src(f'''
         PUSH x{bytes(pubkeyA).hex()}
         PUSH x{bytes(pubkeyB).hex()}
         CHECK_MULTISIG x00 d2 d2
     ''')
 
-def eltoo_update_lock(pubkeyA: bytes, pubkeyB: bytes, state: int) -> bytes:
-    return parsing.compile_script(f'''
+def eltoo_update_lock(pubkeyA: bytes, pubkeyB: bytes, state: int) -> tools.Script:
+    return tools.Script.from_src(f'''
         if {"{"}
             val s"sigfield4"
             # 2 second delay is all I'm willing to wait in a test #
@@ -186,10 +193,10 @@ def eltoo_update_lock(pubkeyA: bytes, pubkeyB: bytes, state: int) -> bytes:
 
 def eltoo_witness(
         prvkeyA: SigningKey, prvkeyB: SigningKey, message: bytes,
-        sigflag: str = '') -> bytes:
+        sigflag: str = '') -> tools.Script:
     sigA = prvkeyA.sign(message).signature
     sigB = prvkeyB.sign(message).signature
-    return parsing.compile_script(f'''
+    return tools.Script.from_src(f'''
         push x{sigB.hex()}{sigflag}
         push x{sigA.hex()}{sigflag}
     ''')
@@ -212,8 +219,8 @@ def validate_txn(txn: Txn) -> bool:
                     'sigfield2': b''.join([
                         o.pack() for o in entry.outputs
                     ]),
-                    'sigfield3': functions.int_to_bytes(txn.sequence),
-                    'sigfield4': functions.int_to_bytes(txn.timestamp),
+                    'sigfield3': functions.uint_to_bytes(txn.sequence),
+                    'sigfield4': functions.uint_to_bytes(txn.timestamp),
                     'time': int(time()),
                     'input_ts': input_ts,
                 }
@@ -243,15 +250,15 @@ class TestEltoo(unittest.TestCase):
         genesis_utxo = UTXO(amount=10)
         genesis_entry = Entry([], [genesis_utxo])
         genesis_txn = Txn(0, entries=[genesis_entry])
-        genesis_entry.txn = genesis_txn
+        genesis_utxo.txn = genesis_txn
 
-        burn_utxo = UTXO(b'\x00', amount=10)
-        burn_entry = Entry([genesis_utxo], [burn_utxo], [b''])
+        burn_utxo = UTXO(tools.Script.from_src('false'), amount=10)
+        burn_entry = Entry([genesis_utxo], [burn_utxo], [tools.Script('', b'')])
         burn_txn = Txn(1, entries=[burn_entry])
         assert validate_txn(burn_txn)
 
     def test_single_sig(self):
-        genesis_utxo = UTXO(parsing.compile_script(f'''
+        genesis_utxo = UTXO(tools.Script.from_src(f'''
             push x{bytes(self.pubkeyA).hex()}
             check_sig x00
         '''), 100)
@@ -262,19 +269,19 @@ class TestEltoo(unittest.TestCase):
             b'\x01' + functions.int_to_bytes(ts)
         ).signature
         spend_entry = Entry([genesis_utxo], [spend_utxo], [
-            parsing.compile_script(f'push x{sig.hex()}')
+            tools.Script.from_src(f'push x{sig.hex()}')
         ])
         spend_txn = Txn(1, ts, [spend_entry])
         assert validate_txn(spend_txn)
 
     def test_eltoo_e2e(self):
         """A proof-of-concept eltoo implementation."""
-        op_false, op_true = b'\x00', b'\x01'
-        settle_A_lock = parsing.compile_script(f'''
+        op_false, op_true = tools.Script.from_src('false'), tools.Script.from_src('true')
+        settle_A_lock = tools.Script.from_src(f'''
             push x{bytes(self.pubkeyA).hex()}
             check_sig x00
         ''')
-        settle_B_lock = parsing.compile_script(f'''
+        settle_B_lock = tools.Script.from_src(f'''
             push x{bytes(self.pubkeyB).hex()}
             check_sig x00
         ''')
