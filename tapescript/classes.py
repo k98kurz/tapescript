@@ -97,3 +97,10 @@ class Stack:
             return False.
         """
         return len(self) == 0
+
+    def peek(self, index: int = 0) -> bytes:
+        """Returns the item of the stack at the given index without
+            removing it.
+        """
+        index = len(self) - index - 1
+        return self.deque[index]

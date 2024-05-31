@@ -101,7 +101,7 @@ check_epoch
 cev
 eval
 not
-random d32
+random
 return
 set_flag xfeedbeef
 unset_flag xfeedbeef

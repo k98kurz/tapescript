@@ -44,6 +44,8 @@ make using the new `OP_MERKLEVAL` easier.
 - Fix: `OP_LOOP` now exits if `OP_RETURN` is called within the loop body
 - Added `OP_CHECK_TEMPLATE` (`OP_CT`) and `OP_CHECK_TEMPLATE_VERIFY` (`OP_CTV`)
 - Added `OP_TAPROOT` (`OP_TR`)
+- Fixed `OP_DIV_FLOAT` arithmetic bug
+- Changed `OP_RANDOM` to take its argument from the stack instead of the tape
 
 ## 0.4.1
 

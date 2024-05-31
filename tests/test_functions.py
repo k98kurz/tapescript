@@ -345,18 +345,20 @@ class TestFunctions(unittest.TestCase):
 
     def test_OP_DIV_INTS_pulls_two_ints_from_stack_and_puts_quotient_on_stack(self):
         assert self.stack.empty()
-        self.stack.put(functions.int_to_bytes(12))
-        self.stack.put(functions.int_to_bytes(-132))
+        divisor = 12
+        dividend = -132
+        self.stack.put(functions.int_to_bytes(divisor))
+        self.stack.put(functions.int_to_bytes(dividend))
         functions.OP_DIV_INTS(self.tape, self.stack, self.cache)
         assert not self.stack.empty()
         item = self.stack.get()
         assert self.stack.empty()
         assert not self.cache
-        assert functions.bytes_to_int(item) == -11
+        assert functions.bytes_to_int(item) == dividend / divisor
 
     def test_OP_MOD_INT_reads_uint_from_tape_pulls_int_from_stack_and_puts_modulus_on_stack(self):
         assert self.stack.empty()
-        self.tape = classes.Tape(functions.int_to_bytes(1) + functions.int_to_bytes(17))
+        self.tape = classes.Tape(functions.uint_to_bytes(1) + functions.int_to_bytes(17))
         self.stack.put(functions.int_to_bytes(1258))
         functions.OP_MOD_INT(self.tape, self.stack, self.cache)
         assert not self.stack.empty()
@@ -365,27 +367,34 @@ class TestFunctions(unittest.TestCase):
         assert not self.cache
         assert functions.bytes_to_int(item) == (1258%17)
 
-    def test_OP_MOD_INT_pulls_two_ints_from_stack_and_puts_modulus_on_stack(self):
+    def test_OP_MOD_INTS_pulls_two_ints_from_stack_and_puts_modulus_on_stack(self):
         assert self.stack.empty()
-        self.stack.put(functions.int_to_bytes(17))
-        self.stack.put(functions.int_to_bytes(1258))
+        dividend = 1258
+        divisor = 17
+        self.stack.put(functions.int_to_bytes(divisor))
+        self.stack.put(functions.int_to_bytes(dividend))
         functions.OP_MOD_INTS(self.tape, self.stack, self.cache)
         assert not self.stack.empty()
         item = self.stack.get()
         assert self.stack.empty()
         assert not self.cache
-        assert functions.bytes_to_int(item) == (1258%17)
+        assert functions.bytes_to_int(item) == (dividend%divisor)
 
     def test_OP_ADD_FLOATS_reads_uint_from_tape_pulls_that_many_floats_from_stack_put_sum_on_stack(self):
         assert self.stack.empty()
         self.tape = classes.Tape(functions.int_to_bytes(3))
-        self.stack.put(functions.float_to_bytes(0.01))
-        self.stack.put(functions.float_to_bytes(0.1))
-        self.stack.put(functions.float_to_bytes(1.0))
+        floats = [
+            functions.float_to_bytes(0.01),
+            functions.float_to_bytes(0.1),
+            functions.float_to_bytes(1.0)
+        ]
+        self.stack.put(floats[0])
+        self.stack.put(floats[1])
+        self.stack.put(floats[2])
 
-        expected = functions.bytes_to_float(functions.float_to_bytes(0.01))
-        expected += functions.bytes_to_float(functions.float_to_bytes(0.1))
-        expected += functions.bytes_to_float(functions.float_to_bytes(1.0))
+        expected = functions.bytes_to_float(floats[0])
+        expected += functions.bytes_to_float(floats[1])
+        expected += functions.bytes_to_float(floats[2])
 
         functions.OP_ADD_FLOATS(self.tape, self.stack, self.cache)
         assert not self.cache
@@ -413,14 +422,17 @@ class TestFunctions(unittest.TestCase):
 
     def test_OP_SUBTRACT_FLOATS_reads_uint_from_tape_pulls_that_many_floats_from_stack_put_difference_on_stack(self):
         assert self.stack.empty()
+        minuend = functions.float_to_bytes(1.0)
+        subtrahend1 = functions.float_to_bytes(0.01)
+        subtrahend2 = functions.float_to_bytes(0.1)
         self.tape = classes.Tape(functions.int_to_bytes(3))
-        self.stack.put(functions.float_to_bytes(0.01))
-        self.stack.put(functions.float_to_bytes(0.1))
-        self.stack.put(functions.float_to_bytes(1.0))
+        self.stack.put(subtrahend1)
+        self.stack.put(subtrahend2)
+        self.stack.put(minuend)
 
-        expected = functions.bytes_to_float(functions.float_to_bytes(1.0))
-        expected -= functions.bytes_to_float(functions.float_to_bytes(0.01))
-        expected -= functions.bytes_to_float(functions.float_to_bytes(0.1))
+        expected = functions.bytes_to_float(minuend)
+        expected -= functions.bytes_to_float(subtrahend1)
+        expected -= functions.bytes_to_float(subtrahend2)
 
         functions.OP_SUBTRACT_FLOATS(self.tape, self.stack, self.cache)
         assert not self.cache
@@ -447,11 +459,13 @@ class TestFunctions(unittest.TestCase):
 
     def test_OP_DIV_FLOAT_reads_float_from_tape_pulls_float_from_stack_put_quotient_on_stack(self):
         assert self.stack.empty()
-        self.tape = classes.Tape(functions.float_to_bytes(0.01))
-        self.stack.put(functions.float_to_bytes(0.1))
+        dividend = functions.float_to_bytes(0.1)
+        divisor = functions.float_to_bytes(0.01)
+        self.tape = classes.Tape(divisor)
+        self.stack.put(dividend)
 
-        expected = functions.bytes_to_float(functions.float_to_bytes(0.1))
-        expected /= functions.bytes_to_float(functions.float_to_bytes(0.01))
+        expected = functions.bytes_to_float(dividend)
+        expected /= functions.bytes_to_float(divisor)
 
         functions.OP_DIV_FLOAT(self.tape, self.stack, self.cache)
         assert not self.cache
@@ -459,7 +473,8 @@ class TestFunctions(unittest.TestCase):
         item = self.stack.get()
         item = functions.bytes_to_float(item)
         assert self.stack.empty()
-        assert (item-expected)/expected < 0.000001
+        error_ratio = abs(item-expected)/expected
+        assert error_ratio < 0.000001, f'error ratio: {error_ratio}'
 
     def test_OP_DIV_FLOAT_raises_errors_for_invalid_float(self):
         self.tape = classes.Tape(functions.float_to_bytes(0.01))
@@ -476,11 +491,13 @@ class TestFunctions(unittest.TestCase):
 
     def test_OP_DIV_FLOATS_pulls_two_floats_from_stack_put_quotient_on_stack(self):
         assert self.stack.empty()
-        self.stack.put(functions.float_to_bytes(0.01))
-        self.stack.put(functions.float_to_bytes(0.1))
+        dividend = functions.float_to_bytes(0.1)
+        divisor = functions.float_to_bytes(0.01)
+        self.stack.put(divisor)
+        self.stack.put(dividend)
 
-        expected = functions.bytes_to_float(functions.float_to_bytes(0.1))
-        expected /= functions.bytes_to_float(functions.float_to_bytes(0.01))
+        expected = functions.bytes_to_float(dividend)
+        expected /= functions.bytes_to_float(divisor)
 
         functions.OP_DIV_FLOATS(self.tape, self.stack, self.cache)
         assert not self.cache
@@ -488,7 +505,9 @@ class TestFunctions(unittest.TestCase):
         item = self.stack.get()
         item = functions.bytes_to_float(item)
         assert self.stack.empty()
-        assert (item-expected)/expected < 0.000001
+        # assert item == expected
+        error_ratio = abs(item-expected)/expected
+        assert error_ratio < 0.000001, f'error ratio: {error_ratio}'
 
     def test_OP_DIV_FLOATS_raises_errors_for_invalid_floats(self):
         self.stack.put(functions.float_to_bytes(0.01)+b'1212')
@@ -510,11 +529,13 @@ class TestFunctions(unittest.TestCase):
 
     def test_OP_MOD_FLOAT_reads_float_from_tape_pulls_float_from_stack_put_modulus_on_stack(self):
         assert self.stack.empty()
-        self.tape = classes.Tape(functions.float_to_bytes(13.0))
-        self.stack.put(functions.float_to_bytes(131.1))
+        divisor = functions.float_to_bytes(13.0)
+        dividend = functions.float_to_bytes(131.1)
+        self.tape = classes.Tape(divisor)
+        self.stack.put(dividend)
 
-        expected = functions.bytes_to_float(functions.float_to_bytes(131.1))
-        expected = expected % functions.bytes_to_float(functions.float_to_bytes(13.0))
+        expected = functions.bytes_to_float(dividend)
+        expected = expected % functions.bytes_to_float(divisor)
 
         functions.OP_MOD_FLOAT(self.tape, self.stack, self.cache)
         assert not self.cache
@@ -522,7 +543,8 @@ class TestFunctions(unittest.TestCase):
         item = self.stack.get()
         item = functions.bytes_to_float(item)
         assert self.stack.empty()
-        assert (item-expected)/expected < 0.000001
+        assert item == expected
+        # assert abs(item-expected)/expected < 0.000001
 
     def test_OP_MOD_FLOAT_raises_errors_for_invalid_floats(self):
         self.tape = classes.Tape(functions.float_to_bytes(1.1))
@@ -539,11 +561,13 @@ class TestFunctions(unittest.TestCase):
 
     def test_OP_MOD_FLOATS_pulls_two_floats_from_stack_put_modulus_on_stack(self):
         assert self.stack.empty()
-        self.stack.put(functions.float_to_bytes(131.1))
-        self.stack.put(functions.float_to_bytes(13.0))
+        divisor = functions.float_to_bytes(13.0)
+        dividend = functions.float_to_bytes(131.1)
+        self.stack.put(divisor)
+        self.stack.put(dividend)
 
-        expected = functions.bytes_to_float(functions.float_to_bytes(131.1))
-        expected = expected % functions.bytes_to_float(functions.float_to_bytes(13.0))
+        expected = functions.bytes_to_float(divisor)
+        expected = expected % functions.bytes_to_float(dividend)
 
         functions.OP_MOD_FLOATS(self.tape, self.stack, self.cache)
         assert not self.cache
@@ -551,7 +575,8 @@ class TestFunctions(unittest.TestCase):
         item = self.stack.get()
         item = functions.bytes_to_float(item)
         assert self.stack.empty()
-        assert (item-expected)/expected < 0.000001
+        assert item == expected
+        # assert abs(item-expected)/expected < 0.000001
 
     def test_OP_MOD_FLOATS_raises_errors_for_invalid_floats(self):
         self.stack.put(functions.float_to_bytes(0.1) + b'x')
@@ -978,7 +1003,8 @@ class TestFunctions(unittest.TestCase):
     def test_OP_RANDOM_puts_random_bytes_on_stack(self):
         assert self.stack.empty()
         n_bytes = randint(1, 250)
-        self.tape = classes.Tape(n_bytes.to_bytes(1, 'big'))
+        self.stack.put(functions.int_to_bytes(n_bytes))
+        self.tape = classes.Tape(b'')
         functions.OP_RANDOM(self.tape, self.stack, self.cache)
         assert not self.stack.empty()
         item = self.stack.get()
@@ -1109,6 +1135,16 @@ class TestFunctions(unittest.TestCase):
         with self.assertRaises(errors.ScriptExecutionError) as e:
             functions.OP_SPLIT(self.tape, self.stack, self.cache)
         assert str(e.exception) == 'OP_SPLIT item len exceeded by index'
+
+    def test_OP_SPLIT_and_OP_CONCAT_are_inverse_functions(self):
+        first = b'123'
+        second = b'abc'
+        self.stack.put(first)
+        self.stack.put(second)
+        functions.OP_CONCAT(self.tape, self.stack, self.cache)
+        functions.OP_SPLIT(classes.Tape(b'\x03'), self.stack, self.cache)
+        assert self.stack.get() == second
+        assert self.stack.get() == first
 
     def test_OP_CONCAT_STR_concatenates_top_two_utf8_str_items_from_stack(self):
         self.stack.put(bytes('abc', 'utf-8'))

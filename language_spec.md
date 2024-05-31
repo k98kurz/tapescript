@@ -290,17 +290,20 @@ each does. See [docs.md](docs.md) for more in-depth details about each op.
 
 ### List of ops
 
+In the op call syntax below, prefixed values within brackets are items on the
+stack, in the order in which they must be pushed onto the stack.
+
 - `OP_FALSE` - puts x00 onto stack
-- `OP_TRUE` - puts x01 onto stack
-- `OP_PUSH val` - puts `val` onto stack; uses one of `OP_PUSH0`, `OP_PUSH1`,
-`OP_PUSH2`, and `OP_PUSH4`, depending on the size of the `val`
+- `OP_TRUE` - puts xFF onto stack
+- `OP_PUSH val` - puts `val` onto stack; uses one of `OP_PUSH0`, `OP_PUSH1`, or
+`OP_PUSH2`, depending on the size of the `val`
 - `OP_PUSH0 val` - puts `val` onto stack; `val` must be exactly 1 byte
 - `OP_PUSH1 size val` - puts `val` onto stack; `val` byte length must be <256;
 `size` must be the length of the `val`
 - `OP_PUSH2 size val` - puts `val` onto stack; `val` byte length must be <65536;
 `size` must be the length of the `val`
-- `OP_PUSH4 size val` - puts `val` onto stack; `val` byte length must be <2^32;
-`size` must be the length of the `val`
+- `OP_GET_MESSAGE sigflags` - constructs the message from the sigfields and puts
+it onto the stack; runs signature extension plugins beforehand
 - `OP_POP0` - takes the top item from the stack and puts in the cache at b'P'
 - `OP_POP1 count` - takes the top `count` items from the stack and puts them in the
 cache at b'P'
@@ -311,186 +314,208 @@ stack and stores them at `cache_key`; `size` must be the length of `cache_key`
 and puts them onto the stack; `size` must be the length of `cache_key`
 - `OP_READ_CACHE_SIZE size cache_key` - counts the number of items in the cache
 at `cache_key`; `size` must be the length of `cache_key`
-- `OP_READ_CACHE_STACK` - takes an item from the stack as a cache_key, reads the
-items in the cache at that location, and puts them onto the stack
-- `OP_READ_CACHE_STACK_SIZE` - takes an item from the stack as a cache_key, counts the
-number of items in the cache at that location, and puts the count onto the stack
-- `OP_ADD_INTS count` - takes `count` number of ints from the stack, adds them
-together, and puts the sum onto the stack
-- `OP_SUBTRACT_INTS count` - takes `count` number of ints from the stack,
-subtracts them from the first one, and puts the difference onto the stack
-- `OP_MULT_INTS count` - takes `count` number of ints from the stack,
+- `[cache_key] OP_READ_CACHE_STACK` - takes an item from the stack as a
+cache_key, reads the items in the cache at that location, and puts them onto the
+stack
+- `[cache_key] OP_READ_CACHE_STACK_SIZE` - takes an item from the stack as a
+cache_key, counts the number of items in the cache at that location, and puts
+the count onto the stack
+- `[int1 ...] OP_ADD_INTS count` - takes `count` number of ints from the stack,
+adds them together, and puts the sum onto the stack
+- `[... int1] OP_SUBTRACT_INTS count` - takes `count` number of ints from the
+stack, subtracts `count-1` of them from the first one, and puts the difference
+onto the stack
+- `[int1 ...] OP_MULT_INTS count` - takes `count` number of ints from the stack,
 multiplies them together, and puts the product onto the stack
-- `OP_DIV_INT size divisor` - takes an int from the stack, divides it by the
-`divisor`, and puts the quotient onto the stack; `size` must be the byte length
-of the divisor
-- `OP_DIV_INTS` - takes two ints from the stack, divides the first by the second,
-and puts the quotient onto the stack
-- `OP_MOD_INT size divisor` - takes an int from the stack, divides it by the
-`divisor`, and puts the remainder onto the stack; `size` must be the byte length
-of the `divisor`
-- `OP_MOD_INTS` - takes two ints from the stack, divides the first by the second,
-and puts the remainder onto the stack
-- `OP_ADD_FLOATS count` - takes `count` number of floats from the stack, adds
-them together, and puts the sum onto the stack
-- `OP_SUBTRACT_FLOATS count` - takes `count` number of floats from the stack,
-subtracts them from the first one, and puts the difference onto the stack
-- `OP_DIV_FLOAT divisor` - takes a float from the stack, divides it by `divisor`,
-and puts the quotient onto the stack; `divisor` must be a 4-byte float
-- `OP_DIV_FLOATS` - takes 2 floats from the stack, divides the second by the
-first, and puts the quotient onto the stack
+- `[int1] OP_DIV_INT size divisor` - takes an int from the stack, divides it by
+the `divisor`, and puts the quotient onto the stack; `size` must be the byte
+length of the divisor
+- `[int1 int2] OP_DIV_INTS` - takes two ints from the stack, divides the first
+by the second, and puts the quotient onto the stack
+- `[int1] OP_MOD_INT size divisor` - takes an int from the stack, divides it by
+the `divisor`, and puts the remainder onto the stack; `size` must be the byte
+length of the `divisor`
+- `[int2 int1] OP_MOD_INTS` - takes two ints from the stack, divides `int1` by
+`int2`, and puts the remainder onto the stack
+- `[float1 ...] OP_ADD_FLOATS count` - takes `count` number of floats from the
+stack, adds them together, and puts the sum onto the stack
+- `[... float1] OP_SUBTRACT_FLOATS count` - takes `count` number of floats from
+- the stack, subtracts `count-1` of them from the first one, and puts the
+difference onto the stack
+- `[float1] OP_DIV_FLOAT divisor` - takes a float from the stack, divides it by
+`divisor`, and puts the quotient onto the stack; `divisor` must be a 4-byte float
+- `[float1 float2] OP_DIV_FLOATS` - takes 2 floats from the stack, divides
+`float1` by `float2`, and puts the quotient onto the stack
 - `OP_MOD_FLOAT divisor` - takes a float from the stack, divides it by `divisor`,
 and puts the remainder onto the stack
 - `OP_MOD_FLOATS` - takes 2 floats from the stack, divides the second by the
 first, and puts the remainder onto the stack
-- `OP_ADD_POINTS count` - takes `count` ed25519 points from the stack, adds them
-together, and puts the resulting ed25519 point onto the stack
-- `OP_COPY count` - copies the top value on the stack `count` times
-- `OP_DUP` - duplicates the top stack value
-- `OP_SHA256` - replaces the top value of the stack with its sha256 digest
-- `OP_SHAKE256 size` - replaces the top value of the stack with its `size`
+- `[point1 ...] OP_ADD_POINTS count` - takes `count` ed25519 points from the
+stack, adds them together, and puts the resulting ed25519 point onto the stack
+- `[item] OP_COPY count` - copies the top value on the stack `count` times
+- `[item] OP_DUP` - duplicates the top stack value
+- `[item] OP_SHA256` - replaces the top value of the stack with its sha256 digest
+- `[item] OP_SHAKE256 size` - replaces the top value of the stack with its `size`
 length shake_256 digest
-- `OP_VERIFY` - takes a value from the stack and raises an error if it does not
-evaluate to `True`
-- `OP_EQUAL` - takes 2 values from the stack and puts `True` onto the stack if
-they are the same or `False` if they are not
-- `OP_EQUAL_VERIFY` - calls `OP_EQUAL` and then `OP_VERIFY`
-- `OP_CHECK_SIG allowed_flags` - takes a VerifyKey and signature from the stack,
-builds a message from the cache values `sigfield[1-8]` depending upon the sig
-flags allowed by `allowed_flags` and appended to the signature, checks if the
-signature is valid for the VerifyKey and message, and puts `True` onto the stack
-if the signature validated or `False` if it did not
-- `OP_CHECK_SIG_VERIFY allowed_flags` - calls `OP_CHECK_SIG allowed_flags` then
+- `[bool] OP_VERIFY` - takes a value from the stack and raises an error if it
+does not evaluate to `True`
+- `[item1 item2] OP_EQUAL` - takes 2 values from the stack and puts `True` onto
+the stack if they are the same or `False` if they are not
+- `[item1 item2] OP_EQUAL_VERIFY` - calls `OP_EQUAL` and then `OP_VERIFY`
+- `[sig vkey] OP_CHECK_SIG allowed_flags` - takes a VerifyKey and signature
+from the stack, builds a message from the cache values `sigfield[1-8]` depending
+upon the sigflags allowed by `allowed_flags` and appended to the signature,
+checks if the signature is valid for the VerifyKey and message, and puts `True`
+onto the stack if the signature validated or `False` if it did not
+- `[sig vkey] OP_CHECK_SIG_VERIFY allowed_flags` - calls
+`OP_CHECK_SIG allowed_flags` then `OP_VERIFY`
+- `[constraint] OP_CHECK_TIMESTAMP` - takes an unsigned int from the stack as a
+constraint, takes a timestamp from the cache at "timestamp", compares the
+timestamp to the constraint, and puts `False` onto the stack if the timestamp is
+less than the constraint or if the "ts_threshold" flag was set and exceeded by
+the difference between the timestamp and the current time (i.e. if the timestamp
+is more than ts_threshold into the future) and puts `True` onto the stack
+otherwise
+- `[constraint] OP_CHECK_TIMESTAMP_VERIFY` - calls `OP_CHECK_TIMESTAMP` then
 `OP_VERIFY`
-- `OP_CHECK_TIMESTAMP` - takes an unsigned int from the stack as a constraint,
-takes a timestamp from the cache at "timestamp", compares the timestamp to the
-constraint, and puts `False` onto the stack if the timestamp is less than the
-constraint or if the "ts_threshold" flag was set and exceeded by the difference
-between the timestamp and the current time (i.e. if the timestamp is more than
-ts_threshold into the future) and puts `True` onto the stack otherwise
-- `OP_CHECK_TIMESTAMP_VERIFY` - calls `OP_CHECK_TIMESTAMP` then `OP_VERIFY`
-- `OP_CHECK_EPOCH` - takes an unsigned int from the stack as a constraint,
-subtracts the current time from the constraint, and puts `False` onto the stack
-if the "epoch_threshold" flag is met or exceeded by the difference and puts
-`True` onto the stack otherwise
-- `OP_CHECK_EPOCH_VERIFY` - calls `OP_CHECK_EPOCH` then `OP_VERIFY`
+- `[constraint] OP_CHECK_EPOCH` - takes an unsigned int from the stack as a
+constraint, subtracts the current time from the constraint, and puts `False`
+onto the stack if the "epoch_threshold" flag is met or exceeded by the
+difference and puts `True` onto the stack otherwise
+- `[constraint] OP_CHECK_EPOCH_VERIFY` - calls `OP_CHECK_EPOCH` then `OP_VERIFY`
 - `OP_DEF handle size def_body` - defines a function; see section above
 - `OP_CALL handle` - calls a function; see section above
-- `OP_IF length clause` - runs conditional code; see section above
-- `OP_IF_ELSE length1 clause1 length2 clause2` - runs conditional code; see
-section above
-- `OP_EVAL` - takes a value from the stack and runs it as a script
-- `OP_NOT` - takes a value from the stack and puts the inverse boolean value
-onto the stack
-- `OP_RANDOM size` - puts a random byte string `size` long onto the stack
+- `[bool] OP_IF length clause` - runs conditional code; see section above
+- `[bool] OP_IF_ELSE length1 clause1 length2 clause2` - runs conditional code;
+see section above
+- `[script] OP_EVAL` - takes a value from the stack and runs it as a script
+- `[item] OP_NOT` - takes a value from the stack and puts the inverse boolean
+value onto the stack
+- `[int] OP_RANDOM` - pulls an int from the stack and puts a random byte string
+that long onto the stack
 - `OP_RETURN` - ends the script; since functions and conditional clauses are
 run as subtapes, `OP_RETURN` ends only the local execution and returns to the
 outer context
 - `OP_SET_FLAG number` - sets the tape flag `number` to the default value
 - `OP_UNSET_FLAG number` - unsets the tape flag `number`
-- `OP_DEPTH` - puts the size of the stack onto the stack
-- `OP_SWAP idx1 idx2` - swaps the items at the given indices on the stack
-- `OP_SWAP2` - swaps the order of the top two items on the stack
-- `OP_REVERSE count` - reverses the order of the top `count` items on the stack
-- `OP_CONCAT` - takes two values from the stack, concatenates the second onto
-the first, and puts the result onto the stack
-- `OP_SPLIT idx` - takes a value from the stack, splits it at the given `idx`,
-and puts the two resulting byte strings onto the stack
-- `OP_CONCAT_STR` - takes 2 utf-8 strings from the stack, concatenates the 2nd
-onto the 1st, and puts the result onto the stack
-- `OP_SPLIT_STR idx` - takes a utf-8 string from the stack, splits at `idx`, and
-puts the 2 resulting strings onto the stack
-- `OP_CHECK_TRANSFER` - checks proofs of a transfer; see section below
-- `OP_MERKLEVAL hash` - enforces cryptographic commitment to branching script;
-see section above
+- `OP_DEPTH` - puts the size of the stack onto the stack as signed int
+- `[...] OP_SWAP idx1 idx2` - swaps the items at the given indices on the stack
+- `[item1 item2] OP_SWAP2` - swaps the order of the top two items on the stack
+- `[...] OP_REVERSE count` - reverses the order of the top `count` items on the
+stack
+- `[item2 item1] OP_CONCAT` - takes two values from the stack, concatenates
+`item2 + item1`, and puts the result onto the stack
+- `[item] OP_SPLIT idx` - takes a value from the stack, splits it at the given
+`idx`, and puts the two resulting byte strings onto the stack
+- `[str1 str2] OP_CONCAT_STR` - takes 2 utf-8 strings from the stack,
+concatenates `str2 + str1`, and puts the result onto the stack
+- `[str] OP_SPLIT_STR idx` - takes a utf-8 string from the stack, splits at
+`idx`, and puts the 2 resulting strings onto the stack
+- `[...] OP_CHECK_TRANSFER` - checks proofs of a transfer; see section below
+- `[commitment script] OP_MERKLEVAL hash` - enforces cryptographic commitment to
+branching script; see section above
 - `OP_TRY_EXCEPT size1 try_body size2 except_body` - executes the first block; if
 an exception is raised, it is serialized into a string and put on the stack,
 then the second block is executed
-- `OP_LESS` - pulls 2 values `v1` and `v2` from stack; puts `(v1<v2)` onto stack
-- `OP_LESS_OR_EQUAL` - pulls 2 values `v1` and `v2` from stack; puts `(v1<=v2)`
+- `[v2 v1] OP_LESS` - pulls 2 values `v1` and `v2` from stack; puts `(v1<v2)`
 onto stack
+- `[v2 v1] OP_LESS_OR_EQUAL` - pulls 2 values `v1` and `v2` from stack; puts
+`(v1<=v2)` onto stack
 - `OP_GET_VALUE key` - puts the read-only cache value(s) at the str `key` onto
 the stack
-- `OP_FLOAT_LESS` - takes floats `f1` and `f2` from the stack and puts `(f1<f2)`
-onto the stack
-- `OP_FLOAT_LESS_OR_EQUAL` - takes floats `f1` and `f2` from the stack and puts
-`(f1<=f2)` onto the stack
-- `OP_INT_TO_FLOAT` - takes int from stack and puts it back as a float
-- `OP_FLOAT_TO_INT` - takes float from stack and puts it back as an int
-- `OP_LOOP length clause` - runs the clause in a loop as long as the top value
-on the stack is true; errors if the callstack limit is exceeded
-- `OP_CHECK_MULTISIG allowed_flags m n` - takes `n` vkeys and `m` signatures
+- `[f2 f1] OP_FLOAT_LESS` - takes floats `f1` and `f2` from the stack and puts
+`(f1<f2)` onto the stack
+- `[f2 f1] OP_FLOAT_LESS_OR_EQUAL` - takes floats `f1` and `f2` from the stack
+and puts `(f1<=f2)` onto the stack
+- `[int] OP_INT_TO_FLOAT` - takes int from stack and puts it back as a float
+- `[f32] OP_FLOAT_TO_INT` - takes float from stack and puts it back as an int
+- `[bool] OP_LOOP length clause` - runs the clause in a loop as long as the top
+value on the stack is not null; errors if the callstack limit is exceeded
+- `[...] OP_CHECK_MULTISIG allowed_flags m n` - takes `n` vkeys and `m` signatures
 from stack; puts true onto the stack if each of the signatures is valid for one
 of the vkeys and if each vkey is used only once; otherwise, puts false onto the
 stack
-- `OP_CHECK_MULTISIG_VERIFY allowed_flags m n` - calls `OP_CHECK_MULTISIG` then
-`OP_VERIFY`
-- `OP_SIGN allowed_flags` - pulls a signing key seed from the stack; generates a
-signature from the sigfields; puts the signature onto the stack
-- `OP_SIGN flags` - takes a signing key seed from the stack, signs a message
+- `[...] OP_CHECK_MULTISIG_VERIFY allowed_flags m n` - calls `OP_CHECK_MULTISIG`
+then `OP_VERIFY`
+- `[seed] OP_SIGN flags` - takes a signing key seed from the stack, signs a message
 constructed from sigfields not blanked by the flags, and puts that signature
 onto the stack.
-- `OP_SIGN_STACK` - takes a signing key seed and message from the stack, signs
-the message, and puts the signature onto the stack.
-- `OP_CHECK_SIG_STACK` - takes a verify key, message, and signature from the
-stack; puts `True` onto the stack if the signature was valid for the vkey and
-message, otherwise puts `False` onto the stack.
-- `OP_DERIVE_SCALAR` - takes a seed from stack; derives an ed25519 private key
-scalar from it; puts the scalar onto the stack and into cache[b'x'] if
-`tape.flags[1]`.
-- `OP_CLAMP_SCALAR is_key` - reads byte from tape as bool `is_key`; pulls a
-value from the stack; clamps the value as an ed25519 private key if `is_key`
-else as normal scalar; puts clamped scalar onto the stack.
-- `OP_ADD_SCALARS count` - takes `count` values from stack; uses ed25519 scalar
-addition to sum them; put the sum onto the stack.
-- `OP_SUBTRACT_SCALARS count` - takes `count` values from stack; uses ed25519
-scalar subtraction to subtract `count-1` values from the first value; put the
-difference onto the stack.
-- `OP_DERIVE_POINT` - takes a value from the stack as a scalar; generates an
-ed25519 curve point from it; puts the point onto the stack and into cache[b'X']
-if `tape.flags[2]`.
-- `OP_SUBTRACT_POINTS count` - takes `count` values from the stack as ed25519
-points; subtracts `count-1` of them from the first using ed25519 inverse group
-operator; puts difference onto the stack.
-- `OP_MAKE_ADAPTER_SIG_PUBLIC` - takes tweak point `T`, message `m`, and prvkey
-`seed` from stack; derives key scalar `x` from `seed` and nonce `r` from `seed`
-and `m`; derives nonce point `R` from `r`; generates signature adapter `sa`;
-puts `R` and `sa` onto stack; sets cache[b'r'] to `r` if `tape.flags[3]`; sets
-cache[b'R'] to `R` if `tape.flages[4]`; sets cache[b'T'] to `T` if
-`tape.flags[6]`; sets cache[b'sa'] if `tape.flags[9]`.
-- `OP_MAKE_ADAPTER_SIG_PRIVATE` - takes prvkey `seed`, tweak scalar `t`, and
-message `m` from the stack; derives prvkey scalar `x` from `seed`; derives
-pubkey `X` from `x`; derives private nonce `r` from `seed` and `m`; derives
-public nonce point `R` from `r`; derives public tweak point `T` from `t`;
+- `[message seed] OP_SIGN_STACK` - takes a signing key seed and message from the
+stack, signs the message, and puts the signature onto the stack.
+- `[sig msg vkey] OP_CHECK_SIG_STACK` - takes a verify key, message, and
+signature from the stack; puts `True` onto the stack if the signature was valid
+for the vkey and message, otherwise puts `False` onto the stack.
+- `[seed] OP_DERIVE_SCALAR` - takes a seed from stack; derives an ed25519
+private key scalar from it; puts the scalar onto the stack and into cache[b'x']
+if `tape.flags[1]`.
+- `[scalar] OP_CLAMP_SCALAR is_key` - reads byte from tape as bool `is_key`;
+pulls a value from the stack; clamps the value as an ed25519 private key if
+`is_key` else as normal scalar; puts clamped scalar onto the stack.
+- `[...] OP_ADD_SCALARS count` - takes `count` values from stack; uses ed25519
+scalar addition to sum them; put the sum onto the stack.
+- `[... minuend] OP_SUBTRACT_SCALARS count` - takes `count` values from stack;
+uses ed25519 scalar subtraction to subtract `count-1` values from the first
+value; put the difference onto the stack.
+- `[scalar] OP_DERIVE_POINT` - takes a value from the stack as a scalar;
+generates an ed25519 curve point from it; puts the point onto the stack and into
+cache[b'X'] if `tape.flags[2]`.
+- `[... minuend] OP_SUBTRACT_POINTS count` - takes `count` values from the stack
+as ed25519 points; subtracts `count-1` of them from the first using ed25519
+inverse group operator; puts difference onto the stack.
+- `[seed m T] OP_MAKE_ADAPTER_SIG_PUBLIC` - takes tweak point `T`, message `m`,
+and prvkey `seed` from stack; derives key scalar `x` from `seed` and nonce `r`
+from `seed` and `m`; derives nonce point `R` from `r`; generates signature
+adapter `sa`; puts `R` and `sa` onto stack; sets cache[b'r'] to `r` if
+`tape.flags[3]`; sets cache[b'R'] to `R` if `tape.flages[4]`; sets cache[b'T']
+to `T` if `tape.flags[6]`; sets cache[b'sa'] if `tape.flags[9]`.
+- `[m t seed] OP_MAKE_ADAPTER_SIG_PRIVATE` - takes prvkey `seed`, tweak scalar
+`t`, and message `m` from the stack; derives prvkey scalar `x` from `seed`;
+derives pubkey `X` from `x`; derives private nonce `r` from `seed` and `m`;
+derives public nonce point `R` from `r`; derives public tweak point `T` from `t`;
 creates signature adapter `sa`; puts `T`, `R`, and `sa` onto stack; sets cache
 keys b't' to `t` if `tape.flags[5]`, b'T' to `T` if `tapeflags[6]`, b'R' to `R`
 if `tape.flags[4]`, and b'sa' to `sa` if `tape.flags[8]` (can be used in code
 with @t, @T, @R, and @sa). Values `seed` and `t` should be 32 bytes each. Values
 `T`, `R`, and `sa` are all public 32 byte values and necessary for verification;
 `t` is used to decrypt the signature.
-- `OP_CHECK_ADAPTER_SIG` - takes public key `X`, tweak point `T`, message `m`,
-nonce point `R`, and signature adapter `sa` from the stack; puts `True` onto the
-stack if the signature adapter is valid and `False` otherwise.
-- `OP_DECRYPT_ADAPTER_SIG` - takes tweak scalar `t`, nonce point `R`, and
-signature adapter `sa` from stack; calculates nonce `RT`; decrypts signature
+- `[sa R m T X] OP_CHECK_ADAPTER_SIG` - takes public key `X`, tweak point `T`,
+message `m`, nonce point `R`, and signature adapter `sa` from the stack; puts
+`True` onto the stack if the signature adapter is valid and `False` otherwise.
+- `[sa R t] OP_DECRYPT_ADAPTER_SIG` - takes tweak scalar `t`, nonce point `R`,
+and signature adapter `sa` from stack; calculates nonce `RT`; decrypts signature
 `s` from `sa`; puts `s` onto stack; puts `RT` onto the stack; sets cache keys
 b's' to `s` if `tape.flags[9]` and b'RT' to `RT` if `tape.flags[7]` (can be used
 in code with @s and @RT).
-- `OP_INVOKE` - takes an item from the stack as a contract ID; takes a uint from
-the stack as `count`; takes `count` items from the stack as arguments; tries to
-invoke the contract's `abi` method, passing it the arguments; puts any return
-values onto the stack. Raises `ScriptExecutionError` if the contract is missing.
-Raises `TypeError` if the return value type is not bytes or NoneType. If allowed
-by `tape.flags[0]`, will put any return values into cache at key b'IR'.
-- `OP_XOR` - takes two items from the stack; bitwise XORs them together; puts
-result onto the stack. Can be used in boolean logic as boolean values are just
-bytes.
-- `OP_OR` - takes two items from the stack; bitwise ORs them together; puts
-result onto the stack. Can be used in boolean logic as boolean values are just
-bytes.
-- `OP_AND` - takes two items from the stack; bitwise ANDs them together; puts
-result onto the stack. Can be used in boolean logic as boolean values are just
-bytes.
+- `[... argcount contract_id] OP_INVOKE` - takes an item from the stack as a
+contract ID; takes a uint from the stack as `count`; takes `count` items from
+the stack as arguments; tries to invoke the contract's `abi` method, passing it
+the arguments; puts any return values onto the stack. Raises
+`ScriptExecutionError` if the contract is missing. Raises `TypeError` if the
+return value type is not bytes or NoneType. If allowed by `tape.flags[0]`, will
+put any return values into cache at key b'IR'.
+- `[item2 item1] OP_XOR` - takes two items from the stack; bitwise XORs them
+together; puts result onto the stack. Can be used in boolean logic as boolean
+values are just bytes.
+- `[item2 item1] OP_OR` - takes two items from the stack; bitwise ORs them
+together; puts result onto the stack. Can be used in boolean logic as boolean
+values are just bytes.
+- `[item2 item1] OP_AND` - takes two items from the stack; bitwise ANDs them
+together; puts result onto the stack. Can be used in boolean logic as boolean
+values are just bytes.
+- `[...] OP_CHECK_TEMPLATE sigflags` - pulls a template from the stack for every
+sigfield indicated in the sigflags and validates the associated sigfield against
+the template by running the "check_template" plugins or, if there are none, by
+doing an equality comparison; if all template checks pass, puts 0xff onto the
+stack, otherwise puts 0x00 onto the stack; runs the signature extension plugins
+beforehand if `tape.flags[10]` is set, which is default behavior.
+- `[...] OP_CHECK_TEMPLATE_VERIFY sigflags` - runs `OP_CHECK_TEMPLATE sigflags`
+then `OP_VERIFY`
+- `[...] OP_TAPROOT root` - if the top item in the stack is a public key, verify
+the supplied script (2nd item from stack top) and the public key combine into
+the root using sha256 and ed25519, then execute the supplied script if they do
+or remove the script from the stack and put 0x00 onto the stack if they do not;
+else verify the top item is a signature that validates against the root as the
+public key, and put 0xFF onto stack if it is or 0x00 onto the stack otherwise
 - `NOP count` - removes `count` values from the stack; dummy ops useful for soft
 fork updates
 

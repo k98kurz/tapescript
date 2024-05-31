@@ -147,9 +147,9 @@ def sign_with_scalar(scalar: bytes, message: bytes, seed: bytes = None) -> bytes
          'scalar must be a valid ed25519 scalar')
 
     seed = seed or H_small(scalar + message)
+    nonce = H_big(seed)[32:]
     x, m = scalar, message
     X = nacl.bindings.crypto_scalarmult_ed25519_base_noclamp(x) # G^x
-    nonce = H_big(seed)[32:]
     r = clamp_scalar(H_small(H_big(nonce, m))) # H(nonce || m)
     R = nacl.bindings.crypto_scalarmult_ed25519_base_noclamp(r) # G^r
     c = clamp_scalar(H_small(R, X, m)) # H(R + T || X || m)
@@ -225,7 +225,8 @@ def OP_PUSH2(tape: Tape, stack: Stack, cache: dict) -> None:
 def OP_GET_MESSAGE(tape: Tape, stack: Stack, cache: dict) -> None:
     """Reads a byte from tape as the sigflags; constructs the message
         that will be used by OP_SIGN and OP_CHECK_SIG/_VERIFY from the
-        sigfields; puts the result onto the stack.
+        sigfields; puts the result onto the stack. Runs the signature
+        extension plugins beforehand.
     """
     run_sig_extensions(tape, stack, cache)
     sig_flag = int.from_bytes(tape.read(1), 'big')
@@ -387,10 +388,10 @@ def OP_MULT_INTS(tape: Tape, stack: Stack, cache: dict) -> None:
         signed ints; multiply them together; put the result back onto
         the stack.
     """
-    size = int.from_bytes(tape.read(1), 'big')
+    count = int.from_bytes(tape.read(1), 'big')
     total = bytes_to_int(stack.get())
 
-    for _ in range(size-1):
+    for _ in range(count-1):
         total *= bytes_to_int(stack.get())
 
     stack.put(int_to_bytes(total))
@@ -441,10 +442,10 @@ def OP_ADD_FLOATS(tape: Tape, stack: Stack, cache: dict) -> None:
         pull that many values from the stack, interpreting them as
         floats; add them together; put the result back onto the stack.
     """
-    size = int.from_bytes(tape.read(1), 'big')
+    count = int.from_bytes(tape.read(1), 'big')
     total = 0.0
 
-    for _ in range(size):
+    for _ in range(count):
         item = stack.get()
         tert(type(item) is bytes and len(item) == 4,
             'OP_ADD_FLOATS malformed float')
@@ -461,17 +462,17 @@ def OP_SUBTRACT_FLOATS(tape: Tape, stack: Stack, cache: dict) -> None:
         floats; subtract them from the first one; put the result back
         onto the stack.
     """
-    size = int.from_bytes(tape.read(1), 'big')
+    count = int.from_bytes(tape.read(1), 'big')
     item = stack.get()
     tert(type(item) is bytes and len(item) == 4,
         'OP_SUBTRACT_FLOATS malformed float')
-    total, = struct.unpack('!f', item)
+    total = bytes_to_float(item)
 
-    for _ in range(size-1):
+    for _ in range(count-1):
         item = stack.get()
         tert(type(item) is bytes and len(item) == 4,
             'OP_SUBTRACT_FLOATS malformed float')
-        number, = struct.unpack('!f', item)
+        number = bytes_to_float(item)
         total -= number
 
     vert(not isnan(total), 'OP_SUBTRACT_FLOATS nan encountered')
@@ -484,30 +485,30 @@ def OP_DIV_FLOAT(tape: Tape, stack: Stack, cache: dict) -> None:
         dividend; divide the dividend by the divisor; put the result
         onto the stack.
     """
+    divisor = bytes_to_float(tape.read(4))
     item = stack.get()
     tert(type(item) is bytes and len(item) == 4,
         'OP_DIV_FLOAT malformed float')
-    dividend, = struct.unpack('!f', item)
-    divisor, = struct.unpack('!f', tape.read(4))
-    result = divisor / dividend
+    dividend = bytes_to_float(item)
+    result = dividend / divisor
     vert(not isnan(result), 'OP_DIV_FLOAT nan encountered')
-    stack.put(struct.pack('!f', result))
+    stack.put(float_to_bytes(result))
 
 def OP_DIV_FLOATS(tape: Tape, stack: Stack, cache: dict) -> None:
     """Pull two values from the stack, interpreting as floats; divide
         the second by the first; put the result onto the stack.
     """
     item = stack.get()
-    tert(type(item) is bytes and len(item) == 4, 'OP_DIV_FLOATS malformed float')
-    divisor, = struct.unpack('!f', item)
+    tert(len(item) == 4, 'OP_DIV_FLOATS malformed float')
+    dividend = bytes_to_float(item)
 
     item = stack.get()
-    tert(type(item) is bytes and len(item) == 4, 'OP_DIV_FLOATS malformed float')
-    dividend, = struct.unpack('!f', item)
+    tert(len(item) == 4, 'OP_DIV_FLOATS malformed float')
+    divisor = bytes_to_float(item)
 
-    result = divisor / dividend
+    result = dividend / divisor
     vert(not isnan(result), 'OP_DIV_FLOATS nan encountered')
-    stack.put(struct.pack('!f', result))
+    stack.put(float_to_bytes(result))
 
 def OP_MOD_FLOAT(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read the next 4 bytes from the tape, interpreting as a float
@@ -515,13 +516,13 @@ def OP_MOD_FLOAT(tape: Tape, stack: Stack, cache: dict) -> None:
         dividend; perform float modulus: dividend % divisor; put the
         result onto the stack.
     """
+    divisor = bytes_to_float(tape.read(4))
     item = stack.get()
     tert(type(item) is bytes and len(item) == 4, 'OP_MOD_FLOAT malformed float')
-    dividend, = struct.unpack('!f', item)
-    divisor, = struct.unpack('!f', tape.read(4))
+    dividend = bytes_to_float(item)
     result = dividend % divisor
     vert(not isnan(result), 'OP_MOD_FLOAT nan encountered')
-    stack.put(struct.pack('!f', result))
+    stack.put(float_to_bytes(result))
 
 def OP_MOD_FLOATS(tape: Tape, stack: Stack, cache: dict) -> None:
     """Pull two values from the stack, interpreting as floats; perform
@@ -529,15 +530,15 @@ def OP_MOD_FLOATS(tape: Tape, stack: Stack, cache: dict) -> None:
     """
     item = stack.get()
     tert(type(item) is bytes and len(item) == 4, 'OP_MOD_FLOATS malformed float')
-    divisor, = struct.unpack('!f', item)
+    divisor = bytes_to_float(item)
 
     item = stack.get()
     tert(type(item) is bytes and len(item) == 4, 'OP_MOD_FLOATS malformed float')
-    dividend, = struct.unpack('!f', item)
+    dividend = bytes_to_float(item)
 
     result = dividend % divisor
     vert(not isnan(result), 'OP_MOD_FLOATS nan encountered')
-    stack.put(struct.pack('!f', result))
+    stack.put(float_to_bytes(result))
 
 def OP_ADD_POINTS(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int;
@@ -624,10 +625,10 @@ def OP_CHECK_SIG(tape: Tape, stack: Stack, cache: dict) -> None:
         signature; check the signature against the VerifyKey and the
         cached sigfields not disabled by a sig flag; put True onto the
         stack if verification succeeds, otherwise put False onto the
-        stack.
+        stack. Runs the signature extension plugins beforehand.
     """
     run_sig_extensions(tape, stack, cache)
-    allowable_flags = tape.read(1)[0]
+    allowable_flags = int.from_bytes(tape.read(1), 'big')
     vkey = stack.get()
     sig = stack.get()
 
@@ -871,10 +872,11 @@ def OP_NOT(tape: Tape, stack: Stack, cache: dict) -> None:
     stack.put(not_bytes(item))
 
 def OP_RANDOM(tape: Tape, stack: Stack, cache: dict) -> None:
-    """Read the next byte from the tape, interpreting as an unsigned int;
-        put that many random bytes onto the stack.
+    """Pull an item from the tape, interpreting as a signed int; put
+        that many random bytes onto the stack.
     """
-    size = int.from_bytes(tape.read(1), 'big')
+    # size = int.from_bytes(tape.read(1), 'big')
+    size = bytes_to_int(stack.get())
     stack.put(token_bytes(size))
 
 def OP_RETURN(tape: Tape, stack: Stack, cache: dict) -> None:
@@ -902,7 +904,7 @@ def OP_UNSET_FLAG(tape: Tape, stack: Stack, cache: dict) -> None:
 
 def OP_DEPTH(tape: Tape, stack: Stack, cache: dict) -> None:
     """Put the stack item count onto the stack."""
-    stack.put(uint_to_bytes(len(stack)))
+    stack.put(int_to_bytes(len(stack)))
 
 def OP_SWAP(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read the next 2 bytes from the tape, interpreting as unsigned
@@ -915,7 +917,7 @@ def OP_SWAP(tape: Tape, stack: Stack, cache: dict) -> None:
         return
 
     max_idx = first_idx if first_idx > second_idx else second_idx
-    sert(len(stack.deque) >= max_idx, 'OP_SWAP stack size exceeded by index')
+    sert(len(stack.deque) > max_idx, 'OP_SWAP stack size exceeded by index')
 
     length = len(stack.deque)
     first_idx = length - first_idx - 1
@@ -943,12 +945,12 @@ def OP_REVERSE(tape: Tape, stack: Stack, cache: dict) -> None:
     [stack.put(item) for item in items]
 
 def OP_CONCAT(tape: Tape, stack: Stack, cache: dict) -> None:
-    """Pull two items from the stack; concatenate them second+first; put
+    """Pull two items from the stack; concatenate them bottom+top; put
         the result onto the stack.
     """
-    first = stack.get()
     second = stack.get()
-    stack.put(second + first)
+    first = stack.get()
+    stack.put(first + second)
 
 def OP_SPLIT(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int
@@ -968,9 +970,9 @@ def OP_CONCAT_STR(tape: Tape, stack: Stack, cache: dict) -> None:
     """Pull two items from the stack, interpreting as UTF-8 strings;
         concatenate them; put the result onto the stack.
     """
-    first = str(stack.get(), 'utf-8')
     second = str(stack.get(), 'utf-8')
-    stack.put(bytes(second + first, 'utf-8'))
+    first = str(stack.get(), 'utf-8')
+    stack.put(bytes(first + second, 'utf-8'))
 
 def OP_SPLIT_STR(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int
@@ -995,7 +997,7 @@ def OP_CHECK_TRANSFER(tape: Tape, stack: Stack, cache: dict) -> None:
         count number of items from the stack as sources; take the count
         number of items from the stack as transaction proofs; verify
         that the aggregate of the transfers to the destination from the
-        sources equal or exceed the amount; verify that the transfers
+        sources equals or exceeds the amount; verify that the transfers
         were valid using the proofs and the contract code; verify that
         any constraints were followed; and put True onto the stack if
         successful and False otherwise. Sources and proofs must be in
@@ -1121,7 +1123,7 @@ def OP_GET_VALUE(tape: Tape, stack: Stack, cache: dict) -> None:
         the tape, interpreting as utf-8 string; put the read-only cache
         value(s) at that cache key onto the stack, serialized as bytes.
     """
-    size = tape.read(1)[0]
+    size = int.from_bytes(tape.read(1), 'big')
     key = str(tape.read(size), 'utf-8')
     sert(key in cache, f'OP_GET_VALUE key "{key}" not in cache')
     items = cache[key] if type(cache[key]) in (list, tuple) else [cache[key]]
@@ -1165,8 +1167,7 @@ def OP_LOOP(tape: Tape, stack: Stack, cache: dict) -> None:
     """
     loop_size = int.from_bytes(tape.read(2), 'big')
     loop_def = tape.read(loop_size)
-    condition = stack.get()
-    stack.put(condition)
+    condition = stack.peek()
     count = 0
 
     subtape = Tape(
@@ -1183,8 +1184,7 @@ def OP_LOOP(tape: Tape, stack: Stack, cache: dict) -> None:
             return
         subtape.reset_pointer()
         count += 1
-        condition = stack.get()
-        stack.put(condition)
+        condition = stack.peek()
 
 def OP_CHECK_MULTISIG(tape: Tape, stack: Stack, cache: dict) -> None:
     """Reads 1 byte from tape as allowable flags; reads 1 byte from tape
@@ -1197,8 +1197,8 @@ def OP_CHECK_MULTISIG(tape: Tape, stack: Stack, cache: dict) -> None:
     """
     run_sig_extensions(tape, stack, cache)
     subtape = Tape(tape.read(1))
-    m = tape.read(1)[0]
-    n = tape.read(1)[0]
+    m = int.from_bytes(tape.read(1), 'big')
+    n = int.from_bytes(tape.read(1), 'big')
     vkeys = [stack.get() for _ in range(n)]
     sigs = [stack.get() for _ in range(m)]
     confirmed = set()
@@ -1229,10 +1229,11 @@ def OP_SIGN(tape: Tape, stack: Stack, cache: dict) -> None:
     """Reads 1 byte from the tape as the sig_flag; pulls a value from
         the stack, interpreting as a SigningKey; creates a signature
         using the correct sigfields; puts the signature onto the stack.
-        Raises ValueError for invalid key seed length.
+        Raises ValueError for invalid key seed length. Runs the
+        signature extension plugins beforehand.
     """
     run_sig_extensions(tape, stack, cache)
-    sig_flag = tape.read(1)[0]
+    sig_flag = int.from_bytes(tape.read(1), 'big')
     skey_seed = stack.get()
     vert(len(skey_seed) == nacl.bindings.crypto_sign_SEEDBYTES,
          'invalid signing key; must be ' +
@@ -1326,10 +1327,10 @@ def OP_SUBTRACT_SCALARS(tape: Tape, stack: Stack, cache: dict) -> None:
         ed25519 scalars; subtract count-1 of them from the first one;
         put the difference onto the stack.
     """
-    size = int.from_bytes(tape.read(1), 'big')
+    count = int.from_bytes(tape.read(1), 'big')
     total = stack.get()
 
-    for _ in range(size-1):
+    for _ in range(count-1):
         item = stack.get()
         total = nacl.bindings.crypto_core_ed25519_scalar_sub(total, item)
 
@@ -1353,10 +1354,10 @@ def OP_SUBTRACT_POINTS(tape: Tape, stack: Stack, cache: dict) -> None:
         ed25519 scalars; subtract them from the first one; put the
         result onto the stack.
     """
-    size = int.from_bytes(tape.read(1), 'big')
+    count = int.from_bytes(tape.read(1), 'big')
     total = stack.get()
 
-    for _ in range(size-1):
+    for _ in range(count-1):
         item = stack.get()
         total = nacl.bindings.crypto_core_ed25519_sub(total, item)
 
@@ -1548,7 +1549,8 @@ def OP_CHECK_TEMPLATE(tape: Tape, stack: Stack, cache: dict) -> None:
         using the plugin system; put True onto the stack if every
         sigfield validated against its template by at least one ctv
         plugin function, and False otherwise. Runs the signature
-        extension plugins first.
+        extension plugins first if tape.flags[10] is set to True, which
+        is the default behavior.
     """
     if tape.flags.get(10, True):
         run_sig_extensions(tape, stack, cache)
@@ -1577,7 +1579,7 @@ def OP_CHECK_TEMPLATE(tape: Tape, stack: Stack, cache: dict) -> None:
         t = Tape(b'', plugins={**tape.plugins}, contracts={**tape.contracts})
         result = run_plugins('check_template', t, s, cache)
         if not len(result):
-            all_valid = all_valid and template == field
+            all_valid = all_valid and bytes_are_same(template, field)
         else:
             all_valid = all_valid and any(result)
 
@@ -1589,12 +1591,12 @@ def OP_CHECK_TEMPLATE_VERIFY(tape: Tape, stack: Stack, cache: dict) -> None:
     OP_VERIFY(tape, stack, cache)
 
 def OP_TAPROOT(tape: Tape, stack: Stack, cache: dict) -> None:
-    """Reads 32 bytes from the tape as root; gets an item from the
-        stack, then put it back onto the stack; if the item has length
-        32, it is an ed25519 public key, otherwise it is a signature; if
-        it was a public key, then it is executing the committed script;
-        if it is a signature, then it is executing the key-spend path.
-        For key-spend, pull the sigflags from cache b'trsf' or
+    """Reads 32 bytes from the tape as the root; gets a copy of the top
+        stack item (using stack.peek); if the item has length 32, it is
+        an ed25519 public key, otherwise it is a signature; if it was a
+        public key, then it is executing the committed script; if it is
+        a signature, then it is executing the key-spend path. For
+        key-spend, pull the sigflags from cache b'trsf' or
         'taproot_sigflags', but replace with 0x00 if it does not
         disallow exclusion of at least one sigfield (i.e. has at least
         one null bit), then run `OP_CHECK_SIG`. For committed script
@@ -1606,9 +1608,8 @@ def OP_TAPROOT(tape: Tape, stack: Stack, cache: dict) -> None:
         otherwise remove the script and put 0x00 onto the stack.
     """
     root = tape.read(32)
-    pubkey_or_sig = stack.get()
+    pubkey_or_sig = stack.peek()
     is_pubkey = len(pubkey_or_sig) == 32
-    stack.put(pubkey_or_sig)
 
     if is_pubkey:
         OP_SWAP2(tape, stack, cache)
@@ -1929,6 +1930,19 @@ def add_opcode(code: int, name: str, function: Callable) -> None:
         del nopcodes[code]
         del nopcodes_inverse[nopname]
 
+def add_alias(alias: str, op_name: str) -> None:
+    """Adds an alias for an OP."""
+    tert(type(alias) is str, "alias must be str")
+    tert(type(op_name) is str, "op_name must be str")
+    alias = alias.upper()
+    op_name = op_name.upper()
+    vert(op_name in opcodes_inverse,
+         f'op_name must be a valid OP name; "{op_name}" unrecognized')
+    vert(alias not in opcode_aliases,
+         f'alias "{alias}" already in use for {opcode_aliases.get(alias, "")}')
+    vert(alias.isalnum(), f'alias must be alphanumeric; "{alias}" is invalid')
+    opcode_aliases[alias] = op_name
+
 def add_plugin(scope: str, plugin: Callable[[Tape, Stack, dict], Any]) -> None:
     """Adds a plugin for the given scope."""
     tert(type(scope) is str, 'scope must be str')
@@ -1940,7 +1954,7 @@ def add_plugin(scope: str, plugin: Callable[[Tape, Stack, dict], Any]) -> None:
     if plugin not in _plugins[scope]:
         _plugins[scope].append(plugin)
 
-def remove_plugin(scope: str, plugin: Callable[[Tape, Stack, dict], None]) -> None:
+def remove_plugin(scope: str, plugin: Callable[[Tape, Stack, dict], Any]) -> None:
     """Removes a plugin for the given scope."""
     tert(type(scope) is str, 'scope must be str')
     if scope not in _plugins:
@@ -2005,7 +2019,7 @@ def run_tape(tape: Tape, stack: Stack, cache: dict,
     """Run the given tape using the stack and cache."""
     tape = set_tape_flags(tape, additional_flags)
     while not tape.has_terminated():
-        op_code = tape.read(1)[0]
+        op_code = int.from_bytes(tape.read(1), 'big')
         if op_code in opcodes:
             op = opcodes[op_code][1]
         else:

@@ -1,10 +1,11 @@
-from .classes import Tape
+from .classes import Tape, Stack
 from .errors import ScriptExecutionError, SyntaxError
 from .functions import (
     run_script,
     run_tape,
     run_auth_script,
     add_opcode,
+    add_alias,
     add_contract,
     remove_contract,
     add_contract_interface,
@@ -20,6 +21,7 @@ from .functions import (
     derive_point_from_scalar,
     aggregate_points,
     aggregate_scalars,
+    sign_with_scalar,
     xor,
     bytes_are_same,
     add_signature_extension,
@@ -65,6 +67,9 @@ from .tools import (
     make_ptlc_lock,
     make_ptlc_witness,
     make_ptlc_refund_witness,
+    make_taproot_lock,
+    make_taproot_witness_keyspend,
+    make_taproot_witness_scriptspend,
     setup_amhl,
     release_left_amhl_lock,
 )

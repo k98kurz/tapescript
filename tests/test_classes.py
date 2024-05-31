@@ -95,6 +95,16 @@ class TestStack(unittest.TestCase):
         _ = stack.get()
         assert stack.size() == 3
 
+    def test_Stack_peek_returns_correct_item(self):
+        items = [b'123', b'abc', b'hello world']
+        stack = classes.Stack()
+        for item in items:
+            stack.put(item)
+        assert len(stack) == 3
+        assert stack.peek() == items[-1]
+        assert stack.peek(1) == items[-2]
+        assert len(stack) == 3
+
 
 if __name__ == '__main__':
     unittest.main()

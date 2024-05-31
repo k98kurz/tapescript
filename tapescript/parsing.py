@@ -526,7 +526,7 @@ def get_args(
             'OP_SHA256' | 'OP_VERIFY' | 'OP_EQUAL' | 'OP_EQUAL_VERIFY' | \
             'OP_CHECK_TIMESTAMP' | 'OP_CHECK_TIMESTAMP_VERIFY' | \
             'OP_CHECK_EPOCH' | 'OP_CHECK_EPOCH_VERIFY' | 'OP_EVAL' | \
-            'OP_NOT' | 'OP_RETURN' | 'OP_DEPTH' | 'OP_SWAP2' | \
+            'OP_RANDOM' | 'OP_NOT' | 'OP_RETURN' | 'OP_DEPTH' | 'OP_SWAP2' | \
             'OP_CONCAT' | 'OP_CONCAT_STR' | 'OP_CHECK_TRANSFER' | 'OP_LESS' | \
             'OP_LESS_OR_EQUAL' | 'OP_FLOAT_LESS' | 'OP_FLOAT_LESS_OR_EQUAL' | \
             'OP_INT_TO_FLOAT' | 'OP_FLOAT_TO_INT' | 'OP_SIGN_STACK' | \
@@ -551,7 +551,7 @@ def get_args(
         case 'OP_PUSH0' | 'OP_POP1' | 'OP_ADD_INTS' | 'OP_SUBTRACT_INTS' | \
             'OP_MULT_INTS' | 'OP_ADD_FLOATS' | \
             'OP_SUBTRACT_FLOATS' | 'OP_ADD_POINTS' | 'OP_CALL' | \
-            'OP_COPY' | 'OP_SHAKE256' | 'OP_RANDOM' | 'OP_REVERSE' | \
+            'OP_COPY' | 'OP_SHAKE256' | 'OP_REVERSE' | \
             'OP_SPLIT' | 'OP_SPLIT_STR' | 'OP_CHECK_SIG' | 'OP_SIGN' | \
             'OP_CHECK_SIG_VERIFY' | 'OP_CLAMP_SCALAR' | 'OP_ADD_SCALARS' | \
             'OP_SUBTRACT_SCALARS' | 'OP_SUBTRACT_POINTS' | \
@@ -1068,7 +1068,7 @@ def decompile_script(script: bytes, indent: int = 0) -> list[str]:
                 'OP_SHA256' | 'OP_VERIFY' | 'OP_EQUAL' | 'OP_EQUAL_VERIFY' | \
                 'OP_CHECK_TIMESTAMP' | 'OP_CHECK_TIMESTAMP_VERIFY' | \
                 'OP_CHECK_EPOCH' | 'OP_CHECK_EPOCH_VERIFY' | 'OP_EVAL' | \
-                'OP_NOT' | 'OP_RETURN' | 'OP_DEPTH' | 'OP_SWAP2' | \
+                'OP_RANDOM' | 'OP_NOT' | 'OP_RETURN' | 'OP_DEPTH' | 'OP_SWAP2' | \
                 'OP_CONCAT' | 'OP_CONCAT_STR' | 'OP_CHECK_TRANSFER' | \
                 'OP_LESS' | 'OP_LESS_OR_EQUAL' | 'OP_FLOAT_LESS' | \
                 'OP_FLOAT_LESS_OR_EQUAL' | 'OP_INT_TO_FLOAT' | \
@@ -1105,7 +1105,7 @@ def decompile_script(script: bytes, indent: int = 0) -> list[str]:
             case 'OP_PUSH0' | 'OP_POP1' | 'OP_ADD_INTS' | 'OP_SUBTRACT_INTS' | \
                 'OP_MULT_INTS' | 'OP_ADD_FLOATS' | \
                 'OP_SUBTRACT_FLOATS' | 'OP_ADD_POINTS' | 'OP_CALL' | \
-                'OP_COPY' | 'OP_SHAKE256' | 'OP_RANDOM' | 'OP_REVERSE' | \
+                'OP_COPY' | 'OP_SHAKE256' | 'OP_REVERSE' | \
                 'OP_SPLIT' | 'OP_SPLIT_STR' | 'OP_CLAMP_SCALAR' | \
                 'OP_ADD_SCALARS' | 'OP_SUBTRACT_SCALARS' | 'OP_SUBTRACT_POINTS':
                 # ops that have tape argument of form [0-255]
