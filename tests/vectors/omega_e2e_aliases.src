@@ -72,13 +72,13 @@ read_cache s"size"
 rcz s"size"
 rcs
 rcsz
-add_ints d12
-subtract_ints d21
-mult_ints d2
+add d12
+sub d21
+mult d2
 div_int d-10
-div_ints
+div
 mod_int d10
-mod_ints
+mod
 add_floats d2
 subf d2
 div_float x3c4985f0
