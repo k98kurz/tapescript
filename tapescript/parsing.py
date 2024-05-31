@@ -226,7 +226,7 @@ def _get_OP_PUSH_args(
         # human-readable decompiled syntax of OP_PUSH2 val
         args.append(len(val).to_bytes(2, 'big'))
     else:
-        raise ValueError(f'size of value too large for OP_PUSH: {len(val)}')
+        raise ValueError(f'size of value invalid for OP_PUSH: {len(val)}')
     args.append(val)
     return (symbols_to_advance, args)
 
