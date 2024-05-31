@@ -1893,7 +1893,11 @@ def _check_contract(contract: object) -> None:
     sert(matched, f'contract does not fulfill at least one interface')
 
 def add_contract(contract_id: bytes, contract: object) -> None:
-    """Add a contract to be loaded on each script execution."""
+    """Add a contract to be loaded on each script execution. Raises
+        TypeError if contract_id is not bytes. Calls _check_contract,
+        which raises ScriptExecutionError if the contract does not match
+        at least one contract interface.
+    """
     tert(type(contract_id) is bytes,
         'contract_id must be bytes and should be sha256 hash of its source code')
     _check_contract(contract)
@@ -1901,7 +1905,7 @@ def add_contract(contract_id: bytes, contract: object) -> None:
 
 def remove_contract(contract_id: bytes) -> None:
     """Remove a loaded contract to prevent it from being included on
-        script execution.
+        script execution. Raises TypeError if contract_id is not bytes.
     """
     tert(type(contract_id) is bytes,
         'contract_id must be bytes and should be sha256 hash of its source code')
@@ -1910,20 +1914,26 @@ def remove_contract(contract_id: bytes) -> None:
 
 def add_contract_interface(interface: type) -> None:
     """Adds an interface for type checking contracts. Interface must be
-        a runtime_checkable Protocol.
+        a runtime_checkable Protocol. Raises TypeError if the interface
+        is not a Protocol.
     """
     tert(type(interface) is _ProtocolMeta, 'interface must be a Protocol')
     if interface.__name__ not in _contract_interfaces:
         _contract_interfaces[interface.__name__] = interface
 
 def remove_contract_interface(interface: type) -> None:
-    """Removes an interface for type checking contracts."""
+    """Removes an interface for type checking contracts. Raises
+        TypeError if the interface is not a Protocol.
+    """
     tert(type(interface) is _ProtocolMeta, 'interface must be a Protocol')
     if interface.__name__ in _contract_interfaces:
         del _contract_interfaces[interface.__name__]
 
 def add_opcode(code: int, name: str, function: Callable) -> None:
-    """Adds an OP implementation with the code, name, and function."""
+    """Adds an OP implementation with the code, name, and function.
+        Raises TypeError for invalid arg types and ValueError for
+        invalid code or name.
+    """
     tert(type(code) is int, 'code must be int')
     tert(type(name) is str, 'name must be str')
     tert(callable(function), 'function must be callable')
@@ -1941,7 +1951,10 @@ def add_opcode(code: int, name: str, function: Callable) -> None:
         del nopcodes_inverse[nopname]
 
 def add_alias(alias: str, op_name: str) -> None:
-    """Adds an alias for an OP."""
+    """Adds an alias for an OP. Raises TypeError for non-str args and
+        ValueError if the alias contains invalid chars or is already in
+        use.
+    """
     tert(type(alias) is str, "alias must be str")
     tert(type(op_name) is str, "op_name must be str")
     alias = alias.upper()
@@ -1950,11 +1963,14 @@ def add_alias(alias: str, op_name: str) -> None:
          f'op_name must be a valid OP name; "{op_name}" unrecognized')
     vert(alias not in opcode_aliases,
          f'alias "{alias}" already in use for {opcode_aliases.get(alias, "")}')
-    vert(alias.isalnum(), f'alias must be alphanumeric; "{alias}" is invalid')
+    vert(alias.replace('_','').isalnum(),
+         f'only non-alphanumeric chars for alias is "_"; "{alias}" is invalid')
     opcode_aliases[alias] = op_name
 
 def add_plugin(scope: str, plugin: Callable[[Tape, Stack, dict], Any]) -> None:
-    """Adds a plugin for the given scope."""
+    """Adds a plugin for the given scope. Raises TypeError if scope is
+        not str or if plugin is not callable.
+    """
     tert(type(scope) is str, 'scope must be str')
     tert(callable(plugin), f'plugin (for {scope}) must be Callable[[Tape, Stack, dict], Any]')
 
@@ -1965,7 +1981,9 @@ def add_plugin(scope: str, plugin: Callable[[Tape, Stack, dict], Any]) -> None:
         _plugins[scope].append(plugin)
 
 def remove_plugin(scope: str, plugin: Callable[[Tape, Stack, dict], Any]) -> None:
-    """Removes a plugin for the given scope."""
+    """Removes a plugin for the given scope. Raises TypeError if scope is
+        not str.
+    """
     tert(type(scope) is str, 'scope must be str')
     if scope not in _plugins:
         return
@@ -1973,7 +1991,9 @@ def remove_plugin(scope: str, plugin: Callable[[Tape, Stack, dict], Any]) -> Non
         _plugins[scope].remove(plugin)
 
 def reset_plugins(scope: str) -> None:
-    """Removes all plugins for the given scope."""
+    """Removes all plugins for the given scope. Raises TypeError if
+        scope is not str.
+    """
     tert(type(scope) is str, 'scope must be str')
     if scope not in _plugins:
         return

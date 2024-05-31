@@ -918,24 +918,30 @@ False.
 
 ## `add_opcode(code: int, name: str, function: Callable): -> None`
 
-Adds an OP implementation with the code, name, and function.
+Adds an OP implementation with the code, name, and function. Raises TypeError
+for invalid arg types and ValueError for invalid code or name.
 
 ## `add_contract(contract_id: bytes, contract: object): -> None`
 
-Add a contract to be loaded on each script execution.
+Add a contract to be loaded on each script execution. Raises TypeError if
+contract_id is not bytes. Calls _check_contract, which raises
+ScriptExecutionError if the contract does not match at least one contract
+interface.
 
 ## `remove_contract(contract_id: bytes): -> None`
 
 Remove a loaded contract to prevent it from being included on script execution.
+Raises TypeError if contract_id is not bytes.
 
 ## `add_contract_interface(interface: type): -> None`
 
 Adds an interface for type checking contracts. Interface must be a
-runtime_checkable Protocol.
+runtime_checkable Protocol. Raises TypeError if the interface is not a Protocol.
 
 ## `remove_contract_interface(interface: type): -> None`
 
-Removes an interface for type checking contracts.
+Removes an interface for type checking contracts. Raises TypeError if the
+interface is not a Protocol.
 
 # Parsing functions
 

@@ -26,8 +26,8 @@ many op codes do complex things rather than simple/primitive ones, e.g.
 - [x] Loops
 - [x] HTLCs, AMHLs, adapter signatures, delegated key scripts
 - [x] Simple CLI: compile, decompile, run, and auth
-- [ ] Document plugin system and signature extensions
-- [ ] Rewrite `OP_MERKLEVAL` and tools to use root=xor(hash(hash(branch)), hash(hash(branch)))
+- [x] Document plugin system
+- [x] Rewrite `OP_MERKLEVAL` and tools to use root=xor(hash(hash(branchA)), hash(hash(branchB)))
 
 ## Usage
 
@@ -69,10 +69,17 @@ and [docs.md](https://github.com/k98kurz/tapescript/blob/v0.5.0/docs.md) files
 for syntax and operation specifics.
 
 Once you have a script written, use the `compile_script(code: str) -> bytes`
-function to turn it into the byte code that the interpreter runs. Note that each
-`OP_` function has an alias that excludes the `OP_` prefix; e.g. `OP_PUSH d1`
-can also be written `PUSH d1`. Op names are not case-sensitive, and several ops
-have additional aliases. Variable and macro names are case-sensitive.
+function to turn it into the byte code that the interpreter runs. Alternatvely,
+there is a `Script` class that can be initialized with either the source code or
+the byte code with `Script.from_src` and `Script.from_bytes`, respectively, and
+it will automatically compile source code to byte code or decompile byte code to
+source code; `Script` instances can also be added together with a simple +, e.g.
+`script = unlocking_script + locking_script`. The script running functions can
+accept either a `Script` object or the byte code.
+
+Note that each `OP_` function has an alias that excludes the `OP_` prefix; e.g.
+`OP_PUSH d1` can also be written `PUSH d1`. Op names are not case-sensitive, and
+several ops have additional aliases. Variable and macro names are case-sensitive.
 
 The following functions are also available for VM-compatible serialization:
 - `bytes_to_int`
@@ -82,14 +89,25 @@ The following functions are also available for VM-compatible serialization:
 - `bytes_to_float`
 - `float_to_bytes`
 
-And these functions are available for convenience:
+And these functions are available for convenience and cryptography:
+- `clamp_scalar`
+- `H_big`
+- `H_small`
+- `derive_key_from_seed`
+- `derive_point_from_scalar`
+- `aggregate_points`
+- `aggregate_scalars`
+- `sign_with_scalar`
+- `not_bytes`
 - `xor`
+- `and_bytes`
+- `or_bytes`
 - `bytes_are_same`
 
 #### Variables and Macros
 
 Version 0.3.0 and 0.3.1 added a sort of variable and macro system to the
-compiler.
+compiler. Full documentation can be found in the language spec file.
 
 Variable assignment uses two possible syntaxes: `@= varname [vals]` or
 `@= varname count`; the first pushes the values onto the stack then calls
@@ -132,6 +150,62 @@ compiled to become the unlocking bytes. Then concatenate the locking script to
 the unlocking script (i.e. script = unlock + lock) and run through the
 `run_auth_script` function, which will return a `True` if it executed
 successfully and `False` otherwise.
+
+Tools are included for making merklized scripts:
+- `ScriptLeaf` and `ScriptNode` classes
+- `create_script_tree_prioritized(...) -> ScriptNode`
+- `create_merklized_script_prioritized(...) -> tuple[Script, list[Script]]`,
+which uses `create_script_tree_prioritized` under the hood
+
+The two functions accept a list of leaf scripts and produce an unbalanced tree
+that priotizes efficient execution of lowest index scripts at the expense of
+linearly increasing unlocking script size for higher index scripts. There are
+not currently any functions for producing a balanced tree, but the included
+`ScriptLeaf` and `ScriptNode` classes can be used to make any arbitrary tree:
+
+```python
+from tapescript import ScriptLeaf, ScriptNode
+
+# get some scripts from somewhere
+sources = get_five_script_sources()
+
+tree = ScriptNode(
+    ScriptNode(
+        ScriptLeaf.from_src(sources[0]),
+        ScriptNode(
+            ScriptLeaf.from_src(sources[1]),
+            ScriptLeaf.from_src(sources[2]),
+        )
+    ),
+    ScriptNode(
+        ScriptLeaf.from_src(sources[3]),
+        ScriptLeaf.from_src(sources[4]),
+    )
+)
+```
+
+#### Taproot scripts
+
+The basic Taproot concept is to take a sha256 hash of a script as a commitment,
+clamp it to the ed25519 scalar field, derive a point from it, and add that point
+to a public key to create the root commitment, which itself functions both as a
+commitment to the script and as a public key. Signatures can be made that
+validate against the root, or the committed script can be executed by supplying
+both the script and the original public key. The script execution path (aka
+script-spend) verifies that the script and public key combine to form the root,
+then it executes the committed script if verification succeeded and otherwise
+removes the script and places `x00` (`False`) onto the stack. The signature path
+(aka key-spend) instead validates the supplied signature against the root as a
+public key.
+
+Signatures are created using the original private key and the script commitment
+by adding the script commitment (clamped to the scalar field) to the scalar
+derived from the private key, then using that in place of the private key scalar.
+
+Tools are included for using taproot:
+- `make_taproot_lock`
+- `make_taproot_witness_keyspend`
+- `make_taproot_witness_scriptspend`
 
 #### Hash Time Locked Contracts and Point Time Locked Contracts
 
@@ -224,9 +298,10 @@ tested in specific applications.
 
 ### Run a script
 
-Run a script by compiling it to byte code (if it wasn't already) and run with
-either `run_script(script: bytes, cache_vals: dict = {}, contracts: dict = {})`
-or `run_auth_script(script: bytes, cache_vals: dict = {}, contracts: dict = {})`.
+Run a script by compiling the source to byte code or creating a `Script` object
+and run with either
+`run_script(script: bytes|Script, cache_vals: dict = {}, contracts: dict = {})`
+or `run_auth_script(script: bytes|Script, cache_vals: dict = {}, contracts: dict = {})`.
 The `run_script` function returns `tuple` of length 3 containing a `Tape`, a
 `LifoQueue`, and the final state of the `cache` dict. The `run_auth_script`
 instead returns a bool that is `True` if the script ran without error and
@@ -280,6 +355,60 @@ add_opcode_parsing_handlers(
     OP_SOME_NONSENSE_decompiler
 )
 ```
+
+#### Adding an alias
+
+If you want to use a new alias for an op code, you can create this alias using
+the `add_alias` function. Valid aliases are alpha-numeric and may contain
+underscores. This function will raise a `TypeError` for non-str args and a
+`ValueError` if the alias contains invalid chars or is already in use.
+
+### Plugins
+
+There is a simple plugin system available for modifying execution behavior when
+calling certain ops. Existing uses are documented below, but this system may be
+used for future extensions when such use cases arise.
+
+The basic functions for interacting with the plugin system are the following:
+- `add_plugin(scope: str, plugin: Callable[[Tape, Stack, dict], Any]) -> None`
+- `remove_plugin(scope: str, plugin: Callable[[Tape, Stack, dict], Any]) -> None`
+- `reset_plugins(scope: str) -> None`
+
+Additionally, plugins can be supplied in a dict format to `run_script` or
+`run_auth_script`, but this will overwrite any plugins previously added for any
+scope included in the injected `plugins` argument.
+
+#### Signature Extensions
+
+The signature extension system executes all plugins under the
+"signature_extensions" scope at the beginning of these ops:
+- `OP_GET_MESSAGE`
+- `OP_CHECK_SIG`
+- `OP_CHECK_SIG_VERIFY`
+- `OP_CHECK_MULTISIG`
+- `OP_CHECK_MULTISIG_VERIFY`
+- `OP_SIGN`
+- `OP_CHECK_TEMPLATE` if tape.flags[10] is set to True, which is the default
+- `OP_CHECK_TEMPLATE_VERIFY` if tape.flags[10] is set to True, which is the default
+
+The functions registered as signature extension plugins should modify the
+sigfields in the cache, but they are free to do anything with the runtime data.
+Signature extension plugins can be managed using the following functions:
+- `add_signature_extension(plugin: Callable[[Tape, Stack, dict], None]) -> None`
+- `remove_signature_extension(plugin: Callable[[Tape, Stack, dict], None]) -> None`
+- `reset_signature_extensions() -> None`
+- `run_sig_extensions(tape: Tape, stack: Stack, cache: dict) -> None`
+
+#### Check Template
+
+`OP_CHECK_TEMPLATE` and `OP_CHECK_TEMPLATE_VERIFY` will run the plugins in the
+"check_template" scope when checking each sigfield against the appropriate
+template. This execution is different from the signature extension system: the
+args passed into this plugin execution call are not the runtime data but rather
+limited to just the two items in question and the cache; also, the return values
+are collected, and if any return value is True, then the check passes. If there
+are no plugins, `OP_CHECK_TEMPLATE/VERIFY` will instead do a strict equality
+check.
 
 ### Contracts
 
@@ -457,18 +586,20 @@ or
 python tests/test_classes.py
 python tests/test_functions.py
 python tests/test_parsing.py
+python tests/test_security.py
 python tests/test_tools.py
 python tests/test_e2e_eltoo.py
 python tests/test_e2e_sigext.py
 ```
 
-There are currently 228 tests and 106 test vectors used for validating the ops,
+There are currently 239 tests and 104 test vectors used for validating the ops,
 compiler, decompiler, and script running functions. This includes 3 tests for a
-proof-of-concept implementation of the eltoo payment channel protocol, a test
-proving the one-way homomorphic quality of ed25519, and e2e tests combining the
-anonymous multi-hop lock (AMHL) system with adapter signatures, as well as tests
-for the contract system, signature extension plugins, hard-forks, and the soft-
-fork system.
+proof-of-concept implementation of the eltoo payment channel protocol, and e2e
+tests combining the anonymous multi-hop lock (AMHL) system with adapter
+signatures, as well as tests for the contract system, signature extension
+plugins, hard-forks, and the soft-fork system. There are an additional 6
+security tests, including a test proving the one-way homomorphic quality of
+ed25519 and a test proving that all symmetric script trees share the same root.
 
 ## Contributing
 

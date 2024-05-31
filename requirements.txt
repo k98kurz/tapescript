@@ -1,3 +1,4 @@
 cffi==1.15.1
 pycparser==2.21
 PyNaCl==1.5.0
+autodox==0.1.16

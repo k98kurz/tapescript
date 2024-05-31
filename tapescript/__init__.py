@@ -33,7 +33,7 @@ from .interfaces import CanCheckTransfer, CanBeInvoked, ScriptProtocol
 from .parsing import (
     compile_script,
     decompile_script,
-    add_opcode_parsing_handlers
+    add_opcode_parsing_handlers,
 )
 from .tools import (
     Script,
