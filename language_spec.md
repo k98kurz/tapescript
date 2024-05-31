@@ -18,7 +18,7 @@ limited in size; and the number of items is also limited.
 the parts of a message to be used for checking signatures. Additionally, it is
 possible to move items from stack to cache or vice versa with the limitation
 that only `bytes` cache keys can be used for these operations while interpreter
-values are stored with `str` cache keys and thus inaccessible to scripts.
+values are stored with `str` cache keys and thus cannot be written by scripts.
 
 ## Syntax
 
