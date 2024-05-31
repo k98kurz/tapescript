@@ -17,6 +17,7 @@ following flags are standard:
 - 7: when True (default True), relevant ops set cache key b'RT' (nonce point * tweak point)
 - 8: when True (default True), relevant ops set cache key b'sa' (signature adapter)
 - 9: when True (default True), relevant ops set cache key b's' (signature)
+- 10: when True (default True), `OP_CHECK_TEMPLATE` will run the signature extension plugins
 
 These values can be changed by updating the `functions.flags` dict. Additional
 flags can be defined with similar syntax.

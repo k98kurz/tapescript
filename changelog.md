@@ -46,6 +46,12 @@ make using the new `OP_MERKLEVAL` easier.
 - Added `OP_TAPROOT` (`OP_TR`)
 - Fixed `OP_DIV_FLOAT` arithmetic bug
 - Changed `OP_RANDOM` to take its argument from the stack instead of the tape
+- Added `OP_ADD` alias for `OP_ADD_INTS`
+- Added `OP_SUB` alias for `OP_SUBTRACT_INTS`
+- Added `OP_MULT` alias for `OP_MULT_INTS`
+- Added `OP_DIV` alias for `OP_DIV_INTS`
+- Added `OP_MOD` alias for `OP_MOD_INTS`
+- Improved documentation generation
 
 ## 0.4.1
 

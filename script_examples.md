@@ -189,7 +189,7 @@ included in the root commitment can be executed.
 
 ```s
 # locking script: 33 bytes #
-OP_MERKLEVAL x<hex 32 byte root sha256 hash>
+OP_MERKLEVAL x<hex 32 byte root commitment>
 
 # committed script branch A: 36 bytes #
 OP_PUSH x<hex pubkey0>
@@ -199,10 +199,9 @@ OP_CHECK_SIG x00
 OP_PUSH x<hex signature from pubkey0>
 OP_PUSH x<hex 32 byte branch B sha256 hash>
 OP_PUSH x<hex branch A script>
-OP_TRUE
 
 # committed script branch B: 33 bytes #
-OP_MERKLEVAL x<hex 32 byte branch B root sha256 hash>
+OP_MERKLEVAL x<hex 32 byte branch B root commitment>
 
 # committed script branch BA: 36 bytes #
 OP_PUSH x<hex pubkey1>
@@ -212,10 +211,9 @@ OP_CHECK_SIG x00
 OP_PUSH x<hex signature from pubkey1>
 OP_PUSH x<hex 32 byte branch BB sha256 hash>
 OP_PUSH x<hex branch BA script>
-OP_TRUE
+
 OP_PUSH x<hex 32 byte branch A sha256 hash>
 OP_PUSH x<hex branch B script>
-OP_FALSE
 
 # committed script branch BB: 36 bytes #
 OP_PUSH x<hex pubkey2>
@@ -225,25 +223,25 @@ OP_CHECK_SIG x00
 OP_PUSH x<hex signature from pubkey2>
 OP_PUSH x<hex 32 byte branch BA sha256 hash>
 OP_PUSH x<hex branch BB script>
-OP_FALSE
+
 OP_PUSH x<hex 32 byte branch A sha256 hash>
 OP_PUSH x<hex branch B script>
-OP_FALSE
+
 ```
 
 This functionality can be replicated with the other ops, but it will have more
-overhead since OP_MERKLEVAL is like a macro that runs a number of other ops.
+overhead since `OP_MERKLEVAL` reads the tape and runs 9 ops and 1 stack push.
 Note that 5 bytes can be shaved from the commitment scripts by using OP_SHAKE256
 with digest length 26, reducing the commitment security from 256 to 208 bits;
 this reduces the size of unlocking scripts A by 10 bytes and unlocking scripts
 BA and BB by 20 bytes. If we decreased the commitment security down to 180 bits
 using `OP_SHAKE256 d20`, this shaves an additional 6 bytes from the locking
 script, 12 bytes from unlocking script A, and 24 bytes from unlocking scripts BA
-and BB (final byte counts of 27, 174, and 232 respectively). The OP_MERKLEVAL
+and BB (final byte counts of 27, 174, and 232 respectively). The `OP_MERKLEVAL`
 option is both more secure and a more efficient branching script solution. The
 below example of this was not added as a test vector because it is strictly
-inferior to the OP_MERKLEVAL method above, and it would have been a lot of time
-and effort that I would rather put elsewhere.
+inferior to the `OP_MERKLEVAL` method above, and it would have been a lot of
+time and effort that I would rather put elsewhere.
 
 ```s
 # locking script: 38 bytes #
@@ -322,12 +320,38 @@ OP_FALSE
 OP_PUSH x<hex committed script root>
 ```
 
+## Important Security Note
+
+Since the v0.5.0 upgrade, `OP_MERKLEVAL` now uses a root commitment calculated
+as `xor(sha256(sha256(branch1)), sha256(sha256(branch2)))`. Validation to
+execute branch1 requires providing `sha256(branch2)`, which is then hashed and
+`xor`ed with the double sha256 of branch1; this additional hashing step is to
+prevent being able to execute arbitrary scripts since XOR is a reversible
+operation -- the extra sha256 step requires that one must find the preimage for
+a sha256 hash in order to validate the execution of arbitrary code. Without the
+step, we could do this: given some `root_commitment` and arbitrary code
+`branchA`, calculate `branchB` = `xor(root_commitment, sha256(branchA))`;
+`branchA` would then be executable by providing this calculated `branchB` value.
+With the additional hashing operation, the calculation is instead
+`branchB = sha256_preimage(xor(root_commitment, sha256(sha256(branchA))))`,
+which cannot be calculated.
+
+However, there is one case for which this construction is vulnerable: any
+symmetrical tree will have a root of all null bytes. Given some code `branchA`,
+if a tree is constructed with that branch twice, then the root commitment will
+be `xor(sha256(sha256(branchA)), sha256(sha256(branchA)))`; since anything XOR
+itself is all null bits, every symmetrical tree will share the same root, which
+means that any arbitrary code can be validated and executed against that root by
+constructing another symmetrical tree. This is proven in the
+[security](https://github.com/k98kurz/tapescript/blob/v0.5.0/tests/test_security.py)
+test file.
+
 # Example 6: eltoo-like protocol
 
 This example shows how the features of tapescript can be used to implement the
 [eltoo off-chain protocol](https://blockstream.com/eltoo.pdf) using on-chain
 primitives. This example was implemented as an e2e test
-[here](https://github.com/k98kurz/tapescript/blob/master/tests/test_e2e_eltoo.py).
+[here](https://github.com/k98kurz/tapescript/blob/v0.5.0/tests/test_e2e_eltoo.py).
 This assumes instant confirmation of transactions once broadcast for the sake of
 convenience -- the Unix timestamp based constraints can be adapted for a system
 that enforces causal ordering, e.g. a blockchain or other logical clock.

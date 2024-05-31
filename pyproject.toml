@@ -29,3 +29,8 @@ classifiers = [
 
 [project.scripts]
 tapescript = "tapescript.tools:run_cli"
+
+[project.optional-dependencies]
+docs = [
+  "autodox >= 0.1.16"
+]

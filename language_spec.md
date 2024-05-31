@@ -67,11 +67,14 @@ maximum size of 64KiB (2^16-1 bytes). The following features use subtapes:
 - `OP_DEF`
 - `OP_TRY_EXCEPT`
 - `OP_EVAL`
+- `OP_MERKLEVAL`
+- `OP_TAPROOT`
 - `OP_LOOP`
 
 Note that `OP_EVAL` does not require any arguments because it reads the top item
 from the stack as the subtape definition rather than parsing one out from the
-tape.
+tape. `OP_MERKLEVAL` and `OP_TAPROOT` call `OP_EVAL` if the supplied script
+validates as part of the cryptographic commitment.
 
 ### Conditional programming
 
@@ -109,21 +112,21 @@ must be terminated by `END_IF`, e.g. `OP_IF OP_DUP ELSE OP_POP0 END_IF`.
 Tapescript includes a streamlined mechanism for branching scripts that hide the
 unexecuted branches behind cryptographic commitments. The syntax for a locking
 script using this mechanism is simply `OP_MERKLEVAL <root sha256 hash>`. This
-op reads 32 bytes from the tape as the root digest; pulls a bool from the stack;
-calls `OP_DUP` then `OP_SHA256`; calls `OP_SWAP d1 d2`; if not bool, calls
-`OP_SWAP2`; calls `OP_CONCAT`; calls `OP_SHA256`; pushes root hash onto the
-stack; calls `OP_EQUAL_VERIFY`; then calls `OP_EVAL`.
+op reads 32 bytes from the tape as the root digest; calls `OP_DUP` then
+`OP_SHA256` twice; moves stack item at index 2 to the top and calls `OP_SHA256`
+once; calls `OP_XOR`; calls `OP_SHA256`; pushes root hash onto the stack;
+calls `OP_EQUAL_VERIFY`; then finally calls `OP_EVAL`.
 
 The unlocking script must provide the code of the branch to execute, the hash of
 the unexecuted branch, and anything needed to execute the branch (in reverse
 order). This generalizes to any number of levels of branches, but there can be
 only two branches per level. These form a Merkle-tree like script structure.
 
-See "Example 5: merklized script" in the [script_examples.md](https://github.com/k98kurz/tapescript/blob/master/script_examples.md#example-5-merklized-script)
+See "Example 5: merklized script" in the [script_examples.md](https://github.com/k98kurz/tapescript/blob/v0.5.0/script_examples.md#example-5-merklized-script)
 file for a thorough example of how this works and how it compares to using
 `OP_IF_ELSE` for conditional execution and cryptographic script commitments.
 
-A tool is provided that generates the locking and unlocking scripts for use with
+Tools are provided that generate the locking and unlocking scripts for use with
 `OP_MERKLEVAL`. See the "#### Merklized Scripts" section of the readme for more
 details.
 
@@ -250,8 +253,8 @@ Variables are simply syntactic sugar for using the cache as a set of registers.
 The syntax is simple: `@= name [ values ]` or `@= name int` to set and `@name`
 to copy the values onto the stack. The first setting syntax pushes values onto
 the stack and then puts them from the stack into the cache. The second setting
-syntax simply pulls values from the stack. Variables cannot be used for
-arguments to ops.
+syntax simply pulls values from the stack. Variables cannot be used for on-tape
+arguments to ops, e.g. `OP_MERKLEVAL @root` will not work.
 
 ## Style
 
@@ -320,7 +323,7 @@ stack
 - `[cache_key] OP_READ_CACHE_STACK_SIZE` - takes an item from the stack as a
 cache_key, counts the number of items in the cache at that location, and puts
 the count onto the stack
-- `[int1 ...] OP_ADD_INTS count` - takes `count` number of ints from the stack,
+- `[... int1] OP_ADD_INTS count` - takes `count` number of ints from the stack,
 adds them together, and puts the sum onto the stack
 - `[... int1] OP_SUBTRACT_INTS count` - takes `count` number of ints from the
 stack, subtracts `count-1` of them from the first one, and puts the difference
@@ -337,7 +340,7 @@ the `divisor`, and puts the remainder onto the stack; `size` must be the byte
 length of the `divisor`
 - `[int2 int1] OP_MOD_INTS` - takes two ints from the stack, divides `int1` by
 `int2`, and puts the remainder onto the stack
-- `[float1 ...] OP_ADD_FLOATS count` - takes `count` number of floats from the
+- `[... float1] OP_ADD_FLOATS count` - takes `count` number of floats from the
 stack, adds them together, and puts the sum onto the stack
 - `[... float1] OP_SUBTRACT_FLOATS count` - takes `count` number of floats from
 - the stack, subtracts `count-1` of them from the first one, and puts the
@@ -350,7 +353,7 @@ difference onto the stack
 and puts the remainder onto the stack
 - `OP_MOD_FLOATS` - takes 2 floats from the stack, divides the second by the
 first, and puts the remainder onto the stack
-- `[point1 ...] OP_ADD_POINTS count` - takes `count` ed25519 points from the
+- `[... point1] OP_ADD_POINTS count` - takes `count` ed25519 points from the
 stack, adds them together, and puts the resulting ed25519 point onto the stack
 - `[item] OP_COPY count` - copies the top value on the stack `count` times
 - `[item] OP_DUP` - duplicates the top stack value

@@ -227,6 +227,8 @@ def _format_docstring(docstring: str) -> str:
     """Takes a docstring, tokenizes it, and returns a str formatted to
         80 chars or fewer per line without splitting tokens.
     """
+    if not docstring:
+        return ""
     def make_line(tokens: list[str]) -> tuple[str, list[str]]:
         line = ''
         while len(tokens) and len(line) + len(tokens[0]) <= 80:
@@ -277,7 +279,7 @@ def _format_class_doc(cls: type) -> str:
     """
     if 'dox_a_class' not in dir():
         from autodox import dox_a_class
-    return dox_a_class(cls, {'header_level': 2})
+    return dox_a_class(cls, {'header_level': 1})
 
 def _get_op_aliases() -> dict[str, list[str]]:
     """Find and return all aliases for all ops."""
@@ -290,7 +292,10 @@ def _get_op_aliases() -> dict[str, list[str]]:
     return aliases
 
 def generate_docs() -> list[str]:
-    """Generates the docs file using annotations and docstrings."""
+    """Generates the docs file using annotations and docstrings.
+        Requires the autodox library, which is included in the optional
+        "docs" dependencies.
+    """
     data = {}
     aliases = _get_op_aliases()
     alias_lists = {
@@ -347,7 +352,8 @@ def generate_docs() -> list[str]:
     paragraphs.append(_format_function_doc(compile_script))
     paragraphs.append(_format_function_doc(decompile_script))
     paragraphs.append(_format_function_doc(add_opcode_parsing_handlers))
-    paragraphs.append('\n\n# Tools')
+    paragraphs.append('\n\n# Tools\n\n')
+    paragraphs.append(_format_class_doc(Script))
     paragraphs.append(_format_class_doc(ScriptLeaf))
     paragraphs.append(_format_class_doc(ScriptNode))
     paragraphs.append(_format_function_doc(create_script_tree_prioritized))
@@ -652,6 +658,9 @@ def make_delegate_key_unlock(
         prvkey: bytes, pubkey: bytes, begin_ts: int, end_ts: int,
         cert_sig: bytes, sigfields: dict, sigflags: str = '00'
     ) -> Script:
+    """Returns an unlocking script including a signature from the
+        delegate key as well as the delegation certificate.
+    """
     _, stack, _ = run_script(
         compile_script(f'push x{prvkey.hex()} sign x{sigflags}'),
         sigfields
