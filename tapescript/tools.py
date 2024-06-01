@@ -903,7 +903,7 @@ def make_taproot_lock(
          'must supply either committed_script or script_commitment')
     script_commitment = script_commitment or script.commitment()
     vert(len(script_commitment) == 32, 'script_commitment must be 32 bytes')
-    X = derive_point_from_scalar(clamp_scalar(script_commitment))
+    X = derive_point_from_scalar(clamp_scalar(sha256(pubkey + script_commitment).digest()))
     root = aggregate_points((pubkey, X))
     return Script.from_src(f'taproot x{root.hex()}')
 
@@ -919,8 +919,9 @@ def make_taproot_witness_keyspend(
     vert(sigflags != 'ff', 'cannot use sigflag xFF; must sign at least 1 sigfield')
 
     script_commitment = script_commitment or committed_script.commitment()
-    t = clamp_scalar(script_commitment)
     x = derive_key_from_seed(prvkey)
+    X = derive_point_from_scalar(x)
+    t = clamp_scalar(sha256(X + script_commitment).digest())
     _, stack, _ = run_script(Script.from_src(f'msg x{sigflags}'), sigfields)
     message = stack.get()
     sig = sign_with_scalar(aggregate_scalars((x, t)), message)

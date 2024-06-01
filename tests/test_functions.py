@@ -2088,7 +2088,7 @@ class TestFunctions(unittest.TestCase):
         # setup script
         # script_src = 'push d1 less'
         script_bin = b'\x01'
-        script_hash = sha256(script_bin).digest()
+        script_hash = sha256(pubk + sha256(script_bin).digest()).digest()
         script_scalar = functions.clamp_scalar(script_hash)
         script_point = functions.derive_point_from_scalar(script_scalar)
 

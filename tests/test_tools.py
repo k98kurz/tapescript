@@ -1,8 +1,5 @@
-from context import classes
-from context import errors
-from context import functions
-from context import parsing
-from context import tools
+from context import classes, errors, functions, parsing, tools
+from hashlib import sha256
 from nacl.signing import SigningKey, VerifyKey
 from secrets import token_bytes
 from time import time
@@ -715,10 +712,10 @@ class TestTools(unittest.TestCase):
     def test_make_taproot_lock_and_witnesses_e2e(self):
         sigfields = {'sigfield1': b'hello ', 'sigfield2': b'world'}
         script = tools.Script.from_src('true')
-        t = functions.clamp_scalar(script.commitment())
-        T = functions.derive_point_from_scalar(t)
-        X = bytes(self.pubkeyA)
         x = functions.derive_key_from_seed(bytes(self.prvkeyA))
+        X = bytes(self.pubkeyA)
+        t = functions.clamp_scalar(sha256(X + script.commitment()).digest())
+        T = functions.derive_point_from_scalar(t)
         root = functions.aggregate_points((X, T))
         sig = functions.sign_with_scalar(
             functions.aggregate_scalars([x, t]),

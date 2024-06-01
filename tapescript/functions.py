@@ -1600,29 +1600,27 @@ def OP_TAPROOT(tape: Tape, stack: Stack, cache: dict) -> None:
         'taproot_sigflags', but replace with 0x00 if it does not
         disallow exclusion of at least one sigfield (i.e. has at least
         one null bit), then run `OP_CHECK_SIG`. For committed script
-        execution, first `SWAP2` so the script is on top; then `DUP`;
-        `SWAP 1 2` so the pubkey is second from the top; `SHA256` the
-        top item to get the script commitment; `CLAMP_SALAR 0x00`,
-        `DERIVE_POINT`, and `ADD_POINTS 2` to combine the pubkey and the
-        script commitment; if the result was the root, then `OP_EVAL`,
-        otherwise remove the script and put 0x00 onto the stack.
+        execution, get the script and public key from the stack,
+        concatenate, sha256, clamp to the ed25519 scalar field, derive a
+        point, and add the point to the public key; if the result was
+        the root, then put the script back on the stack and `OP_EVAL`,
+        otherwise remove the script and put 0x00 (False) onto the stack.
+        https://lists.linuxfoundation.org/pipermail/bitcoin-dev/2018-January/015614.html
     """
     root = tape.read(32)
     pubkey_or_sig = stack.peek()
     is_pubkey = len(pubkey_or_sig) == 32
 
     if is_pubkey:
-        OP_SWAP2(tape, stack, cache)
-        OP_DUP(tape, stack, cache)
-        OP_SWAP(Tape(uint_to_bytes(1) + uint_to_bytes(2)), stack, cache)
-        OP_SHA256(tape, stack, cache)
-        OP_CLAMP_SCALAR(Tape(b'\x00'), stack, cache)
-        OP_DERIVE_POINT(tape, stack, cache)
-        OP_ADD_POINTS(Tape(uint_to_bytes(2)), stack, cache)
-        if not bytes_are_same(stack.get(), root):
-            _ = stack.get() # remove script
+        pubkey = stack.get()
+        script = stack.get()
+        scalar = clamp_scalar(sha256(pubkey + sha256(script).digest()).digest())
+        point = derive_point_from_scalar(scalar)
+        point = aggregate_points((point, pubkey))
+        if not bytes_are_same(point, root):
             stack.put(b'\x00')
             return
+        stack.put(script)
         OP_EVAL(tape, stack, cache)
     else:
         # take sigflags from cache address b'trsf' or default
