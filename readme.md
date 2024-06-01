@@ -597,7 +597,7 @@ compiler, decompiler, and script running functions. This includes 3 tests for a
 proof-of-concept implementation of the eltoo payment channel protocol, and e2e
 tests combining the anonymous multi-hop lock (AMHL) system with adapter
 signatures, as well as tests for the contract system, signature extension
-plugins, hard-forks, and the soft-fork system. There are an additional 6
+plugins, hard-forks, and the soft-fork system. There are an additional 7
 security tests, including a test proving the one-way homomorphic quality of
 ed25519 and a test proving that all symmetric script trees share the same root.
 

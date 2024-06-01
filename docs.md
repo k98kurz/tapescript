@@ -881,11 +881,11 @@ committed script; if it is a signature, then it is executing the key-spend path.
 For key-spend, pull the sigflags from cache b'trsf' or 'taproot_sigflags', but
 replace with 0x00 if it does not disallow exclusion of at least one sigfield
 (i.e. has at least one null bit), then run `OP_CHECK_SIG`. For committed script
-execution, first `SWAP2` so the script is on top; then `DUP`; `SWAP 1 2` so the
-pubkey is second from the top; `SHA256` the top item to get the script
-commitment; `CLAMP_SALAR 0x00`, `DERIVE_POINT`, and `ADD_POINTS 2` to combine
-the pubkey and the script commitment; if the result was the root, then
-`OP_EVAL`, otherwise remove the script and put 0x00 onto the stack.
+execution, get the script and public key from the stack, concatenate, sha256,
+clamp to the ed25519 scalar field, derive a point, and add the point to the
+public key; if the result was the root, then put the script back on the stack
+and `OP_EVAL`, otherwise remove the script and put 0x00 (False) onto the stack.
+https://lists.linuxfoundation.org/pipermail/bitcoin-dev/2018-January/015614.html
 
 Aliases:
 - TAPROOT
@@ -1024,6 +1024,14 @@ Return the cryptographic commitment for the leaf.
 Calculate an unlocking script recursively, traveling up the parents. Returns a
 Script with the source and byte codes.
 
+#### `pack() -> bytes:`
+
+Serialize the instance to bytes.
+
+#### `@classmethod unpack(serialized: bytes) -> ScriptLeaf:`
+
+Deserialize an instance from bytes.
+
 ## `ScriptNode`
 
 A node in a Merklized script tree.
@@ -1057,6 +1065,14 @@ Calculates the commitment to execute this ScriptNode and returns as bytes.
 
 Calculates a recursive unlocking script for the node. Returns a Script with the
 source and byte codes.
+
+#### `pack() -> bytes:`
+
+Serialize the script tree to bytes.
+
+#### `@classmethod unpack(data: bytes) -> ScriptNode:`
+
+Deserialize a script tree from bytes.
 
 
 

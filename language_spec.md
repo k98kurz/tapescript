@@ -131,6 +131,32 @@ Tools are provided that generate the locking and unlocking scripts for use with
 `OP_MERKLEVAL`. See the "#### Merklized Scripts" section of the readme for more
 details.
 
+#### `OP_TAPROOT`
+
+Tapescript includes an implementation of the taproot mechanism whereby a script
+commitment and a public key are combined into a single root commitment which
+allows for two execution branches: checking a signature against the root
+commitment (which is a valid public key) and executing the committed script
+after proving that the committed script and public key combine to form the root.
+The locking script is `OP_TAPROOT <root commitment>`.
+
+The key-spend unlocking script takes the following form: `PUSH <sig>`, where the
+`sig` is a signature created with the private key corresponding to the committed
+public key tweaked by adding an ed25519 scalar derived from
+`sha256(pubkey + sha256(script))`. This signature then validates against the
+root commitment, itself a tweaked public key.
+
+The script-spend unlocking script takes the following form:
+`PUSH <script> PUSH <pubkey>`. When the locking script runs, `OP_TAPROOT` will
+verify that the supplied script and pubkey combine to form the root commitment,
+then it will execute the script. Any additional conditions encoded in the script
+must be fulfilled prior; in practice the committed script will be another
+locking script, and the unlocking script will be a combination of the unlocking
+script for the script and then the unlocking proof for `OP_TAPROOT`.
+
+By using an `OP_MERKLEVAL` locking script as the committed script, `OP_TAPROOT`
+provides an equivalent script experience as the Taproot+MAST upgrade to Bitcoin.
+
 ### Exception handling
 
 Some ops, such as `OP_VERIFY` and `OP_CHECK_EPOCH_VERIFY`, will raise exceptions
