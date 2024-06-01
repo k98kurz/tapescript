@@ -26,8 +26,6 @@ from .functions import (
     aggregate_points,
     aggregate_scalars,
     sign_with_scalar,
-    H_big,
-    H_small,
     xor,
 )
 from .interfaces import ScriptProtocol
@@ -38,6 +36,7 @@ from time import time
 from typing import Callable
 import nacl.bindings
 import json
+import struct
 
 
 @dataclass
@@ -114,6 +113,15 @@ class ScriptLeaf:
         previous = self.parent.unlocking_script()
         return Script(f'{script.src}\n{previous.src}', script.bytes + previous.bytes)
 
+    def pack(self) -> bytes:
+        """Serialize the instance to bytes."""
+        return self.script.bytes
+
+    @classmethod
+    def unpack(cls, serialized: bytes) -> ScriptLeaf:
+        """Deserialize an instance from bytes."""
+        return cls.from_code(serialized)
+
 
 class ScriptNode:
     """A node in a Merklized script tree."""
@@ -162,6 +170,35 @@ class ScriptNode:
         previous = self.parent.unlocking_script()
         return Script(f'{script.src}\n{previous.src}', script.bytes + previous.bytes)
 
+    def pack(self) -> bytes:
+        """Serialize the script tree to bytes."""
+        left = self.left.pack()
+        right = self.right.pack()
+        return struct.pack(
+            f'!cH{len(left)}scH{len(right)}s',
+            b'L' if isinstance(self.left, ScriptLeaf) else b'N',
+            len(left),
+            left,
+            b'L' if isinstance(self.right, ScriptLeaf) else b'N',
+            len(right),
+            right,
+        )
+
+    @classmethod
+    def unpack(cls, data: bytes) -> ScriptNode:
+        """Deserialize a script tree from bytes."""
+        left_type, left_len, data = struct.unpack(f'!cH{len(data)-3}s', data)
+        left_data, right_type, right_len, data = struct.unpack(
+            f'!{left_len}scH{len(data)-3-left_len}s',
+            data
+        )
+        right_data = data
+        if len(data) > right_len:
+            right_data, data = struct.unpack(f'!{right_len}s{len(data)-right_len}s', data)
+
+        left = ScriptLeaf.unpack(left_data) if left_type == b'L' else ScriptNode.unpack(left_data)
+        right = ScriptLeaf.unpack(right_data) if right_type == b'L' else ScriptNode.unpack(right_data)
+        return cls(left, right)
 
 def create_script_tree_prioritized(
         leaves: list[str|ScriptProtocol], tree: ScriptNode = None) -> ScriptNode:

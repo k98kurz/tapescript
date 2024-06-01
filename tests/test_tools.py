@@ -120,6 +120,10 @@ class TestTools(unittest.TestCase):
         assert type(lock) is tools.Script
         assert functions.run_auth_script(unlock.bytes + lock.bytes)
 
+        packed = tree.pack()
+        unpacked = tools.ScriptNode.unpack(packed)
+        assert unpacked.locking_script().bytes == lock.bytes
+
     def test_create_merklized_script_prioritized_returns_tuple_of_Script_and_list_of_Scripts(self):
         result = tools.create_merklized_script_prioritized(['OP_PUSH d123'])
         assert type(result) is tuple
