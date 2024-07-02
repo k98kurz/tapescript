@@ -462,6 +462,25 @@ def add_soft_fork(code: int, name: str, op: Callable) -> None:
     add_opcode(code, name, op)
     add_opcode_parsing_handlers(name, compiler_handler, decompiler_handler)
 
+def make_scripthash_lock(script: Script, hashsize: int = 26) -> Script:
+    """Makes a lock that commits to a script. When executed, the lock
+        verifies that the committed script has been provided and then
+        executes it. Locking script will be hashsize + 7 bytes long (33
+        with default options). Committed script must have length less
+        than `Stack.max_item_size`, else it cannot be pushed onto the
+        stack, checked, and verified.
+    """
+    return Script.from_src(f'''
+        dup shake256 d{hashsize}
+        push x{shake_256(script.bytes).digest(hashsize).hex()}
+        equal_verify
+        eval
+    ''')
+
+def make_scripthash_witness(script: Script) -> Script:
+    """Makes a witness that pushes a script onto the stack."""
+    return Script.from_src(f'push x{script.bytes.hex()}')
+
 def make_adapter_lock_pub(
         pubkey: bytes, tweak_point: bytes, sigflags: str = '00') -> Script:
     """Make an adapter locking script that verifies a sig adapter,

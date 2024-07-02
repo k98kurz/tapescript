@@ -316,6 +316,14 @@ class TestTools(unittest.TestCase):
             branch = bad_unlocking_scripts[i] + bad_locking_script + locking_script_old
             assert not functions.run_auth_script(branch)
 
+    def test_make_scripthash_lock_and_make_scripthash_witness_e2e(self):
+        committed_script = tools.Script.from_src('true')
+        lock = tools.make_scripthash_lock(committed_script)
+        assert isinstance(lock, functions.ScriptProtocol)
+        witness = tools.make_scripthash_witness(committed_script)
+        assert isinstance(witness, functions.ScriptProtocol)
+        assert functions.run_auth_script(witness + lock)
+
     def test_make_adapter_locks_prv_and_make_adapter_witness_e2e(self):
         # setup lock and decrypt scripts
         tweak = token_bytes(32)
