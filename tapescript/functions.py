@@ -853,7 +853,8 @@ def OP_EVAL(tape: Tape, stack: Stack, cache: dict) -> None:
         callstack_limit=tape.callstack_limit,
         definitions={**tape.definitions},
         contracts=tape.contracts,
-        flags={**tape.flags}
+        flags={**tape.flags},
+        plugins=tape.plugins
     )
 
     # run
@@ -955,8 +956,8 @@ def OP_CONCAT(tape: Tape, stack: Stack, cache: dict) -> None:
 def OP_SPLIT(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int
         index; pull an item from the stack; split the item bytes at the
-        index; put the second byte sequence onto the stack, then put the
-        first byte sequence onto the stack.
+        index; put the first byte sequence onto the stack, then put the
+        second byte sequence onto the stack.
     """
     index = int.from_bytes(tape.read(1), 'big')
     item = stack.get()
@@ -977,8 +978,8 @@ def OP_CONCAT_STR(tape: Tape, stack: Stack, cache: dict) -> None:
 def OP_SPLIT_STR(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int
         index; pull an item from the stack, interpreting as a UTF-8 str;
-        split the item str at the index, then put the first str onto
-        the stack; put the second str onto the stack.
+        split the item str at the index; put the second str onto the
+        stack, then put the second str onto the stack.
     """
     index = int.from_bytes(tape.read(1), 'big')
     item = str(stack.get(), 'utf-8')
@@ -1550,7 +1551,8 @@ def OP_CHECK_TEMPLATE(tape: Tape, stack: Stack, cache: dict) -> None:
         sigfield validated against its template by at least one ctv
         plugin function, and False otherwise. Runs the signature
         extension plugins first if tape.flags[10] is set to True, which
-        is the default behavior.
+        is the default behavior. (The stack passed to the plugin will
+        contain the template on the top and the sigfield beneath.)
     """
     if tape.flags.get(10, True):
         run_sig_extensions(tape, stack, cache)
@@ -2055,15 +2057,16 @@ def run_tape(tape: Tape, stack: Stack, cache: dict,
         op(tape, stack, cache)
 
 def run_script(script: bytes|ScriptProtocol, cache_vals: dict = {},
-               contracts: dict = {},
-               additional_flags: dict = {},
-               plugins: dict = {}) -> tuple[Tape, Stack, dict]:
+               contracts: dict = {}, additional_flags: dict = {},
+               plugins: dict = {}, stack_max_items: int = 1024,
+               stack_max_item_size: int = 1024,
+               callstack_limit: int = 128) -> tuple[Tape, Stack, dict]:
     """Run the given script byte code. Returns a tape, stack, and dict."""
     tert(type(script) is bytes or isinstance(script, ScriptProtocol),
          'script must be bytes or ScriptProtocol implementation')
     script = bytes(script)
-    tape = Tape(script)
-    stack = Stack()
+    tape = Tape(script, callstack_limit=callstack_limit)
+    stack = Stack(max_items=stack_max_items, max_item_size=stack_max_item_size)
     cache = {'timestamp': int(time()), **cache_vals}
     tape.contracts = {**_contracts, **contracts}
     tape.plugins = {**_plugins, **plugins}
@@ -2071,13 +2074,19 @@ def run_script(script: bytes|ScriptProtocol, cache_vals: dict = {},
     return (tape, stack, cache)
 
 def run_auth_script(script: bytes|ScriptProtocol, cache_vals: dict = {},
-                    contracts: dict = {}, plugins: dict = {}) -> bool:
+                    contracts: dict = {}, plugins: dict = {},
+                    stack_max_items: int = 1024, stack_max_item_size: int = 1024,
+                    callstack_limit: int = 128) -> bool:
     """Run the given auth script byte code. Returns True iff the stack
         has a single \\xff value after script execution and no errors were
         raised; otherwise, returns False.
     """
     try:
-        tape, stack, cache = run_script(script, cache_vals, contracts, plugins=plugins)
+        tape, stack, cache = run_script(
+            script, cache_vals, contracts, plugins=plugins,
+            stack_max_items=stack_max_items,
+            stack_max_item_size=stack_max_item_size
+        )
         assert tape.has_terminated()
         assert len(stack) == 1
         item = stack.get()
