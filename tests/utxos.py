@@ -11,6 +11,22 @@ import struct
 '''
 
 
+def serialize(things: list[bytes]) -> bytes:
+    result = b''
+    for thing in things:
+        result = result + struct.pack(f'!H{len(thing)}s', len(thing), thing)
+    return result
+
+def deserialize(data: bytes) -> list[bytes]:
+    remainder = data
+    things = []
+    while len(remainder):
+        length, remainder = struct.unpack(f'!H{len(data)-2}s', data)
+        things.append(remainder[:length])
+        remainder = remainder[length:]
+    return things
+
+
 @dataclass
 class UTXO:
     lock: tools.Script = field(default_factory=lambda: tools.Script.from_src('true'))
@@ -38,31 +54,20 @@ class Entry:
     witnesses: list[tools.Script] = field(default_factory=list)
 
     def pack_inputs(self) -> bytes:
-        inputs = b''
-        for i in self.inputs:
-            i = i.pack()
-            inputs = inputs + struct.pack(f'!h{len(i)}s', i)
-        return inputs
+        return serialize([i.pack() for i in self.inputs])
 
     def pack_outputs(self) -> bytes:
-        outputs = b''
-        for o in self.outputs:
-            o = o.pack()
-            outputs = outputs + struct.pack(f'!h{len(o)}s', o)
-        return outputs
+        return serialize([o.pack() for o in self.outputs])
 
     def pack_witnesses(self) -> bytes:
-        witnesses = b''
-        for w in self.witnesses:
-            witnesses += struct.pack(f'!h{len(w.bytes)}s', w.bytes)
-        return witnesses
+        return serialize([w.pack() for w in self.witnesses])
 
     def pack(self) -> bytes:
         inputs = self.pack_inputs()
         outputs = self.pack_outputs()
         witnesses = self.pack_witnesses()
         return struct.pack(
-            f'!HHH{len(inputs)}s{len(outputs)}s{len(witnesses)}s',
+            f'!III{len(inputs)}s{len(outputs)}s{len(witnesses)}s',
             len(inputs),
             len(outputs),
             len(witnesses),
@@ -75,7 +80,7 @@ class Entry:
         inputs = self.pack_inputs()
         outputs = self.pack_outputs()
         return struct.pack(
-            f'!HH{len(inputs)}s{len(outputs)}s',
+            f'!II{len(inputs)}s{len(outputs)}s',
             len(inputs),
             len(outputs),
             inputs,
@@ -87,23 +92,11 @@ class Entry:
 
     @classmethod
     def unpack(cls, data: bytes) -> Entry:
-        ilen, olen, wlen, data = struct.unpack(f'!HHH{len(data)-6}s', data)
+        ilen, olen, wlen, data = struct.unpack(f'!III{len(data)-12}s', data)
         idata, odata, wdata = struct.unpack(f'!{ilen}s{olen}s{wlen}s', data)
-        inputs = []
-        while len(idata):
-            ilen, idata = struct.unpack(f'!H{len(idata)-2}s', idata)
-            inputs.append(UTXO.unpack(idata[:ilen]))
-            idata = idata[ilen:]
-        outputs = []
-        while len(odata):
-            olen, odata = struct.unpack(f'!H{len(odata)-2}s', odata)
-            outputs.append(UTXO.unpack(odata[:olen]))
-            odata = odata[olen:]
-        witnesses = []
-        while len(wdata):
-            wlen, wdata = struct.unpack(f'!H{len(wdata)-2}s', wdata)
-            witnesses.append(tools.Script.from_bytes(wdata[:wlen]))
-            wdata = wdata[wlen:]
+        inputs = deserialize(idata)
+        outputs = deserialize(odata)
+        witnesses = deserialize(wdata)
         return cls(inputs=inputs, outputs=outputs, witnesses=witnesses)
 
 @dataclass
@@ -113,12 +106,9 @@ class Txn:
     entries: list[Entry] = field(default_factory=list)
 
     def pack(self) -> bytes:
-        entries = b''
-        for e in self.entries:
-            e = e.pack()
-            entries += struct.pack(f'!h{len(e)}s', len(e), e)
+        entries = serialize([e.pack() for e in self.entries])
         return struct.pack(
-            f'!hi{len(entries)}s',
+            f'!HI{len(entries)}s',
             self.sequence,
             self.timestamp,
             entries,
@@ -138,16 +128,28 @@ class Txn:
 
     @classmethod
     def unpack(cls, data: bytes) -> Txn:
-        sequence, timestamp, edata = struct.unpack(f'!hi{len(data)-6}s', data)
-        entries = []
-        while len(edata):
-            elen, edata = struct.unpack(f'!h{len(edata)}s', edata)
-            entries.append(Entry.unpack(edata[:elen]))
-            edata = edata[elen:]
+        sequence, timestamp, edata = struct.unpack(f'!HI{len(data)-6}s', data)
+        entries = deserialize(edata)
         return cls(sequence=sequence, timestamp=timestamp, entries=entries)
+
+    def get_cache_values(self) -> dict:
+        return {
+            entry.id(): {
+                'sigfield1': serialize([
+                    n.pack() for n in entry.inputs
+                ]),
+                'sigfield2': serialize([
+                    o.pack() for o in entry.outputs
+                ]),
+                'sigfield3': functions.uint_to_bytes(self.sequence),
+                'sigfield4': functions.uint_to_bytes(self.timestamp),
+            }
+            for entry in self.entries
+        }
 
 
 def validate_txn(txn: Txn) -> bool:
+    cache_values = txn.get_cache_values()
     for entry in txn.entries:
         input_ts = max([
             i.txn.timestamp if i.txn else 0
@@ -159,14 +161,7 @@ def validate_txn(txn: Txn) -> bool:
             if not functions.run_auth_script(
                 witness + input.lock,
                 {
-                    'sigfield1': b''.join([
-                        n.pack() for n in entry.inputs
-                    ]),
-                    'sigfield2': b''.join([
-                        o.pack() for o in entry.outputs
-                    ]),
-                    'sigfield3': functions.uint_to_bytes(txn.sequence),
-                    'sigfield4': functions.uint_to_bytes(txn.timestamp),
+                    **cache_values[entry.id()],
                     'time': int(time()),
                     'input_ts': input_ts,
                 }

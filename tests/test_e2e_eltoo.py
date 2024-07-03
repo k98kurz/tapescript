@@ -1,4 +1,4 @@
-from tests.utxos import UTXO, Entry, Txn, validate_txn
+from utxos import UTXO, Entry, Txn, validate_txn, serialize, deserialize
 from context import functions, tools
 from nacl.signing import SigningKey, VerifyKey
 from time import time
@@ -95,7 +95,7 @@ class TestEltoo(unittest.TestCase):
         spend_utxo = UTXO(amount=5)
         ts = int(time())
         sig = self.prvkeyA.sign(
-            genesis_utxo.pack() + spend_utxo.pack() +
+            serialize([genesis_utxo.pack()]) + serialize([spend_utxo.pack()]) +
             b'\x01' + functions.int_to_bytes(ts)
         ).signature
         spend_entry = Entry([genesis_utxo], [spend_utxo], [
@@ -130,8 +130,8 @@ class TestEltoo(unittest.TestCase):
             [eltoo_witness(
                 self.prvkeyA,
                 self.prvkeyB,
-                setup_utxo.pack() +
-                trigger_utxo.pack() +
+                serialize([setup_utxo.pack()]) +
+                serialize([trigger_utxo.pack()]) +
                 functions.int_to_bytes(state) +
                 functions.int_to_bytes(trigger_ts)
             )]
@@ -150,8 +150,8 @@ class TestEltoo(unittest.TestCase):
             [eltoo_witness(
                 self.prvkeyA,
                 self.prvkeyB,
-                trigger_utxo.pack() +
-                sA_utxo1.pack() + sB_utxo1.pack() +
+                serialize([trigger_utxo.pack()]) +
+                serialize([sA_utxo1.pack(), sB_utxo1.pack()]) +
                 functions.int_to_bytes(state) +
                 functions.int_to_bytes(settlement_ts_1)
             ) + op_true]
@@ -170,7 +170,7 @@ class TestEltoo(unittest.TestCase):
             [eltoo_witness(
                 self.prvkeyA,
                 self.prvkeyB,
-                update_utxo1.pack() +
+                serialize([update_utxo1.pack()]) +
                 functions.int_to_bytes(state) +
                 functions.int_to_bytes(update_ts1),
                 '01'
@@ -189,8 +189,8 @@ class TestEltoo(unittest.TestCase):
             [eltoo_witness(
                 self.prvkeyA,
                 self.prvkeyB,
-                update_utxo1.pack() +
-                sA_utxo2.pack() + sB_utxo2.pack() +
+                serialize([update_utxo1.pack()]) +
+                serialize([sA_utxo2.pack(), sB_utxo2.pack()]) +
                 functions.int_to_bytes(state) +
                 functions.int_to_bytes(settlement_ts_2)
             ) + op_true]
@@ -218,7 +218,7 @@ class TestEltoo(unittest.TestCase):
             [eltoo_witness(
                 self.prvkeyA,
                 self.prvkeyB,
-                update_utxo2.pack() +
+                serialize([update_utxo2.pack()]) +
                 functions.int_to_bytes(state) +
                 functions.int_to_bytes(update_ts2),
                 '01'
