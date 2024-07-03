@@ -1,7 +1,12 @@
 from __future__ import annotations
 from context import functions, parsing, classes, tools
+from dataclasses import dataclass, field
+from enum import Enum
 from hashlib import sha256
 from nacl.signing import SigningKey
+from secrets import token_bytes
+from utxos import UTXO, Entry, Txn, validate_txn, serialize, deserialize
+import struct
 import unittest
 
 
@@ -207,18 +212,126 @@ class TestSigExt(unittest.TestCase):
         assert functions.run_auth_script(multiwit2 + multilock2, sigfields, plugins=plugins)
 
 
+class ConstraintCodes(Enum):
+    AND = (1).to_bytes(1, 'big')
+    OR = (2).to_bytes(1, 'big')
+    XOR = (3).to_bytes(1, 'big')
+    MATCH_N = (4).to_bytes(1, 'big')
+    MATCH_AT_LEAST_N = (5).to_bytes(1, 'big')
+    MATCH_AT_MOST_N = (6).to_bytes(1, 'big')
+    EXACT = (7).to_bytes(1, 'big')
+    EQUAL = (8).to_bytes(1, 'big')
+    LESS = (9).to_bytes(1, 'big')
+    LESS_OR_EQUAL = (10).to_bytes(1, 'big')
+    GREATER = (11).to_bytes(1, 'big')
+    GREATER_OR_EQUAL = (12).to_bytes(1, 'big')
+    GET_SCRIPT = (13).to_bytes(1, 'big')
+    GET_AMOUNT = (14).to_bytes(1, 'big')
+
+
+@dataclass
+class Constraint:
+    code: ConstraintCodes = field()
+    data: bytes = field(default=b'')
+    children: list[Constraint] = field(default_factory=list)
+
+    def pack(self) -> bytes:
+        children = serialize([c.pack() for c in self.children])
+        return struct.pack(
+            f'!cHI{len(self.data)}s{len(children)}s',
+            self.code.value,
+            len(self.data),
+            len(children),
+            self.data,
+            children
+        )
+
+    @classmethod
+    def unpack(cls, packed: bytes) -> Constraint:
+        code, data_size, children_size, packed = struct.unpack(f'!cHI{len(packed)-7}s', packed)
+        data, children = struct.unpack(f'!{data_size}s{children_size}s', packed)
+        children = deserialize(children)
+        children = [Constraint.unpack(c) for c in children]
+        return cls(code=ConstraintCodes(code), data=data, children=children)
+
+
+def ctv_plugin_check_constraint(tape: classes.Tape, stack: classes.Stack, cache: dict):
+    """Deserialize constraint and stack item, then check the constraint."""
+    constraint = Constraint.unpack(stack.get())
+    items = deserialize(stack.get())
+
+    if constraint.code in (
+        ConstraintCodes.MATCH_N, ConstraintCodes.MATCH_AT_LEAST_N,
+        ConstraintCodes.MATCH_AT_MOST_N
+    ):
+        matches = 0
+        expected = int.from_bytes(constraint.data)
+        for item in items:
+            for child in constraint.children:
+                if child.code is ConstraintCodes.EXACT:
+                    if item == child.data:
+                        matches += 1
+        if constraint.code is ConstraintCodes.MATCH_N and matches == expected:
+            return True
+        elif constraint.code is ConstraintCodes.MATCH_AT_LEAST_N and matches >= expected:
+            return True
+        elif constraint.code is ConstraintCodes.MATCH_AT_MOST_N and matches <= expected:
+            return True
+        else:
+            return False
+
+
 class TestCTExt(unittest.TestCase):
-    '''Example implementation of a check_template extension plugin.'''
+    '''Example implementations of check_template extension plugins.'''
     def tearDown(self) -> None:
         functions._plugins['check_template'] = []
         return super().tearDown()
 
-    def test_check_template_ext_e2e(self):
+    def test_check_template_ext_e2e_simple(self):
         ishelloworld = lambda tape, stack, cache: [stack.get(), stack.get()][1] == b'hello world'
         script = tools.Script.from_src('push x0102 check_template x01')
         functions.add_plugin('check_template', ishelloworld)
         assert functions.run_auth_script(script,{ 'sigfield1': b'hello world' })
         assert not functions.run_auth_script(script,{ 'sigfield1': b'hello world1' })
+
+    def test_check_template_ext_e2e_constraints(self):
+        '''Serialize inputs into sigfield1 and outputs into sigfield2.
+            Use a Constraint that requires at least one output that
+            matches a lock and has value of at least X.
+        '''
+        skey1 = SigningKey(token_bytes(32))
+        skey2 = SigningKey(token_bytes(32))
+        required_lock = tools.make_single_sig_lock(bytes(skey2.verify_key))
+        required_amount = 12
+        constraint = Constraint(
+            ConstraintCodes.MATCH_N, b'\x01', [
+                Constraint(ConstraintCodes.EXACT, UTXO(required_lock, required_amount).pack())
+            ]
+        )
+        genesis_lock = tools.Script.from_src(f'''
+            push x{constraint.pack().hex()}
+            op_check_template x02
+        ''')
+
+        # genesis
+        genesis_utxo = UTXO(amount=100, lock=genesis_lock)
+        genesis_entry = Entry([], [genesis_utxo])
+        genesis_txn = Txn(0, entries=[genesis_entry])
+        genesis_utxo.txn = genesis_txn
+
+        # spend
+        spend_to_utxo = UTXO(amount=required_amount, lock=required_lock)
+        spend_to_witness = tools.Script.from_src('')
+        spend_to_entry = Entry(
+            inputs=[genesis_utxo], outputs=[spend_to_utxo],
+            witnesses=[spend_to_witness]
+        )
+        spend_to_txn = Txn(1, entries=[spend_to_entry])
+        spend_to_utxo.txn = spend_to_txn
+
+        assert not validate_txn(spend_to_txn)
+        functions.add_plugin('check_template', ctv_plugin_check_constraint)
+        assert validate_txn(spend_to_txn)
 
 
 if __name__ == '__main__':
