@@ -954,13 +954,14 @@ def OP_CONCAT(tape: Tape, stack: Stack, cache: dict) -> None:
     stack.put(first + second)
 
 def OP_SPLIT(tape: Tape, stack: Stack, cache: dict) -> None:
-    """Read the next byte from the tape, interpreting as an unsigned int
-        index; pull an item from the stack; split the item bytes at the
-        index; put the first byte sequence onto the stack, then put the
-        second byte sequence onto the stack.
+    """Pull a signed int index from the stack; pull an item from the
+        stack; split the item bytes at the index; put the first byte
+        sequence onto the stack, then put the second byte sequence onto
+        the stack. Raises ScriptExecutionError for invalid index.
     """
-    index = int.from_bytes(tape.read(1), 'big')
+    index = bytes_to_int(stack.get())
     item = stack.get()
+    sert(index >= 0, 'OP_SPLIT negative index is invalid')
     sert(index < len(item), 'OP_SPLIT item len exceeded by index')
     part0 = item[:index]
     part1 = item[index:]
@@ -976,13 +977,14 @@ def OP_CONCAT_STR(tape: Tape, stack: Stack, cache: dict) -> None:
     stack.put(bytes(first + second, 'utf-8'))
 
 def OP_SPLIT_STR(tape: Tape, stack: Stack, cache: dict) -> None:
-    """Read the next byte from the tape, interpreting as an unsigned int
-        index; pull an item from the stack, interpreting as a UTF-8 str;
-        split the item str at the index; put the second str onto the
-        stack, then put the second str onto the stack.
+    """Pull a signed int index from the stack; pull an item from the
+        stack, interpreting as a UTF-8 str; split the item str at the
+        index; put the first str onto the stack, then put the second
+        str onto the stack.
     """
-    index = int.from_bytes(tape.read(1), 'big')
+    index = bytes_to_int(stack.get())
     item = str(stack.get(), 'utf-8')
+    sert(index >= 0, 'OP_SPLIT_STR negative index is invalid')
     sert(index < len(item), 'OP_SPLIT_STR item len exceeded by index')
     part0 = item[:index]
     part1 = item[index:]

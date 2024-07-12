@@ -1123,15 +1123,22 @@ class TestFunctions(unittest.TestCase):
         assert self.stack.empty()
 
     def test_OP_SPLIT_splits_top_stack_item_at_uint_index_read_from_tape(self):
-        self.tape = classes.Tape(b'\x02')
         self.stack.put(b'12345')
+        self.stack.put(b'\x02')
         functions.OP_SPLIT(self.tape, self.stack, self.cache)
         assert self.stack.get() == b'345'
         assert self.stack.get() == b'12'
 
+    def test_OP_SPLIT_raises_ScriptExecutionError_for_negative_index(self):
+        self.stack.put(b'sds')
+        self.stack.put(functions.int_to_bytes(-1))
+        with self.assertRaises(errors.ScriptExecutionError) as e:
+            functions.OP_SPLIT(self.tape, self.stack, self.cache)
+        assert str(e.exception) == 'OP_SPLIT negative index is invalid'
+
     def test_OP_SPLIT_raises_ScriptExecutionError_for_length_index_overflow(self):
         self.stack.put(b'sds')
-        self.tape = classes.Tape(b'\xff')
+        self.stack.put(functions.int_to_bytes(20))
         with self.assertRaises(errors.ScriptExecutionError) as e:
             functions.OP_SPLIT(self.tape, self.stack, self.cache)
         assert str(e.exception) == 'OP_SPLIT item len exceeded by index'
@@ -1142,7 +1149,8 @@ class TestFunctions(unittest.TestCase):
         self.stack.put(first)
         self.stack.put(second)
         functions.OP_CONCAT(self.tape, self.stack, self.cache)
-        functions.OP_SPLIT(classes.Tape(b'\x03'), self.stack, self.cache)
+        self.stack.put(b'\x03')
+        functions.OP_SPLIT(self.tape, self.stack, self.cache)
         assert self.stack.get() == second
         assert self.stack.get() == first
 
@@ -1155,15 +1163,22 @@ class TestFunctions(unittest.TestCase):
         assert self.stack.empty()
 
     def test_OP_SPLIT_STR_splits_top_stack_utf8_str_at_uint_index_read_from_tape(self):
-        self.tape = classes.Tape(b'\x02')
         self.stack.put(bytes('12345', 'utf-8'))
+        self.stack.put(b'\x02')
         functions.OP_SPLIT_STR(self.tape, self.stack, self.cache)
         assert str(self.stack.get(), 'utf-8') == '345'
         assert str(self.stack.get(), 'utf-8') == '12'
 
+    def test_OP_SPLIT_STR_raises_ScriptExecutionError_for_negative_index(self):
+        self.stack.put(b'sds')
+        self.stack.put(functions.int_to_bytes(-1))
+        with self.assertRaises(errors.ScriptExecutionError) as e:
+            functions.OP_SPLIT_STR(self.tape, self.stack, self.cache)
+        assert str(e.exception) == 'OP_SPLIT_STR negative index is invalid'
+
     def test_OP_SPLIT_STR_raises_ScriptExecutionError_for_str_length_overflow(self):
         self.stack.put(b'sds')
-        self.tape = classes.Tape(b'\xff')
+        self.stack.put(b'\x05')
         with self.assertRaises(errors.ScriptExecutionError) as e:
             functions.OP_SPLIT_STR(self.tape, self.stack, self.cache)
         assert str(e.exception) == 'OP_SPLIT_STR item len exceeded by index'
