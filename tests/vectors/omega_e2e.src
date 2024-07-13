@@ -111,9 +111,9 @@ OP_SWAP d12 d21
 OP_SWAP2
 OP_REVERSE d12
 OP_CONCAT
-OP_SPLIT d12
+OP_SPLIT
 OP_CONCAT_STR
-OP_SPLIT_STR d21
+OP_SPLIT_STR
 OP_CHECK_TRANSFER
 OP_MERKLEVAL xfeedbeeffeedbeeffeedbeeffeedbeeffeedbeeffeedbeeffeedbeeffeedbeef
 OP_TRY {

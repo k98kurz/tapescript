@@ -533,7 +533,7 @@ def get_args(
             'OP_CHECK_SIG_STACK' | 'OP_DERIVE_SCALAR' | 'OP_DERIVE_POINT' | \
             'OP_MAKE_ADAPTER_SIG_PUBLIC' | 'OP_MAKE_ADAPTER_SIG_PRIVATE' | \
             'OP_CHECK_ADAPTER_SIG' | 'OP_DECRYPT_ADAPTER_SIG' | 'OP_INVOKE' | \
-            'OP_XOR' | 'OP_OR' | 'OP_AND':
+            'OP_SPLIT' | 'OP_SPLIT_STR' | 'OP_XOR' | 'OP_OR' | 'OP_AND':
             # ops that have no arguments on the tape
             # human-readable syntax of OP_[whatever]
             pass
@@ -552,7 +552,7 @@ def get_args(
             'OP_MULT_INTS' | 'OP_ADD_FLOATS' | \
             'OP_SUBTRACT_FLOATS' | 'OP_ADD_POINTS' | 'OP_CALL' | \
             'OP_COPY' | 'OP_SHAKE256' | 'OP_REVERSE' | \
-            'OP_SPLIT' | 'OP_SPLIT_STR' | 'OP_CHECK_SIG' | 'OP_SIGN' | \
+            'OP_CHECK_SIG' | 'OP_SIGN' | \
             'OP_CHECK_SIG_VERIFY' | 'OP_CLAMP_SCALAR' | 'OP_ADD_SCALARS' | \
             'OP_SUBTRACT_SCALARS' | 'OP_SUBTRACT_POINTS' | \
             'OP_GET_MESSAGE' | 'OP_CHECK_TEMPLATE' | 'OP_CHECK_TEMPLATE_VERIFY':
@@ -1076,7 +1076,7 @@ def decompile_script(script: bytes, indent: int = 0) -> list[str]:
                 'OP_DERIVE_SCALAR' | 'OP_DERIVE_POINT' | \
                 'OP_MAKE_ADAPTER_SIG_PUBLIC' | 'OP_MAKE_ADAPTER_SIG_PRIVATE' | \
                 'OP_CHECK_ADAPTER_SIG' | 'OP_DECRYPT_ADAPTER_SIG' | 'OP_XOR' | \
-                'OP_INVOKE' | 'OP_OR' | 'OP_AND':
+                'OP_INVOKE' | 'OP_OR' | 'OP_AND' | 'OP_SPLIT' | 'OP_SPLIT_STR':
                 # ops that have no arguments on the tape
                 # human-readable syntax of OP_[whatever]
                 add_line(op_name)
@@ -1106,7 +1106,7 @@ def decompile_script(script: bytes, indent: int = 0) -> list[str]:
                 'OP_MULT_INTS' | 'OP_ADD_FLOATS' | \
                 'OP_SUBTRACT_FLOATS' | 'OP_ADD_POINTS' | 'OP_CALL' | \
                 'OP_COPY' | 'OP_SHAKE256' | 'OP_REVERSE' | \
-                'OP_SPLIT' | 'OP_SPLIT_STR' | 'OP_CLAMP_SCALAR' | \
+                'OP_CLAMP_SCALAR' | \
                 'OP_ADD_SCALARS' | 'OP_SUBTRACT_SCALARS' | 'OP_SUBTRACT_POINTS':
                 # ops that have tape argument of form [0-255]
                 # human-readable syntax of OP_[whatever] [int]

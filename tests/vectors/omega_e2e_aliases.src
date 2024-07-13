@@ -110,9 +110,9 @@ swap d12 d21
 swap2
 reverse d12
 cat
-split d12
+split
 cats
-split_str d21
+split_str
 check_transfer
 merkleval xfeedbeeffeedbeeffeedbeeffeedbeeffeedbeeffeedbeeffeedbeeffeedbeef
 try {
