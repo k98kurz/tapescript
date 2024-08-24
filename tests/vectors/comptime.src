@@ -1,0 +1,9 @@
+push ~ { true false equal }
+push ~! {
+    push ~ {
+        if {
+            pop0
+        }
+    }
+    sha256
+}

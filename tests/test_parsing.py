@@ -222,6 +222,7 @@ class TestParsing(unittest.TestCase):
             'macros_and_variables.src': 'macros_and_variables.hex',
             'new_ops_0.4.0.src': 'new_ops_0.4.0.hex',
             'new_if_hoist_syntax_0.4.0.src': 'new_if_hoist_syntax_0.4.0.hex',
+            'comptime.src': 'comptime.hex',
         }
         vectors = []
         errors = []
@@ -322,6 +323,7 @@ class TestParsing(unittest.TestCase):
             'macros_and_variables.hex': 'macros_and_variables_decompiled.src',
             'new_ops_0.4.0.hex': 'new_ops_0.4.0_decompiled.src',
             'new_if_hoist_syntax_0.4.0.hex': 'new_if_hoist_syntax_0.4.0_decompiled.src',
+            'comptime.hex': 'comptime_decompiled.src',
         }
         vectors = {}
         names = {}
@@ -358,7 +360,7 @@ class TestParsing(unittest.TestCase):
                         elif observed[i] != expected[i]:
                             print(f'expected line {i+1}: {expected[i]}')
                             print(f'observed line {i+1}: {observed[i]}')
-            assert expected == observed
+            assert expected == observed, f'{expected=}\n{observed=}'
 
         print(f'{len(vectors.items())} vectors tested for decompile_script')
 
@@ -397,6 +399,7 @@ class TestParsing(unittest.TestCase):
             'macros_and_variables_decompiled.src': 'macros_and_variables.hex',
             'new_if_hoist_syntax_0.4.0_decompiled.src': 'new_if_hoist_syntax_0.4.0.hex',
             'new_ops_0.4.0_decompiled.src': 'new_ops_0.4.0.hex',
+            'comptime_decompiled.src': 'comptime.hex',
         }
         vectors = {}
         names = {}
