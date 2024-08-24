@@ -31,6 +31,9 @@ from .functions import (
 )
 from .interfaces import CanCheckTransfer, CanBeInvoked, ScriptProtocol
 from .parsing import (
+    get_symbols,
+    parse_comptime,
+    assemble,
     compile_script,
     decompile_script,
     add_opcode_parsing_handlers,
@@ -70,6 +73,8 @@ from .tools import (
     make_taproot_lock,
     make_taproot_witness_keyspend,
     make_taproot_witness_scriptspend,
+    make_scripthash_lock,
+    make_scripthash_witness,
     setup_amhl,
     release_left_amhl_lock,
 )

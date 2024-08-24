@@ -1,3 +1,9 @@
+## 0.6.1
+
+- Made `tools.make_scripthash_lock`, `tools.make_scripthash_witness`,
+`parsing.get_symbols`, `parsing.parse_comptime`, and `parsing.assemble`
+visible at the module root level.
+
 ## 0.6.0
 
 - Fix: `OP_EVAL` now includes plugin support

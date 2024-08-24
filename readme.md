@@ -67,8 +67,8 @@ or plugins.
 ### Write, compile, decompile
 
 See the
-[langauge_spec.md](https://github.com/k98kurz/tapescript/blob/v0.6.0/language_spec.md)
-and [docs.md](https://github.com/k98kurz/tapescript/blob/v0.6.0/docs.md) files
+[langauge_spec.md](https://github.com/k98kurz/tapescript/blob/v0.6.1/language_spec.md)
+and [docs.md](https://github.com/k98kurz/tapescript/blob/v0.6.1/docs.md) files
 for syntax and operation specifics.
 
 Once you have a script written, use the `compile_script(code: str) -> bytes`
