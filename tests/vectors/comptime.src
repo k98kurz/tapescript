@@ -1,4 +1,5 @@
-push ~ { true false equal }
+!= tfe [ ] { true false equal }
+push ~ { !tfe [ ] }
 push ~! {
     push ~ {
         if {

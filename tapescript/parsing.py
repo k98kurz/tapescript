@@ -987,7 +987,7 @@ def compile_script(script: str) -> bytes:
     symbols = get_symbols(script)
     return assemble(symbols, macros=macros)
 
-def parse_comptime(symbols: list[str]) -> list[str]:
+def parse_comptime(symbols: list[str], macros: dict = {}) -> list[str]:
     """Preparses a list of symbols, replacing any comptime blocks with
         the compiled byte code of the block as a hex value symbol or the
         top stack item as a hex value symbol by compiling and executing
@@ -999,6 +999,10 @@ def parse_comptime(symbols: list[str]) -> list[str]:
 
     while index < len(symbols):
         symbol = symbols[index]
+        if symbol == '!=':
+            advance = define_macro(symbols[index:], macros=macros)
+            index += advance
+            continue
         if symbol not in ("~", "~!"):
             new_symbols.append(symbol)
             index += 1
@@ -1007,9 +1011,9 @@ def parse_comptime(symbols: list[str]) -> list[str]:
                 f'Error at symbol {index}: comptime syntax is `~ {{ ops }}`')
         end = _find_matching_brace(symbols[index:], "{", "}")
         if symbol == "~":
-            new_symbols.append(f'x{assemble(symbols[index+2:index+end]).hex()}')
+            new_symbols.append(f'x{assemble(symbols[index+2:index+end], macros).hex()}')
         else:
-            _, stack, _ = run_script(assemble(symbols[index+2:index+end]))
+            _, stack, _ = run_script(assemble(symbols[index+2:index+end], macros))
             new_symbols.append(f'x{stack.get().hex()}')
         index += end + 1
 
@@ -1021,7 +1025,7 @@ def assemble(symbols: list[str], macros: dict = {}) -> bytes:
     """
     index = 0
     code = []
-    symbols = parse_comptime(symbols)
+    symbols = parse_comptime(symbols, macros)
 
     while index < len(symbols):
         symbol = symbols[index]
