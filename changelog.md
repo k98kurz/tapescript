@@ -1,3 +1,16 @@
+## 0.6.0
+
+- Fix: `OP_EVAL` now includes plugin support
+- Changed `OP_SPLIT` and `OP_SPLIT_STR` to take index parameter from stack
+- Added another signature extension e2e test
+- Added `make_scripthash_lock` and `make_scripthash_witness` tools
+- Added REPL in `tools.repl` and made it accessible via CLI: `tapescript repl`
+- Added comptime (preprocessor) features to parsing: `~ { ops }` is replaced
+with the byte code for `ops` as a hexadecimal symbol before assembly (i.e. it
+compiles `ops` and replaces the symbol section with the result); `~! { ops }`
+causes `ops` to be compiled and executed, then the whole section is replaced
+with the top item in the Stack as a hexadecimal symbol.
+
 ## 0.5.0
 
 - Signature extension system: call a plugin at the beginning of each of the

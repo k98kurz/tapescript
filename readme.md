@@ -28,6 +28,7 @@ many op codes do complex things rather than simple/primitive ones, e.g.
 - [x] Simple CLI: compile, decompile, run, and auth
 - [x] Document plugin system
 - [x] Rewrite `OP_MERKLEVAL` and tools to use root=xor(hash(hash(branchA)), hash(hash(branchB)))
+- [x] REPL and comptime
 
 ## Usage
 
@@ -40,7 +41,7 @@ pip install tapescript
 or
 
 ```bash
-pip install tapescript={version}
+pip install tapescript=={version}
 ```
 
 ### CLI
