@@ -1,12 +1,14 @@
 from __future__ import annotations
 from .AMHL import AMHL
-from .classes import Tape
-from .errors import tert, vert, yert
+from .classes import Tape, Stack
+from .errors import tert, vert, yert, SyntaxError, ScriptExecutionError
 from .parsing import (
     compile_script,
     decompile_script,
     add_opcode_parsing_handlers,
     is_hex,
+    assemble,
+    get_symbols,
 )
 from .functions import (
     opcodes_inverse,
@@ -259,6 +261,69 @@ def create_merklized_script_prioritized(
         scripts.append(tree.left.unlocking_script())
     scripts.append(tree.right.unlocking_script())
     return (lock, scripts)
+
+def repl(contracts: dict = {}, add_flags: dict = {}, plugins: dict = {}):
+    """Provides a REPL (Read Execute Print Loop). Lines of source code
+        are read, compiled, and executed, and the runtime state is
+        shared between executions. If a code block is opened, the Read
+        functionality will continue accepting input until all opened
+        code blocks have closed, and it will automatically indent the
+        input line. To exit the loop, type "return", "exit", or "quit".
+    """
+    cache = {}
+    stack = Stack()
+    defs = {}
+    macros = {}
+    while True:
+        src = input("> ")
+        while src.count("{") > src.count("}") or src.count("(") > src.count("}"):
+            indent = src.count("{") - src.count("}") + src.count("(") - src.count(")")
+            src += "\n" + input("".join(["  " for _ in range(indent)]) + "> ")
+        if src in ("quit", "return", "exit", "q"):
+            return
+        if src in ("help", "?"):
+            print('Assembles and runs scripts. Type "exit", "quit", or "q" to exit.')
+            continue
+        try:
+            tape = Tape(
+                assemble(get_symbols(src), macros=macros),
+                definitions=defs,
+                contracts=contracts,
+                plugins=plugins,
+            )
+            run_tape(
+                tape,
+                stack,
+                cache,
+                add_flags,
+            )
+            defs = tape.definitions
+        except SyntaxError as e:
+            print(str(e))
+        except ScriptExecutionError as e:
+            print(str(e))
+
+        print(f'stack: {[f"0x{item.hex()}" for item in stack.deque]}')
+        pc = {
+            key: (f'0x{val.hex()}' if type(val) is bytes else (
+                [f'0x{v.hex()}' if type(v) is bytes else v for v in val]
+                if type(val) is list else val
+            ))
+            for key, val in cache.items()
+            if type(key) in (str, int) and type(val)
+        }
+        pc = {
+            **pc,
+            ** {
+                f'0x{key.hex()}': (f'0x{val.hex()}' if type(val) is bytes else (
+                    [f'0x{v.hex()}' if type(v) is bytes else v for v in val]
+                    if type(val) is list else val
+                ))
+                for key, val in cache.items()
+                if type(key) is bytes
+            }
+        }
+        print(f'cache: {pc}')
 
 def _format_docstring(docstring: str) -> str:
     """Takes a docstring, tokenizes it, and returns a str formatted to
@@ -1053,6 +1118,8 @@ def cli_help() -> str:
     name = argv[0]
     return '\n'.join([
         f'Usage: {name} [method] [options]',
+        '\trepl -- interactive -- i -- invokes the REPL; default behavior if no'
+        ' method is passed',
         '\tcompile src_file bin_file -- compiles the source code into bytecode '
         'and writes it to bin_file',
         '\tdecompile bin_file -- decompiles the bytecode and outputs to stdout',
@@ -1112,9 +1179,12 @@ def run_cli() -> None:
     """Run the simple CLI tool. More advanced functionality requires
         programmatic access.
     """
-    _clert(len(argv) >= 2)
-    method = argv[1]
+    method = argv[1] if len(argv) > 1 else 'repl'
     match method:
+        case 'help' | '--help' | '?' | '-?' | '-h':
+            print(cli_help())
+        case 'i' | 'repl':
+            repl()
         case 'compile':
             _clert(len(argv) >= 4, 'Must supply src_file and bin_file parameters.')
             src_fname = argv[2]
