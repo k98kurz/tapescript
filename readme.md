@@ -59,7 +59,7 @@ and prints "true" if it succeeded and "false" otherwise
 Passing the optional `cache_file` parameter will set specific cache values after
 parsing the `cache_file`, which must adhere to a specific format. The intent of
 this CLI is to make it easy to experiment and/or debug Tapescript scripts. Run
-the command `tapescript` to get the help text.
+the command `tapescript help` to get the help text.
 
 Note that the CLI does not currently include support for soft-forks, contracts,
 or plugins.
@@ -67,8 +67,8 @@ or plugins.
 ### Write, compile, decompile
 
 See the
-[langauge_spec.md](https://github.com/k98kurz/tapescript/blob/v0.5.0/language_spec.md)
-and [docs.md](https://github.com/k98kurz/tapescript/blob/v0.5.0/docs.md) files
+[langauge_spec.md](https://github.com/k98kurz/tapescript/blob/v0.6.0/language_spec.md)
+and [docs.md](https://github.com/k98kurz/tapescript/blob/v0.6.0/docs.md) files
 for syntax and operation specifics.
 
 Once you have a script written, use the `compile_script(code: str) -> bytes`
@@ -82,8 +82,8 @@ accept either a `Script` object or the byte code.
 
 Note that each `OP_` function has an alias that excludes the `OP_` prefix; e.g.
 `OP_PUSH d1` can also be written `PUSH d1`. Op names are not case-sensitive, and
-several ops have additional aliases. Variable, macro names, and string values
-are case-sensitive.
+several ops have additional aliases. Variable names, macro names, and string
+values are case-sensitive.
 
 The following functions are also available for VM-compatible serialization:
 - `bytes_to_int`
@@ -113,7 +113,7 @@ And these functions are available for convenience and cryptography:
 Versions 0.3.0 and 0.3.1 added a sort of variable and macro system to the
 compiler. Full documentation can be found in the language spec file.
 
-Variable assignment uses two possible syntaxes: `@= varname [vals]` or
+Variable assignment uses two possible syntaxes: `@= varname [ vals ]` or
 `@= varname count`; the first pushes the values onto the stack then calls
 `OP_WRITE_CACHE` to store those values in the cache at the `varname` key, while
 the second instead just calls `OP_WRITE_CACHE` and takes `count` items from the
@@ -157,6 +157,12 @@ OP_PUSH ~! {
 OP_EQUAL_VERIFY
 OP_EVAL
 ```
+
+Note that variables defined outside of a comptime block cannot be used within
+an executed comptime block, and variables defined within an executed comptime
+block cannot be used outside of it. However, macros defined outside of comptime
+blocks can be invoked within them, and macros defined within comptime blocks can
+be invoked outside of them.
 
 #### Merklized scripts
 

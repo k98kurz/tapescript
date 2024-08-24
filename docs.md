@@ -953,12 +953,14 @@ interface is not a Protocol.
 Split the script source into symbols. Raises SyntaxError for unterminated string
 values.
 
-## `parse_comptime(symbols: list): -> list`
+## `parse_comptime(symbols: list, macros: dict = {}): -> list`
 
 Preparses a list of symbols, replacing any comptime blocks with the compiled
 byte code of the block as a hex value symbol or the top stack item as a hex
 value symbol by compiling and executing the contents of the block. Returns a
-modified list of symbols in which all comptime blocks have been replaced.
+modified list of symbols in which all comptime blocks have been replaced. Any
+macros defined within the comptime block will be accessible outside of it, and
+macros defined outside a comptime block can be invoked within it.
 
 ## `assemble(symbols: list, macros: dict = {}): -> bytes`
 
