@@ -7,7 +7,8 @@ from .functions import (
     opcodes_inverse,
     opcode_aliases,
     nopcodes,
-    nopcodes_inverse
+    nopcodes_inverse,
+    run_script,
 )
 from math import ceil, log2
 from typing import Any, Callable
@@ -986,10 +987,39 @@ def compile_script(script: str) -> bytes:
     symbols = get_symbols(script)
     return assemble(symbols, macros=macros)
 
+def parse_comptime(symbols: list[str]) -> list[str]:
+    """Preparses a list of symbolers, replacing any comptime blocks by
+        with the top stack item as a hex value symbol by compiling and
+        executing the contents of the block. Returns the a modified list
+        of symbols in which all comptime blocks have been replaced.
+    """
+    new_symbols = []
+    index = 0
+
+    while index < len(symbols):
+        symbol = symbols[index]
+        if symbol not in ("~", "~!"):
+            new_symbols.append(symbol)
+            index += 1
+            continue
+        yert(symbols[index+1] == "{",
+                f'Error at symbol {index}: comptime syntax is `~ {{ ops }}`')
+        end = _find_matching_brace(symbols[index:], "{", "}")
+        if symbol == "~":
+            new_symbols.append(f'x{assemble(symbols[index+2:index+end]).hex()}')
+        else:
+            _, stack, _ = run_script(assemble(symbols[index+2:index+end]))
+            if not stack.empty():
+                new_symbols.append(f'x{stack.get().hex()}')
+        index += end + 1
+
+    return new_symbols
+
 def assemble(symbols: list[str], macros: dict = {}) -> bytes:
     """Assemble the symbols into bytecode."""
     index = 0
     code = []
+    symbols = parse_comptime(symbols)
 
     while index < len(symbols):
         symbol = symbols[index]
