@@ -1,7 +1,7 @@
 from __future__ import annotations
 from .AMHL import AMHL
 from .classes import Tape, Stack
-from .errors import tert, vert, yert, SyntaxError, ScriptExecutionError
+from .errors import tert, vert, yert
 from .parsing import (
     compile_script,
     decompile_script,
@@ -298,9 +298,7 @@ def repl(contracts: dict = {}, add_flags: dict = {}, plugins: dict = {}):
                 add_flags,
             )
             defs = tape.definitions
-        except SyntaxError as e:
-            print(str(e))
-        except ScriptExecutionError as e:
+        except BaseException as e:
             print(str(e))
 
         print(f'stack: {[f"0x{item.hex()}" for item in stack.deque]}')
