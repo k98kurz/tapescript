@@ -283,6 +283,71 @@ the stack and then puts them from the stack into the cache. The second setting
 syntax simply pulls values from the stack. Variables cannot be used for on-tape
 arguments to ops, e.g. `OP_MERKLEVAL @root` will not work.
 
+### Comptime
+
+Version 0.6.0 added two comptime features: inline compilation and inline
+execution. The inline compilation feature syntax is `~ { ops }` and replaces the
+code section with a hexadecimal value symbol equal to the compiled `ops`. The
+inline execution feature syntax is `~! { ops }`; it compiles and executes the
+`ops`, then pops the top item of the Stack, and replaces the code section with
+that item as a hexadecimal value symbol -- if the Stack was empty, it outputs
+nothing.
+
+Because this is implemented as a preprocessor step, it is recursive. Example:
+
+```s
+push ~! {
+    push ~! { push d1 random mod_int d2 }
+    push ~! { push d1 random mod_int d2 }
+    if ( equal ) {
+        push ~ { true }
+    } else {
+        push ~ { false }
+    }
+}
+```
+
+This will replace `~ { true }` with the byte code for `OP_TRUE` as a hexadecimal
+value, then it will replace `~ { false }` with the byte code for `OP_FALSE`,
+then it will replace `~! { push d1 random }` with a random byte as a hex symbol,
+then it will compile and execute the whole `OP_IF_ELSE`, then it will replace
+the whole outer comptime exec block with the result. It is a contrived example,
+but it works and can be tested by copying and pasting into the REPL (expect the
+stack to contain 0x00 half of the time and 0x01 the other half of the time).
+
+A more pragmatic example is to generate cryptographic commitments. Example from
+tests/vectors/correspondent_locking_script.src:
+
+```s
+# locking script #
+OP_DUP
+OP_SHAKE256 d20
+OP_PUSH ~! {
+    push ~ {
+        # committed script #
+        OP_IF {
+            OP_PUSH x09f5067410b240ac3aa3143016f2285f32fd6eb86ee0efe34248a25bb57bb937
+            OP_CHECK_SIG x00
+        } ELSE {
+            OP_PUSH x1481cd547c77799b4551f1e2947a9ad350bafe972ba55c827ef78279a096343f
+            OP_PUSH xcdf907630128847e63dc0b6156b331b29f56cf899e5689b61da3747382d1a80a
+            OP_SWAP d1 d2
+            OP_CHECK_SIG_VERIFY x00
+            OP_CHECK_SIG x00
+        }
+    }
+    shake256 d20
+}
+OP_EQUAL_VERIFY
+OP_EVAL
+```
+
+This will create a short (27 byte) locking script that is unlocked by satisfying
+the committed script and then pushing the committed script to the stack. The
+locking script will duplicate the top item on the stack, hash it, push the hash
+of the committed script, verify the top two items are equal, then execute the
+committed script.
+
 ## Style
 
 While style of human-readable source scripts is not enforced, the following are

@@ -47,6 +47,8 @@ pip install tapescript=={version}
 ### CLI
 
 As of version 0.4.0, a simple CLI has been included with the following features:
+- `repl` -- activates a REPL (Read Execute Print Loop; default if CLI is executed
+without arguments added in 0.6.0)
 - `compile src_file bin_file` -- compiles the human-readable source into bytecode
 - `decompile bin_file` -- decompiles bytecode to human-readable source
 - `run bin_file [cache_file]` -- runs Tapescript bytecode and prints the cache
@@ -80,7 +82,8 @@ accept either a `Script` object or the byte code.
 
 Note that each `OP_` function has an alias that excludes the `OP_` prefix; e.g.
 `OP_PUSH d1` can also be written `PUSH d1`. Op names are not case-sensitive, and
-several ops have additional aliases. Variable and macro names are case-sensitive.
+several ops have additional aliases. Variable, macro names, and string values
+are case-sensitive.
 
 The following functions are also available for VM-compatible serialization:
 - `bytes_to_int`
@@ -107,7 +110,7 @@ And these functions are available for convenience and cryptography:
 
 #### Variables and Macros
 
-Version 0.3.0 and 0.3.1 added a sort of variable and macro system to the
+Versions 0.3.0 and 0.3.1 added a sort of variable and macro system to the
 compiler. Full documentation can be found in the language spec file.
 
 Variable assignment uses two possible syntaxes: `@= varname [vals]` or
@@ -121,6 +124,39 @@ Macros allow use of string interpolation in the compiler: use the syntax
 `!= macroname [ arg1 arg2 ... ] { statements }` to define a macro and
 `!macroname [ arg1 arg2 ... ]` to call the macro. The compiler will replace the
 macro call with the `statements` after substituting the args before compilation.
+
+#### Comptime
+
+Version 0.6.0 added two comptime features: `~ { ops }` is replaced with a
+hexadecimal value symbol equal to the compiled byte code of `ops`; `~! { ops }`
+is replaced with the top stack value as a hexadecimal symbol after compiling and
+executing `ops`. This allows the cryptographic commitment for scripts to be
+generated from the source code directly where the commitment is used. Below is
+an example taken from the compilation test vectors:
+
+```s
+# locking script #
+OP_DUP
+OP_SHAKE256 d20
+OP_PUSH ~! {
+    push ~ {
+        # committed script #
+        OP_IF {
+            OP_PUSH x09f5067410b240ac3aa3143016f2285f32fd6eb86ee0efe34248a25bb57bb937
+            OP_CHECK_SIG x00
+        } ELSE {
+            OP_PUSH x1481cd547c77799b4551f1e2947a9ad350bafe972ba55c827ef78279a096343f
+            OP_PUSH xcdf907630128847e63dc0b6156b331b29f56cf899e5689b61da3747382d1a80a
+            OP_SWAP d1 d2
+            OP_CHECK_SIG_VERIFY x00
+            OP_CHECK_SIG x00
+        }
+    }
+    shake256 d20
+}
+OP_EQUAL_VERIFY
+OP_EVAL
+```
 
 #### Merklized scripts
 
@@ -593,7 +629,7 @@ python tests/test_e2e_eltoo.py
 python tests/test_e2e_sigext.py
 ```
 
-There are currently 239 tests and 104 test vectors used for validating the ops,
+There are currently 250 tests and 107 test vectors used for validating the ops,
 compiler, decompiler, and script running functions. This includes 3 tests for a
 proof-of-concept implementation of the eltoo payment channel protocol, and e2e
 tests combining the anonymous multi-hop lock (AMHL) system with adapter
