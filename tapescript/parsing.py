@@ -1014,7 +1014,8 @@ def parse_comptime(symbols: list[str], macros: dict = {}) -> list[str]:
             new_symbols.append(f'x{assemble(symbols[index+2:index+end], macros).hex()}')
         else:
             _, stack, _ = run_script(assemble(symbols[index+2:index+end], macros))
-            new_symbols.append(f'x{stack.get().hex()}')
+            if not stack.empty():
+                new_symbols.append(f'x{stack.get().hex()}')
         index += end + 1
 
     return new_symbols
