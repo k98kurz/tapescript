@@ -192,13 +192,13 @@ def _get_additional_opcode_args(
     return additional_opcodes[opname][0](opname, symbols, symbols_to_advance, symbol_index)
 
 def _get_OP_PUSH_args(
-        opname: str, symbols: list[str], symbols_to_advance: int
+        opname: str, symbols: list[str], symbols_to_advance: int, index: int
     ) -> tuple[int, tuple[bytes]]:
     args = []
     symbols_to_advance += 1
     val = symbols[0]
     yert(val[0].lower() in ('d', 'x', 's'),
-        'values for OP_PUSH must be prefaced with d, x, or s')
+        f'Symbol {index}: values for OP_PUSH must be prefaced with d, x, or s')
 
     match val[0].lower():
         case 'd':
@@ -542,7 +542,7 @@ def get_args(
             pass
         case 'OP_PUSH':
             # special case: OP_PUSH is a short hand for OP_PUSH[0,1,2,4]
-            return _get_OP_PUSH_args(opname, symbols, symbols_to_advance)
+            return _get_OP_PUSH_args(opname, symbols, symbols_to_advance, symbol_index)
         case 'OP_WRITE_CACHE':
             # op with tape arguments of form [size 0-255] [val] [count 0-255]
             return _get_OP_WRITE_CACHE_args(opname, symbols, symbols_to_advance)
@@ -1009,8 +1009,7 @@ def parse_comptime(symbols: list[str]) -> list[str]:
             new_symbols.append(f'x{assemble(symbols[index+2:index+end]).hex()}')
         else:
             _, stack, _ = run_script(assemble(symbols[index+2:index+end]))
-            if not stack.empty():
-                new_symbols.append(f'x{stack.get().hex()}')
+            new_symbols.append(f'x{stack.get().hex()}')
         index += end + 1
 
     return new_symbols
