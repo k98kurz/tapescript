@@ -25,7 +25,7 @@ def is_hex(s: str) -> bool:
 
 def get_symbols(script: str) -> list[str]:
     """Split the script source into symbols. Raises SyntaxError for
-        unterminated strings.
+        unterminated string values.
     """
     splits = [s for s in script.split()]
     splits.reverse()
@@ -980,7 +980,7 @@ def _find_matching_brace(symbols: list[str], open_brace: str, close_brace: str) 
 
 def compile_script(script: str) -> bytes:
     """Compile the given human-readable script into byte code. Bubbles
-        any SyntaxError raised by assemble.
+        any SyntaxError or ValueError raised by assemble.
     """
     vert(type(script) is str, 'input script must be str')
     macros = {}
@@ -988,10 +988,11 @@ def compile_script(script: str) -> bytes:
     return assemble(symbols, macros=macros)
 
 def parse_comptime(symbols: list[str]) -> list[str]:
-    """Preparses a list of symbolers, replacing any comptime blocks by
-        with the top stack item as a hex value symbol by compiling and
-        executing the contents of the block. Returns the a modified list
-        of symbols in which all comptime blocks have been replaced.
+    """Preparses a list of symbols, replacing any comptime blocks with
+        the compiled byte code of the block as a hex value symbol or the
+        top stack item as a hex value symbol by compiling and executing
+        the contents of the block. Returns a modified list of symbols in
+        which all comptime blocks have been replaced.
     """
     new_symbols = []
     index = 0
@@ -1015,7 +1016,9 @@ def parse_comptime(symbols: list[str]) -> list[str]:
     return new_symbols
 
 def assemble(symbols: list[str], macros: dict = {}) -> bytes:
-    """Assemble the symbols into bytecode."""
+    """Assemble the symbols into bytecode. Raises SyntaxError and
+        ValueError for invalid syntax or values.
+    """
     index = 0
     code = []
     symbols = parse_comptime(symbols)

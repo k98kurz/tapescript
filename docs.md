@@ -518,9 +518,10 @@ Aliases:
 
 ## OP_SPLIT - 56 - x38
 
-Read the next byte from the tape, interpreting as an unsigned int index; pull an
-item from the stack; split the item bytes at the index; put the second byte
-sequence onto the stack, then put the first byte sequence onto the stack.
+Pull a signed int index from the stack; pull an item from the stack; split the
+item bytes at the index; put the first byte sequence onto the stack, then put
+the second byte sequence onto the stack. Raises ScriptExecutionError for invalid
+index.
 
 Aliases:
 - SPLIT
@@ -537,9 +538,9 @@ Aliases:
 
 ## OP_SPLIT_STR - 58 - x3A
 
-Read the next byte from the tape, interpreting as an unsigned int index; pull an
-item from the stack, interpreting as a UTF-8 str; split the item str at the
-index, then put the first str onto the stack; put the second str onto the stack.
+Pull a signed int index from the stack; pull an item from the stack,
+interpreting as a UTF-8 str; split the item str at the index; put the first str
+onto the stack, then put the second str onto the stack.
 
 Aliases:
 - SPLIT_STR
@@ -856,7 +857,9 @@ stack for each indicated sigfield as a template; check that all indicated
 sigfields validate against the template using the plugin system; put True onto
 the stack if every sigfield validated against its template by at least one ctv
 plugin function, and False otherwise. Runs the signature extension plugins first
-if tape.flags[10] is set to True, which is the default behavior.
+if tape.flags[10] is set to True, which is the default behavior. (The stack
+passed to the plugin will contain the template on the top and the sigfield
+beneath.)
 
 Aliases:
 - CHECK_TEMPLATE
@@ -902,7 +905,7 @@ ScriptExecutionError if count is negative.
 
 # Other interpreter functions
 
-## `run_script(script: bytes | ScriptProtocol, cache_vals: dict = {}, contracts: dict = {}, additional_flags: dict = {}, plugins: dict = {}): -> tuple[Tape, Stack, dict]`
+## `run_script(script: bytes | ScriptProtocol, cache_vals: dict = {}, contracts: dict = {}, additional_flags: dict = {}, plugins: dict = {}, stack_max_items: int = 1024, stack_max_item_size: int = 1024, callstack_limit: int = 128): -> tuple[Tape, Stack, dict]`
 
 Run the given script byte code. Returns a tape, stack, and dict.
 
@@ -910,7 +913,7 @@ Run the given script byte code. Returns a tape, stack, and dict.
 
 Run the given tape using the stack and cache.
 
-## `run_auth_script(script: bytes | ScriptProtocol, cache_vals: dict = {}, contracts: dict = {}, plugins: dict = {}): -> bool`
+## `run_auth_script(script: bytes | ScriptProtocol, cache_vals: dict = {}, contracts: dict = {}, plugins: dict = {}, stack_max_items: int = 1024, stack_max_item_size: int = 1024, callstack_limit: int = 128): -> bool`
 
 Run the given auth script byte code. Returns True iff the stack has a single
 \xff value after script execution and no errors were raised; otherwise, returns
@@ -945,9 +948,27 @@ interface is not a Protocol.
 
 # Parsing functions
 
+## `get_symbols(script: str): -> list`
+
+Split the script source into symbols. Raises SyntaxError for unterminated string
+values.
+
+## `parse_comptime(symbols: list): -> list`
+
+Preparses a list of symbols, replacing any comptime blocks with the compiled
+byte code of the block as a hex value symbol or the top stack item as a hex
+value symbol by compiling and executing the contents of the block. Returns a
+modified list of symbols in which all comptime blocks have been replaced.
+
+## `assemble(symbols: list, macros: dict = {}): -> bytes`
+
+Assemble the symbols into bytecode. Raises SyntaxError and ValueError for
+invalid syntax or values.
+
 ## `compile_script(script: str): -> bytes`
 
-Compile the given human-readable script into byte code.
+Compile the given human-readable script into byte code. Bubbles any SyntaxError
+or ValueError raised by assemble.
 
 ## `decompile_script(script: bytes, indent: int = 0): -> list`
 

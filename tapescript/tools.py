@@ -9,6 +9,7 @@ from .parsing import (
     is_hex,
     assemble,
     get_symbols,
+    parse_comptime,
 )
 from .functions import (
     opcodes_inverse,
@@ -449,6 +450,9 @@ def generate_docs() -> list[str]:
     paragraphs.append(_format_function_doc(add_contract_interface))
     paragraphs.append(_format_function_doc(remove_contract_interface))
     paragraphs.append('\n\n# Parsing functions')
+    paragraphs.append(_format_function_doc(get_symbols))
+    paragraphs.append(_format_function_doc(parse_comptime))
+    paragraphs.append(_format_function_doc(assemble))
     paragraphs.append(_format_function_doc(compile_script))
     paragraphs.append(_format_function_doc(decompile_script))
     paragraphs.append(_format_function_doc(add_opcode_parsing_handlers))
