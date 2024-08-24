@@ -54,7 +54,7 @@ class Tape:
 
 class Stack:
     """Class to implement a Stack of bytes items."""
-    deque: deque
+    deque: deque[bytes]
     max_items: int
     max_item_size: int
 

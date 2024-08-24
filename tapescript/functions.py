@@ -1616,6 +1616,7 @@ def OP_TAPROOT(tape: Tape, stack: Stack, cache: dict) -> None:
     is_pubkey = len(pubkey_or_sig) == 32
 
     if is_pubkey:
+        # validate the supplied pubkey and script combine into the root
         pubkey = stack.get()
         script = stack.get()
         scalar = clamp_scalar(sha256(pubkey + sha256(script).digest()).digest())
@@ -1624,6 +1625,7 @@ def OP_TAPROOT(tape: Tape, stack: Stack, cache: dict) -> None:
         if not bytes_are_same(point, root):
             stack.put(b'\x00')
             return
+        # execute the committed script
         stack.put(script)
         OP_EVAL(tape, stack, cache)
     else:

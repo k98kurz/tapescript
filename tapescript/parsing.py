@@ -23,7 +23,9 @@ def is_hex(s: str) -> bool:
         return False
 
 def get_symbols(script: str) -> list[str]:
-    """Split the script source into symbols."""
+    """Split the script source into symbols. Raises SyntaxError for
+        unterminated strings.
+    """
     splits = [s for s in script.split()]
     splits.reverse()
     symbols = []
@@ -976,7 +978,9 @@ def _find_matching_brace(symbols: list[str], open_brace: str, close_brace: str) 
 
 
 def compile_script(script: str) -> bytes:
-    """Compile the given human-readable script into byte code."""
+    """Compile the given human-readable script into byte code. Bubbles
+        any SyntaxError raised by assemble.
+    """
     vert(type(script) is str, 'input script must be str')
     macros = {}
     symbols = get_symbols(script)
