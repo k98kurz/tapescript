@@ -653,7 +653,7 @@ If you experience a bug and do not use Discord, open an issue on Github.
 
 ## ISC License
 
-Copyright (c) 2024 Jonathan Voss
+Copyleft (c) 2025 Jonathan Voss (k98kurz)
 
 Permission to use, copy, modify, and/or distribute this software
 for any purpose with or without fee is hereby granted, provided
