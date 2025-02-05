@@ -632,7 +632,7 @@ python tests/test_parsing.py
 python tests/test_security.py
 python tests/test_tools.py
 python tests/test_e2e_eltoo.py
-python tests/test_e2e_sigext.py
+python tests/test_e2e_extensions.py
 ```
 
 There are currently 250 tests and 107 test vectors used for validating the ops,
