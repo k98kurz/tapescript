@@ -309,11 +309,12 @@ push ~! {
 
 This will replace `~ { true }` with the byte code for `OP_TRUE` as a hexadecimal
 value, then it will replace `~ { false }` with the byte code for `OP_FALSE`,
-then it will replace `~! { push d1 random }` with a random byte as a hex symbol,
-then it will compile and execute the whole `OP_IF_ELSE`, then it will replace
-the whole outer comptime exec block with the result. It is a contrived example,
-but it works and can be tested by copying and pasting into the REPL (expect the
-stack to contain 0x00 half of the time and 0x01 the other half of the time).
+then it will replace `~! { push d1 random mod_int d2 }` with a random byte mod 2
+as a hex symbol, then it will compile and execute the whole `OP_IF_ELSE`, then
+it will replace the whole outer comptime exec block with the result. It is a
+contrived example, but it works and can be tested by copying and pasting into
+the REPL (expect the stack to contain 0x00 half of the time and 0x01 the other
+half of the time).
 
 A more pragmatic example is to generate cryptographic commitments. Example from
 tests/vectors/correspondent_locking_script.src:
@@ -663,7 +664,7 @@ return values into cache at key b'IR'.
 Example:
 
 ```python
-# file somecontract.py
+# file somecontract.py -- do not include this line in the file
 from tapescript import int_to_bytes
 
 class SomeContract:
@@ -673,14 +674,17 @@ class SomeContract:
         avg_size = sum([len(a) for a in args]) / len(args)
         return [int_to_bytes(int(avg_size))]
 
+# end of file somecontract.py -- there must be an empty line at the end of the file
+
 # file bootstrap.py
 from hashlib import shake_256
 from inspect import getsource
+from tapescript import add_contract
 import somecontract
 
 def boot():
     contract_id = shake_256(bytes(getsource(somecontract), 'utf-8')).digest(20)
-    add_contract(contract_id, somecontract.SomeContract)
+    add_contract(contract_id, somecontract.SomeContract())
 
 # file test.py
 from bootstrap import boot
@@ -697,6 +701,6 @@ invoke
 '''
 
 _, stack, cache = run_script(compile_script(script))
-assert stack.qsize() == 1
+assert stack.size() == 1
 assert bytes_to_int(stack.get()) == 10
 ```
