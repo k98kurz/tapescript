@@ -1,3 +1,8 @@
+## 0.6.2
+
+- Made some compatibility patches for systems missing some functions
+- Some corrections and improvements to the language spec document
+
 ## 0.6.1
 
 - Made `tools.make_scripthash_lock`, `tools.make_scripthash_witness`,
