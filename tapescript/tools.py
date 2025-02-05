@@ -33,13 +33,48 @@ from .functions import (
 )
 from .interfaces import ScriptProtocol
 from dataclasses import dataclass, field
-from hashlib import sha256, shake_256
+from hashlib import sha256
 from sys import argv
 from time import time
 from typing import Callable
 import nacl.bindings
 import json
 import struct
+
+try:
+    from hashlib import shake_256
+except ImportError:
+    from warnings import warn
+
+    class Shake256Replacement:
+        def __init__(self, preimage: bytes):
+            self.preimage = preimage
+        def copy(self) -> Shake256Replacement:
+            return Shake256Replacement(self.preimage)
+        def digest(self, size: int):
+            val = sha256(self.preimage).digest()
+            while len(val) < size:
+                val += sha256(val).digest()
+            return val[:size]
+        def hexdigest(self, size: int) -> str:
+            return self.digest(size).hex()
+        def update(self, data: bytes) -> Shake256Replacement:
+            self.preimage += data
+            return self
+        @property
+        def block_size(self) -> int:
+            return 136
+        @property
+        def digest_size(self) -> int:
+            return 0
+        @property
+        def name(self) -> str:
+            return 'shake_256'
+
+    def shake_256(preimage: bytes):
+        warn('shake_256 is not available on this system; this replacement will not give correct outputs')
+        return Shake256Replacement(preimage)
+
 
 
 @dataclass

@@ -1,12 +1,53 @@
+from __future__ import annotations
 from context import classes, errors, functions, interfaces
-from hashlib import sha256, shake_256
+from hashlib import sha256
 from nacl.signing import SigningKey
 from random import randint
-from secrets import token_bytes
 from time import time
 from typing import Protocol, runtime_checkable
 import nacl.bindings
 import unittest
+
+try:
+    from hashlib import shake_256
+except ImportError:
+    from warnings import warn
+
+    class Shake256Replacement:
+        def __init__(self, preimage: bytes):
+            self.preimage = preimage
+        def copy(self) -> Shake256Replacement:
+            return Shake256Replacement(self.preimage)
+        def digest(self, size: int):
+            val = sha256(self.preimage).digest()
+            while len(val) < size:
+                val += sha256(val).digest()
+            return val[:size]
+        def hexdigest(self, size: int) -> str:
+            return self.digest(size).hex()
+        def update(self, data: bytes) -> Shake256Replacement:
+            self.preimage += data
+            return self
+        @property
+        def block_size(self) -> int:
+            return 136
+        @property
+        def digest_size(self) -> int:
+            return 0
+        @property
+        def name(self) -> str:
+            return 'shake_256'
+
+    def shake_256(preimage: bytes):
+        warn('shake_256 is not available on this system; this replacement will not give correct outputs')
+        return Shake256Replacement(preimage)
+
+try:
+    from secrets import token_bytes
+except ImportError:
+    from os import urandom
+    def token_bytes(count: int) -> bytes:
+        return urandom(count)
 
 
 class ValidContract:

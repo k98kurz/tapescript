@@ -1,10 +1,16 @@
 from context import classes, errors, functions, parsing, tools
 from hashlib import sha256
 from nacl.signing import SigningKey, VerifyKey
-from secrets import token_bytes
 from time import time
 import nacl.bindings
 import unittest
+
+try:
+    from secrets import token_bytes
+except ImportError:
+    from os import urandom
+    def token_bytes(count: int) -> bytes:
+        return urandom(count)
 
 
 class TestTools(unittest.TestCase):

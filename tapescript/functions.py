@@ -2,15 +2,88 @@ from __future__ import annotations
 from .classes import Tape, Stack
 from .errors import tert, vert, sert
 from .interfaces import CanCheckTransfer, CanBeInvoked, ScriptProtocol
-from hashlib import sha256, shake_256, sha512
+from hashlib import sha256
 from math import ceil, floor, isnan, log2
 from nacl.exceptions import BadSignatureError
 from nacl.signing import SigningKey, VerifyKey
-from secrets import token_bytes
 from time import time
 from typing import Any, Callable, _ProtocolMeta
 import nacl.bindings
 import struct
+
+try:
+    from hashlib import sha512
+except ImportError:
+    from warnings import warn
+
+    class Sha512Replacement:
+        def __init__(self, preimage: bytes):
+            self.preimage = preimage
+        def copy(self) -> Sha512Replacement:
+            return Sha512Replacement(self.preimage)
+        def digest(self):
+            val = sha256(self.preimage).digest()
+            val += sha256(val).digest()
+            return val
+        def hexdigest(self) -> str:
+            return self.digest().hex()
+        def update(self, data: bytes) -> Sha512Replacement:
+            self.preimage += data
+            return self
+        @property
+        def block_size(self) -> int:
+            return 128
+        @property
+        def digest_size(self) -> int:
+            return 64
+        @property
+        def name(self) -> str:
+            return 'sha512'
+
+    def sha512(preimage: bytes):
+        warn('sha512 is not available on this system; this replacement will not give correct outputs')
+        return Sha512Replacement(preimage)
+
+try:
+    from hashlib import shake_256
+except ImportError:
+    from warnings import warn
+
+    class Shake256Replacement:
+        def __init__(self, preimage: bytes):
+            self.preimage = preimage
+        def copy(self) -> Shake256Replacement:
+            return Shake256Replacement(self.preimage)
+        def digest(self, size: int):
+            val = sha256(self.preimage).digest()
+            while len(val) < size:
+                val += sha256(val).digest()
+            return val[:size]
+        def hexdigest(self, size: int) -> str:
+            return self.digest(size).hex()
+        def update(self, data: bytes) -> Shake256Replacement:
+            self.preimage += data
+            return self
+        @property
+        def block_size(self) -> int:
+            return 136
+        @property
+        def digest_size(self) -> int:
+            return 0
+        @property
+        def name(self) -> str:
+            return 'shake_256'
+
+    def shake_256(preimage: bytes):
+        warn('shake_256 is not available on this system; this replacement will not give correct outputs')
+        return Shake256Replacement(preimage)
+
+try:
+    from secrets import token_bytes
+except ImportError:
+    from os import urandom
+    def token_bytes(count: int) -> bytes:
+        return urandom(count)
 
 
 def bytes_to_int(number: bytes) -> int:

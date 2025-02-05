@@ -4,10 +4,16 @@ from dataclasses import dataclass, field
 from enum import Enum
 from hashlib import sha256
 from nacl.signing import SigningKey
-from secrets import token_bytes
 from utxos import UTXO, Entry, Txn, validate_txn, serialize, deserialize
 import struct
 import unittest
+
+try:
+    from secrets import token_bytes
+except ImportError:
+    from os import urandom
+    def token_bytes(count: int) -> bytes:
+        return urandom(count)
 
 
 def hash_sigfields(tape: classes.Tape, stack: classes.Stack, cache: dict) -> None:
