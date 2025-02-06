@@ -1101,22 +1101,19 @@ def OP_CHECK_TRANSFER(tape: Tape, stack: Stack, cache: dict) -> None:
     sert(isinstance(tape.contracts[contract_id], CanCheckTransfer),
          'contract must implement the CanCheckTransfer interface')
 
-    verify_txn_proof = tape.contracts[contract_id].verify_txn_proof
-    verify_transfer = tape.contracts[contract_id].verify_transfer
-    verify_txn_constraint = tape.contracts[contract_id].verify_txn_constraint
-    calc_txn_aggregates = tape.contracts[contract_id].calc_txn_aggregates
+    contract: CanCheckTransfer = tape.contracts[contract_id]
 
     # check each proof
     for i in range(count):
-        if not verify_txn_proof(txn_proofs[i]):
+        if not contract.verify_txn_proof(txn_proofs[i]):
             all_proofs_valid = False
-        if not verify_transfer(txn_proofs[i], sources[i], destination):
+        if not contract.verify_transfer(txn_proofs[i], sources[i], destination):
             all_proofs_valid = False
-        if len(constraint) and not verify_txn_constraint(txn_proofs[i], constraint):
+        if len(constraint) and not contract.verify_txn_constraint(txn_proofs[i], constraint):
             all_proofs_valid = False
 
     # calculate aggregate
-    aggregate = calc_txn_aggregates(txn_proofs, scope=destination)[destination]
+    aggregate = contract.calc_txn_aggregates(txn_proofs, scope=destination)[destination]
 
     stack.put(b'\xff' if all_proofs_valid and amount <= aggregate else b'\x00')
 
@@ -1565,10 +1562,10 @@ def OP_INVOKE(tape: Tape, stack: Stack, cache: dict) -> None:
         args.append(stack.get())
 
     sert(contract_id in tape.contracts, 'OP_INVOKE unknown contract')
-    contract = tape.contracts[contract_id]
-    sert(isinstance(contract, CanBeInvoked),
+    sert(isinstance(tape.contracts[contract_id], CanBeInvoked),
         'contract must implement the CanBeInvoked interface')
-    result = getattr(contract, 'abi')(args)
+    contract: CanBeInvoked = tape.contracts[contract_id]
+    result = contract.abi(args)
     tert(type(result) in (tuple, list, type(None)),
          'invalid contract: abi return value must be tuple[bytes] or None')
     if result is not None:
