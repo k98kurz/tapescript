@@ -170,6 +170,19 @@ def load_variable(symbols: list[str]) -> tuple[int, tuple[bytes]]:
     src = "READ_CACHE x" + bytes(name, 'utf-8').hex()
     return (1, (compile_script(src),))
 
+def size_variable(symbols: list[str]) -> tuple[int, tuple[bytes]]:
+    """Expand the syntactic sugar of `@#name` into proper OPs, then
+        compile and return the number to advance the symbol index and
+        the bytecode.
+    """
+    yert(symbols[0][:2] == '@#',
+         f"size_variable statement must be of form @#name, not {symbols[0]}")
+    name = symbols[0][2:]
+    yert(name.isalnum(), f'size_variable name must be alphanumeric, not {name}')
+
+    src = "READ_CACHE_SIZE x" + bytes(name, 'utf-8').hex()
+    return (1, (compile_script(src),))
+
 def add_opcode_parsing_handlers(
         opname: str, compiler_handler: Callable, decompiler_handler: Callable
     ) -> None:
@@ -928,6 +941,8 @@ def parse_next(
 
     if current_symbol == '@=':
         advance, parts = set_variable(symbols[index:])
+    elif current_symbol[:2] == '@#':
+        advance, parts = size_variable(symbols[index:])
     elif current_symbol[0] == '@':
         advance, parts = load_variable(symbols[index:])
     elif current_symbol == '!=':
