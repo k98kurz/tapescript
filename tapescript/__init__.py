@@ -59,7 +59,7 @@ from .tools import (
     make_adapter_locks_prv,
     make_adapter_witness,
     make_delegate_key_lock,
-    make_delegate_key_cert_sig,
+    make_delegate_key_cert,
     make_delegate_key_unlock,
     make_htlc_sha256_lock,
     make_htlc_shake256_lock,

@@ -523,7 +523,7 @@ def generate_docs() -> list[str]:
     paragraphs.append(_format_function_doc(make_adapter_locks_prv))
     paragraphs.append(_format_function_doc(make_adapter_witness))
     paragraphs.append(_format_function_doc(make_delegate_key_lock))
-    paragraphs.append(_format_function_doc(make_delegate_key_cert_sig))
+    paragraphs.append(_format_function_doc(make_delegate_key_cert))
     paragraphs.append(_format_function_doc(make_delegate_key_unlock))
     paragraphs.append(_format_function_doc(make_htlc_sha256_lock))
     paragraphs.append(_format_function_doc(make_htlc_shake256_lock))
@@ -790,44 +790,43 @@ def make_delegate_key_lock(root_pubkey: bytes, sigflags: str = '00') -> Script:
     """
     return Script.from_src(f'''
         # required push: signature from delegate key #
-        # required push: delegate public key #
-        # required push: delegation begin ts #
-        # required push: delegation expiry ts #
-        # required push: signature from root key #
-        @= crt 1
-        @= exp 1
-        @= bgn 1
-        @= dpk 1
+        # required push: cert of form: delegate public key + begin ts + expiry + sig #
+        push d40 split @= sig 1
+        dup
+        push d36 split @= exp 1
+        push d32 split @= bgn 1 @= dpk 1
 
         # prove the timestamp is within the cert bounds #
         @exp val s"timestamp" less verify
         val s"timestamp" @bgn less verify
 
-        # cert form: delegate key + begin ts + expiry #
-        @crt
-        @dpk @bgn concat @exp concat
+        # cert form: delegate key + begin ts + expiry + sig #
+        @sig swap2
+        # @dpk @bgn concat @exp concat #
         push x{root_pubkey.hex()} check_sig_stack verify
 
         @dpk check_sig x{sigflags}
     ''')
 
-def make_delegate_key_cert_sig(
+def make_delegate_key_cert(
         root_skey: bytes, delegate_pubkey: bytes, begin_ts: int, end_ts: int
     ) -> bytes:
     """Returns a signature for a key delegation cert."""
-    # cert form: delegate key + begin ts + expiry #
+    # cert form: delegate key + begin ts + expiry + sig #
     _, stack, _ = run_script(compile_script(f'''
         push x{delegate_pubkey.hex()}
         push d{begin_ts} concat
         push d{end_ts} concat
+        dup
         push x{root_skey.hex()} sign_stack
+        concat
     '''))
     assert len(stack) == 1
     return stack.get()
 
 def make_delegate_key_unlock(
-        prvkey: bytes, pubkey: bytes, begin_ts: int, end_ts: int,
-        cert_sig: bytes, sigfields: dict, sigflags: str = '00'
+        prvkey: bytes, cert: bytes, sigfields: dict,
+        sigflags: str = '00'
     ) -> Script:
     """Returns an unlocking script including a signature from the
         delegate key as well as the delegation certificate.
@@ -840,10 +839,7 @@ def make_delegate_key_unlock(
     sig = stack.get()
     return Script.from_src(f'''
         push x{sig.hex()}
-        push x{pubkey.hex()}
-        push d{begin_ts}
-        push d{end_ts}
-        push x{cert_sig.hex()}
+        push x{cert.hex()}
     ''')
 
 def make_htlc_sha256_lock(

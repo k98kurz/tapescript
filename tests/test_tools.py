@@ -515,18 +515,19 @@ class TestTools(unittest.TestCase):
 
         begin_ts = int(time()) - 120
         end_ts = int(time()) + 120
-        cert_sig = tools.make_delegate_key_cert_sig(
+        cert = tools.make_delegate_key_cert(
             bytes(self.prvkeyA), bytes(self.pubkeyB), begin_ts, end_ts
         )
-        assert type(cert_sig) is bytes
-        assert len(cert_sig) == 64
+        assert type(cert) is bytes
+        assert len(cert) == 104, len(cert)
 
         cache = {'sigfield1': b'hello world'}
 
         unlock = tools.make_delegate_key_unlock(
-            bytes(self.prvkeyB), bytes(self.pubkeyB), begin_ts, end_ts,
-            cert_sig, cache
+            bytes(self.prvkeyB), cert, cache
         )
+        assert len(lock.bytes) == 119
+        assert len(unlock.bytes) == 172
 
         # run e2e
         assert functions.run_auth_script(unlock.bytes + lock.bytes, cache)
