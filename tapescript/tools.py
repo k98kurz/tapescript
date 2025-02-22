@@ -320,6 +320,19 @@ def repl(contracts: dict = {}, add_flags: dict = {}, plugins: dict = {}):
         if src in ("help", "?"):
             print('Assembles and runs scripts. Type "exit", "quit", or "q" to exit.')
             continue
+
+        if src.startswith('~~'):
+            try:
+                src = src[2:].strip()
+                if src.startswith('0x'):
+                    src = src[2:]
+                elif src.startswith('x'):
+                    src = src[1:]
+                print('\n'.join(decompile_script(bytes.fromhex(src))))
+            except BaseException as e:
+                print(str(e))
+            continue
+
         try:
             tape = Tape(
                 assemble(get_symbols(src), macros=macros),
