@@ -790,22 +790,22 @@ def make_delegate_key_lock(root_pubkey: bytes, sigflags: str = '00') -> Script:
     """
     return Script.from_src(f'''
         # required push: signature from delegate key #
-        # required push: cert of form: delegate public key + begin ts + expiry + sig #
-        push d40 split @= sig 1
+        # required push: cert of form: delegate public key + begin ts + expiry ts + sig #
+        push d40 split @= s 1 # sig #
         dup
-        push d36 split @= exp 1
-        push d32 split @= bgn 1 @= dpk 1
+        push d36 split @= x 1 # expiry ts #
+        push d32 split @= b 1 @= d 1 # begin ts and delegate pubkey #
 
         # prove the timestamp is within the cert bounds #
-        @exp val s"timestamp" less verify
-        val s"timestamp" @bgn less verify
+        val s"timestamp" dup @b less verify
+        @x swap2 less verify
 
-        # cert form: delegate key + begin ts + expiry + sig #
-        @sig swap2
-        # @dpk @bgn concat @exp concat #
+        # cert form: delegate key + begin ts + expiry ts + sig #
+        @s swap2
+        # @d @b concat @x concat #
         push x{root_pubkey.hex()} check_sig_stack verify
 
-        @dpk check_sig x{sigflags}
+        @d check_sig x{sigflags}
     ''')
 
 def make_delegate_key_cert(

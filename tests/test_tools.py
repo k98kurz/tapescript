@@ -526,7 +526,7 @@ class TestTools(unittest.TestCase):
         unlock = tools.make_delegate_key_unlock(
             bytes(self.prvkeyB), cert, cache
         )
-        assert len(lock.bytes) == 119
+        assert len(lock.bytes) == 94
         assert len(unlock.bytes) == 172
 
         # run e2e
