@@ -800,12 +800,46 @@ def make_delegate_key_lock(root_pubkey: bytes, sigflags: str = '00') -> Script:
         val s"timestamp" dup @b less verify
         @x swap2 less verify
 
-        # cert form: delegate key + begin ts + expiry ts + sig #
         @s swap2
-        # @d @b concat @x concat #
         push x{root_pubkey.hex()} check_sig_stack verify
 
         @d check_sig x{sigflags}
+    ''')
+
+def make_delegate_key_chain_lock(root_pubkey: bytes, sigflags: str = '00') -> Script:
+    """Takes a root_pubkey and returns the tapescript source for a
+        locking script that is unlocked with a signature from the
+        delegate key, the delegated public key, and a certificate from
+        the root key committing to the delegate public key and validity
+        time constraints. This delegate key can be used to recursively
+        authorize another public key and cert if they are added to the
+        stack, otherwise it will expect to sign the sigfields. The
+        delegate key cert chain can extend until tapescript runtime
+        constraints are hit (either stack size or callstack limit).
+    """
+    return Script.from_src(f'''
+        def 0 {{
+            # required push: signature from delegate key or additional cert #
+            # required push: cert of form: delegate public key + begin ts + expiry ts + sig #
+            # required push: authorizing pubkey #
+            @= r 1 # authorizing pubkey #
+            push d40 split @= s 1 # sig #
+            dup
+            push d36 split @= x 1 # expiry ts #
+            push d32 split @= b 1 @= d 1 # begin ts and delegate pubkey #
+
+            # prove the timestamp is within the cert bounds #
+            val s"timestamp" dup @b less verify
+            @x swap2 less verify
+
+            @s swap2 @r check_sig_stack verify
+            if ( depth push d1 equal ) {{
+                @d check_sig x{sigflags}
+            }} else {{
+                @d call d0
+            }}
+        }}
+        push x{root_pubkey.hex()} call d0
     ''')
 
 def make_delegate_key_cert(
@@ -831,16 +865,27 @@ def make_delegate_key_unlock(
     """Returns an unlocking script including a signature from the
         delegate key as well as the delegation certificate.
     """
+    return make_delegate_key_chain_unlock(prvkey, [cert], sigfields, sigflags)
+
+def make_delegate_key_chain_unlock(
+        prvkey: bytes, certs: list[bytes], sigfields: dict,
+        sigflags: str = '00'
+    ) -> Script:
+    """Returns an unlocking script including a signature from the
+        delegate key as well as the chain of delegation certificates
+        ordered from the one authorizing this key down to the first cert
+        authorized by the root.
+    """
     _, stack, _ = run_script(
         compile_script(f'push x{prvkey.hex()} sign x{sigflags}'),
         sigfields
     )
     assert len(stack) == 1
     sig = stack.get()
-    return Script.from_src(f'''
-        push x{sig.hex()}
-        push x{cert.hex()}
-    ''')
+    return Script.from_src(
+        f'push x{sig.hex()}\npush ' +
+        '\npush '.join([f'x{c.hex()}' for c in certs])
+    )
 
 def make_htlc_sha256_lock(
         receiver_pubkey: bytes, preimage: bytes, refund_pubkey: bytes,

@@ -59,6 +59,7 @@ from .tools import (
     make_adapter_locks_prv,
     make_adapter_witness,
     make_delegate_key_lock,
+    make_delegate_key_chain_lock,
     make_delegate_key_cert,
     make_delegate_key_unlock,
     make_htlc_sha256_lock,
@@ -78,3 +79,9 @@ from .tools import (
     setup_amhl,
     release_left_amhl_lock,
 )
+
+__version__ = '0.6.2'
+
+def version() -> str:
+    """Get the version of the tapescript library."""
+    return __version__
