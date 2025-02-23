@@ -298,7 +298,7 @@ def create_merklized_script_prioritized(
     scripts.append(tree.right.unlocking_script())
     return (lock, scripts)
 
-def repl(contracts: dict = {}, add_flags: dict = {}, plugins: dict = {}):
+def repl(cache: dict = {}, contracts: dict = {}, add_flags: dict = {}, plugins: dict = {}):
     """Provides a REPL (Read Execute Print Loop). Lines of source code
         are read, compiled, and executed, and the runtime state is
         shared between executions. If a code block is opened, the Read
@@ -306,20 +306,54 @@ def repl(contracts: dict = {}, add_flags: dict = {}, plugins: dict = {}):
         code blocks have closed, and it will automatically indent the
         input line. To exit the loop, type "return", "exit", or "quit".
     """
-    cache = {}
+    if "timestamp" not in cache:
+        cache["timestamp"] = int(time())
     stack = Stack()
     defs = {}
     macros = {}
+
+    def printout():
+        print(f'stack: {[f"0x{item.hex()}" for item in stack.deque]}')
+        pc = {
+            key: (f'0x{val.hex()}' if type(val) is bytes else (
+                [f'0x{v.hex()}' if type(v) is bytes else v for v in val]
+                if type(val) is list else val
+            ))
+            for key, val in cache.items()
+            if type(key) in (str, int) and type(val)
+        }
+        pc = {
+            **pc,
+            ** {
+                f'0x{key.hex()}': (f'0x{val.hex()}' if type(val) is bytes else (
+                    [f'0x{v.hex()}' if type(v) is bytes else v for v in val]
+                    if type(val) is list else val
+                ))
+                for key, val in cache.items()
+                if type(key) is bytes
+            }
+        }
+        print(f'cache: {pc}')
+
     while True:
         src = input("> ")
-        while src.count("{") > src.count("}") or src.count("(") > src.count("}"):
-            indent = src.count("{") - src.count("}") + src.count("(") - src.count(")")
-            src += "\n" + input("".join(["  " for _ in range(indent)]) + "> ")
+
+        # repl helpers
+        if src == '':
+            continue
+        if src == "show":
+            printout()
+            continue
         if src in ("quit", "return", "exit", "q"):
             return
         if src in ("help", "?"):
-            print('Assembles and runs scripts. Type "exit", "quit", or "q" to exit.')
+            print('Assembles and runs scripts. Type "exit", "quit", or "q" to exit,' + \
+                  ' or "show" to show the stack and cache.')
             continue
+
+        while src.count("{") > src.count("}") or src.count("(") > src.count("}"):
+            indent = src.count("{") - src.count("}") + src.count("(") - src.count(")")
+            src += "\n" + input("".join(["  " for _ in range(indent)]) + "> ")
 
         if src.startswith('~~'):
             try:
@@ -350,27 +384,7 @@ def repl(contracts: dict = {}, add_flags: dict = {}, plugins: dict = {}):
         except BaseException as e:
             print(str(e))
 
-        print(f'stack: {[f"0x{item.hex()}" for item in stack.deque]}')
-        pc = {
-            key: (f'0x{val.hex()}' if type(val) is bytes else (
-                [f'0x{v.hex()}' if type(v) is bytes else v for v in val]
-                if type(val) is list else val
-            ))
-            for key, val in cache.items()
-            if type(key) in (str, int) and type(val)
-        }
-        pc = {
-            **pc,
-            ** {
-                f'0x{key.hex()}': (f'0x{val.hex()}' if type(val) is bytes else (
-                    [f'0x{v.hex()}' if type(v) is bytes else v for v in val]
-                    if type(val) is list else val
-                ))
-                for key, val in cache.items()
-                if type(key) is bytes
-            }
-        }
-        print(f'cache: {pc}')
+        printout()
 
 def _format_docstring(docstring: str) -> str:
     """Takes a docstring, tokenizes it, and returns a str formatted to
@@ -790,15 +804,16 @@ def make_delegate_key_lock(root_pubkey: bytes, sigflags: str = '00') -> Script:
     """
     return Script.from_src(f'''
         # required push: signature from delegate key #
-        # required push: cert of form: delegate public key + begin ts + expiry ts + sig #
-        push d40 split @= s 1 # sig #
+        # required push: cert of form: delegate public key + begin ts + end ts + can + sig #
+        push d41 split @= s 1 # sig #
         dup
-        push d36 split @= x 1 # expiry ts #
+        push d40 split pop0 # can #
+        push d36 split @= e 1 # end ts #
         push d32 split @= b 1 @= d 1 # begin ts and delegate pubkey #
 
         # prove the timestamp is within the cert bounds #
         val s"timestamp" dup @b less verify
-        @x swap2 less verify
+        @e swap2 less verify
 
         @s swap2
         push x{root_pubkey.hex()} check_sig_stack verify
@@ -820,37 +835,45 @@ def make_delegate_key_chain_lock(root_pubkey: bytes, sigflags: str = '00') -> Sc
     return Script.from_src(f'''
         def 0 {{
             # required push: signature from delegate key or additional cert #
-            # required push: cert of form: delegate public key + begin ts + expiry ts + sig #
+            # required push: cert of form: delegate public key + begin ts + end ts ts + can + sig #
             # required push: authorizing pubkey #
             @= r 1 # authorizing pubkey #
-            push d40 split @= s 1 # sig #
+            push d41 split @= s 1 # sig #
             dup
-            push d36 split @= x 1 # expiry ts #
+            push d40 split @= c 1 # can delegate further #
+            push d36 split @= e 1 # end ts ts #
             push d32 split @= b 1 @= d 1 # begin ts and delegate pubkey #
 
             # prove the timestamp is within the cert bounds #
             val s"timestamp" dup @b less verify
-            @x swap2 less verify
+            @e swap2 less verify
 
             @s swap2 @r check_sig_stack verify
-            if ( depth push d1 equal ) {{
-                @d check_sig x{sigflags}
-            }} else {{
+            if ( depth push d1 eq not @c and ) {{
                 @d call d0
+            }} else {{
+                @d check_sig x{sigflags}
             }}
         }}
         push x{root_pubkey.hex()} call d0
     ''')
 
 def make_delegate_key_cert(
-        root_skey: bytes, delegate_pubkey: bytes, begin_ts: int, end_ts: int
+        root_skey: bytes, delegate_pubkey: bytes, begin_ts: int, end_ts: int,
+        can_further_delegate: bool = True
     ) -> bytes:
-    """Returns a signature for a key delegation cert."""
-    # cert form: delegate key + begin ts + expiry + sig #
+    """Returns a signed key delegation cert. By default, this cert will
+        authorize the delegate_pubkey holder to create further delegate
+        certs, allowing authorization by a chain of certs. To disable
+        this behavior and create a terminal cert, pass `False` as the
+        can_further_delegate argument.
+    """
+    # cert form: delegate key + begin ts + end ts + sig + can #
     _, stack, _ = run_script(compile_script(f'''
         push x{delegate_pubkey.hex()}
         push d{begin_ts} concat
         push d{end_ts} concat
+        {'true' if can_further_delegate else 'false'} concat
         dup
         push x{root_skey.hex()} sign_stack
         concat

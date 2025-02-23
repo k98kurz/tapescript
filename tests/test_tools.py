@@ -519,18 +519,18 @@ class TestTools(unittest.TestCase):
             bytes(self.prvkeyA), bytes(self.pubkeyB), begin_ts, end_ts
         )
         assert type(cert) is bytes
-        assert len(cert) == 104, len(cert)
+        assert len(cert) == 105, len(cert)
 
         cache = {'sigfield1': b'hello world'}
 
         unlock = tools.make_delegate_key_unlock(
             bytes(self.prvkeyB), cert, cache
         )
-        assert len(lock.bytes) == 94
-        assert len(unlock.bytes) == 172
+        assert len(lock.bytes) == 98, len(lock.bytes)
+        assert len(unlock.bytes) == 173
 
         # run e2e
-        assert functions.run_auth_script(unlock.bytes + lock.bytes, cache)
+        assert functions.run_auth_script(unlock + lock, cache), (unlock + lock).src
 
     def test_make_delegate_key_chain_lock_e2e(self):
         lock = tools.make_delegate_key_chain_lock(bytes(self.pubkeyA))
@@ -541,29 +541,29 @@ class TestTools(unittest.TestCase):
             bytes(self.prvkeyA), bytes(self.pubkeyB), begin_ts, end_ts
         )
         assert type(cert1) is bytes
-        assert len(cert1) == 104, len(cert1)
+        assert len(cert1) == 105, len(cert1)
 
         cache = {'sigfield1': b'hello world'}
 
         unlock = tools.make_delegate_key_chain_unlock(
             bytes(self.prvkeyB), [cert1], cache
         )
-        assert len(lock.bytes) == 121, len(lock.bytes)
-        assert len(unlock.bytes) == 172, (len(unlock.bytes), unlock.src)
+        assert len(lock.bytes) == 133, len(lock.bytes)
+        assert len(unlock.bytes) == 173, (len(unlock.bytes), unlock.src)
 
         # run e2e 1 cert
-        assert functions.run_auth_script(unlock.bytes + lock.bytes, cache)
+        assert functions.run_auth_script(unlock + lock, cache), (unlock+lock).src
 
         cert2 = tools.make_delegate_key_cert(
             bytes(self.prvkeyB), bytes(self.pubkeyC), begin_ts, end_ts
         )
         assert type(cert2) is bytes
-        assert len(cert2) == 104, len(cert2)
+        assert len(cert2) == 105, len(cert2)
 
         unlock = tools.make_delegate_key_chain_unlock(
             bytes(self.prvkeyC), [cert2, cert1], cache
         )
-        assert len(unlock.bytes) == 278, (len(unlock.bytes), unlock.src)
+        assert len(unlock.bytes) == 280, (len(unlock.bytes), unlock.src)
 
         # run e2e 2 certs chained
         assert functions.run_auth_script(unlock.bytes + lock.bytes, cache)
