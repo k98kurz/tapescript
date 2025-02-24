@@ -1232,8 +1232,8 @@ def cli_help() -> str:
     name = argv[0]
     return '\n'.join([
         f'Usage: {name} [method] [options]',
-        '\trepl -- interactive -- i -- invokes the REPL; default behavior if no'
-        ' method is passed',
+        '\trepl [cache_file] -- interactive -- i -- invokes the REPL; default '
+        'behavior if no method is passed',
         '\tcompile src_file bin_file -- compiles the source code into bytecode '
         'and writes it to bin_file',
         '\tdecompile bin_file -- decompiles the bytecode and outputs to stdout',
@@ -1246,10 +1246,11 @@ def cli_help() -> str:
         '{', '\t"type:name": [type, value]', '}\n',
         'The type must be one of "string", "str", "number", "bytes". All bytes '
         'values must be hexadecimal strings. For example:',
-        '{', '\t["number", 78]: ["bytes", "d13f398b5bacf525"]', '}'
+        '{', '\t"number:78": ["bytes", "d13f398b5bacf525"]', '}'
     ])
 
 def _clert(condition: bool, message: str = ''):
+    """CLI assert: print error message and exit if condition fails."""
     if not condition:
         message = f'{message}\n{cli_help()}' if message else cli_help()
         print(message)
@@ -1268,11 +1269,12 @@ def _parse_cache_json_part(part: list, errmsg: str):
             return bytes.fromhex(part[1])
 
 def _parse_cache_json(fname: str) -> dict:
-    errmsg = 'JSON file format is {"type:name": [type, value], ...}. ' + \
+    errmsg = 'JSON file format is {"type:name": ["type", value], ...}. ' + \
         'The type must be "string", "str", "number", or "bytes". Bytes ' + \
         'values must be hexadecimal. If type is "string" or "str", the ' + \
         'associated name or value must be a string. If type is "number", ' + \
-        'the associated name or value must be a number.'
+        'the associated name or value must be a number. Each key and each ' + \
+        'value must have a type, but they do not have to match.'
     with open(fname, 'r') as f:
         cache = {}
         data: dict = json.loads(f.read())
@@ -1298,7 +1300,10 @@ def run_cli() -> None:
         case 'help' | '--help' | '?' | '-?' | '-h':
             print(cli_help())
         case 'i' | 'repl':
-            repl()
+            cache = {}
+            if len(argv) > 2:
+                cache = _parse_cache_json(argv[2])
+            repl(cache)
         case 'compile':
             _clert(len(argv) >= 4, 'Must supply src_file and bin_file parameters.')
             src_fname = argv[2]
