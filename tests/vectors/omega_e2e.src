@@ -327,3 +327,9 @@ NOP252 d1
 NOP253 d1
 NOP254 d1
 NOP255 d1
+
+# 0.7.0 #
+equal
+equal_verify
+check_sig x22
+check_sig_verify x33
