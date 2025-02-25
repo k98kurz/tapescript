@@ -600,7 +600,7 @@ class TestTools(unittest.TestCase):
             bytes(self.prvkeyB), cert, cache
         )
         assert len(lock.bytes) == 98, len(lock.bytes)
-        assert len(unlock.bytes) == 173
+        assert len(unlock.bytes) == 173, len(unlock.bytes)
 
         # run e2e
         assert functions.run_auth_script(unlock + lock, cache), (unlock + lock).src
@@ -621,8 +621,8 @@ class TestTools(unittest.TestCase):
         unlock = tools.make_delegate_key_chain_unlock(
             bytes(self.prvkeyB), [cert1], cache
         )
-        assert len(lock.bytes) == 133, len(lock.bytes)
-        assert len(unlock.bytes) == 173, (len(unlock.bytes), unlock.src)
+        assert len(lock.bytes) == 128, len(lock.bytes)
+        assert len(unlock.bytes) == 174, (len(unlock.bytes), unlock.src)
 
         # run e2e 1 cert
         assert functions.run_auth_script(unlock + lock, cache), (unlock+lock).src
@@ -636,7 +636,7 @@ class TestTools(unittest.TestCase):
         unlock = tools.make_delegate_key_chain_unlock(
             bytes(self.prvkeyC), [cert2, cert1], cache
         )
-        assert len(unlock.bytes) == 280, (len(unlock.bytes), unlock.src)
+        assert len(unlock.bytes) == 282, (len(unlock.bytes), unlock.src)
 
         # run e2e 2 certs chained
         assert functions.run_auth_script(unlock.bytes + lock.bytes, cache)

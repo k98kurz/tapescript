@@ -899,7 +899,7 @@ def make_delegate_key_chain_lock(root_pubkey: bytes, sigflags: str = '00') -> Sc
             @e swap2 less verify
 
             @s swap2 @r check_sig_stack verify
-            if ( depth push d1 eq not @c and ) {{
+            if ( @c and ) {{
                 @d call d0
             }} else {{
                 @d check_sig x{sigflags}
@@ -938,7 +938,16 @@ def make_delegate_key_unlock(
     """Returns an unlocking script including a signature from the
         delegate key as well as the delegation certificate.
     """
-    return make_delegate_key_chain_unlock(prvkey, [cert], sigfields, sigflags)
+    _, stack, _ = run_script(
+        compile_script(f'push x{prvkey.hex()} sign x{sigflags}'),
+        sigfields
+    )
+    assert len(stack) == 1
+    sig = stack.get()
+    return Script.from_src(f'''
+        push x{sig.hex()}
+        push x{cert.hex()}
+    ''')
 
 def make_delegate_key_chain_unlock(
         prvkey: bytes, certs: list[bytes], sigfields: dict,
@@ -956,8 +965,8 @@ def make_delegate_key_chain_unlock(
     assert len(stack) == 1
     sig = stack.get()
     return Script.from_src(
-        f'push x{sig.hex()}\npush ' +
-        '\npush '.join([f'x{c.hex()}' for c in certs])
+        f'push x{sig.hex()} false\npush ' +
+        ' true\npush '.join([f'x{c.hex()}' for c in certs])
     )
 
 def make_htlc_sha256_lock(
