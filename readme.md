@@ -8,27 +8,12 @@ many op codes do complex things rather than simple/primitive ones, e.g.
 
 ## Status
 
-- [x] OPs
-- [x] Interpreter functions and classes
-- [x] Byte-code compiler
-- [x] Decompiler
-- [x] Unit tests
-- [x] E2e tests
-- [x] Merkleval test vectors
-- [x] Omega e2e test with all ops and nops
-- [x] Plugin architecture: new ops with compiler, decompiler, interpreter
-- [x] Half-decent docs
-- [x] Decent docs
-- [x] Package published
-- [x] Added try...except
-- [x] Aliases without `OP_` prefix
-- [x] Macros and variables
-- [x] Loops
-- [x] HTLCs, AMHLs, adapter signatures, delegated key scripts
-- [x] Simple CLI: compile, decompile, run, and auth
-- [x] Document plugin system
-- [x] Rewrite `OP_MERKLEVAL` and tools to use root=xor(hash(hash(branchA)), hash(hash(branchB)))
-- [x] REPL and comptime
+Primary development has been completed. Incorporating feedback from use in real
+applications and integration into libraries.
+
+Open issues can be tracked [here](https://github.com/k98kurz/tapescript/issues).
+Historical changes can be found in the
+[changelog](https://github.com/k98kurz/tapescript/blob/main/CHANGELOG.md).
 
 ## Usage
 
@@ -47,8 +32,9 @@ pip install tapescript=={version}
 ### CLI
 
 As of version 0.4.0, a simple CLI has been included with the following features:
-- `repl` -- activates a REPL (Read Execute Print Loop; default if CLI is executed
-without arguments added in 0.6.0)
+- `repl [cache_file]` -- activates a REPL (Read Execute Print Loop; default if
+CLI is executed without arguments added in 0.6.0; cache_file processing added in
+0.7.0)
 - `compile src_file bin_file` -- compiles the human-readable source into bytecode
 - `decompile bin_file` -- decompiles bytecode to human-readable source
 - `run bin_file [cache_file]` -- runs Tapescript bytecode and prints the cache
@@ -67,8 +53,8 @@ or plugins.
 ### Write, compile, decompile
 
 See the
-[langauge_spec.md](https://github.com/k98kurz/tapescript/blob/v0.6.1/language_spec.md)
-and [docs.md](https://github.com/k98kurz/tapescript/blob/v0.6.1/docs.md) files
+[langauge_spec.md](https://github.com/k98kurz/tapescript/blob/v0.7.0/language_spec.md)
+and [docs.md](https://github.com/k98kurz/tapescript/blob/v0.7.0/docs.md) files
 for syntax and operation specifics.
 
 Once you have a script written, use the `compile_script(code: str) -> bytes`
@@ -635,7 +621,7 @@ python tests/test_e2e_eltoo.py
 python tests/test_e2e_extensions.py
 ```
 
-There are currently 250 tests and 107 test vectors used for validating the ops,
+There are currently 255 tests and 107 test vectors used for validating the ops,
 compiler, decompiler, and script running functions. This includes 3 tests for a
 proof-of-concept implementation of the eltoo payment channel protocol, and e2e
 tests combining the anonymous multi-hop lock (AMHL) system with adapter
