@@ -1,6 +1,7 @@
 from context import classes, errors, functions, parsing, tools
 from hashlib import sha256
 from nacl.signing import SigningKey, VerifyKey
+from random import randint
 from time import time
 import nacl.bindings
 import unittest
@@ -678,11 +679,13 @@ class TestTools(unittest.TestCase):
         sigfields = {'sigfield1': b'hello world'}
         # NB: ts_threshold is 60, preventing timestamps >60s into future from verifying
         timeout = 30
+        hash_size = randint(16, 40)
         lock = tools.make_htlc_shake256_lock(
             receiver_pubkey=bytes(self.pubkeyB),
             preimage=preimage,
             refund_pubkey=bytes(self.pubkeyA),
-            timeout=timeout
+            timeout=timeout,
+            hash_size=hash_size
         )
 
         hash_unlock = tools.make_htlc_witness(
@@ -744,11 +747,13 @@ class TestTools(unittest.TestCase):
         sigfields = {'sigfield1': b'hello world'}
         # NB: ts_threshold is 60, preventing timestamps >60s into future from verifying
         timeout = 30
+        hash_size = randint(16, 40)
         lock = tools.make_htlc2_shake256_lock(
             receiver_pubkey=bytes(self.pubkeyB),
             preimage=preimage,
             refund_pubkey=bytes(self.pubkeyA),
-            timeout=timeout
+            timeout=timeout,
+            hash_size=hash_size
         )
 
         hash_unlock = tools.make_htlc2_witness(
