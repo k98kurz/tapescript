@@ -118,6 +118,10 @@ class ScriptLeaf:
     script: Script|None = field(default=None)
     parent: ScriptNode = field(default=None)
 
+    def __str__(self) -> str:
+        """Return a human-readable string representation of the script leaf."""
+        return f"ScriptLeaf(src='{self.script.src}', hash={self.hash.hex()})"
+
     @classmethod
     def from_script(cls, script: Script) -> ScriptLeaf:
         """Create an instance from a Script object."""
@@ -174,6 +178,10 @@ class ScriptNode:
         self.left = left
         self.right = right
         self.parent = None
+
+    def __str__(self) -> str:
+        """Return a human-readable string representation of the node."""
+        return f'{self.root().hex()}: [{self.left}, {self.right}]'
 
     def root(self) -> bytes:
         """Calculate and return the local root between the two branches."""
@@ -239,7 +247,8 @@ class ScriptNode:
         return cls(left, right)
 
 def create_script_tree_prioritized(
-        leaves: list[str|ScriptProtocol], tree: ScriptNode = None) -> ScriptNode:
+        leaves: list[str|ScriptProtocol], tree: ScriptNode|None = None
+    ) -> ScriptNode:
     """Construct a script tree from the leaves using a ScriptLeaf for
         each leaf script, combining the last two into a ScriptNode and
         then recursively combining a ScriptLeaf for the last of the
@@ -281,7 +290,8 @@ def create_script_tree_prioritized(
     return node
 
 def create_merklized_script_prioritized(
-        leaves: list[str|ScriptProtocol]) -> tuple[Script, list[Script]]:
+        leaves: list[str|ScriptProtocol]
+    ) -> tuple[Script, list[Script]]:
     """Produces a Merklized, branching script structure with one leaf
         and one node at every level except for the last node, which is
         balanced. Returns a tuple of root locking script and list of
@@ -297,6 +307,79 @@ def create_merklized_script_prioritized(
         scripts.append(tree.left.unlocking_script())
     scripts.append(tree.right.unlocking_script())
     return (lock, scripts)
+
+def create_script_tree_balanced(leaves: list[str|ScriptProtocol]) -> ScriptNode:
+    """Create a balanced script tree from the leaves, filling with
+        filler leaves/branches to make sure the tree is balanced. The
+        filler leaves take the form of "push x{4 random bytes} return",
+        so they can never validate, and they will have unique hashes to
+        avoid revealing the presence of empty leaves/branches during
+        execution of actual leaf scripts. Used by the
+        create_merklized_script_balanced function; that is probably the
+        best way to use this tool.
+    """
+    tert(type(leaves) in (list, tuple), 'leaves must be list or tuple')
+    for item in leaves:
+        tert(type(item) is str or isinstance(item, ScriptProtocol),
+             'leaves must be list or tuple of str|ScriptProtocol')
+
+    # prepare leaves
+    leaves = [Script.from_src(l) if type(l) is str else l for l in leaves]
+    leaves: list[ScriptLeaf] = [ScriptLeaf.from_script(l) for l in leaves]
+    empty_leaf = lambda: ScriptLeaf.from_src('push ~! { push d4 random } return')
+    empty_node = lambda: ScriptNode(empty_leaf(), empty_leaf())
+    if len(leaves) % 2:
+        leaves.append(empty_leaf())
+
+    # first combine leaves into nodes two at a time
+    leaves.reverse()
+    nodes = []
+    while len(leaves):
+        nodes.append(ScriptNode(leaves.pop(), leaves.pop()))
+
+    while len(nodes) > 1:
+        if len(nodes) % 2:
+            nodes.append(empty_node())
+        nodes.reverse()
+        new_nodes = []
+        while len(nodes):
+            new_nodes.append(ScriptNode(nodes.pop(), nodes.pop()))
+        nodes = new_nodes
+
+    return nodes[0]
+
+def create_merklized_script_balanced(
+        leaves: list[str|ScriptProtocol]
+    ) -> tuple[Script, list[Script]]:
+    """Produces a Merklized, branching script with a balanced tree
+        structure, filling with filler branches to make sure the tree is
+        balanced (calls create_script_tree_balanced under the hood).
+        Returns a tuple of root locking script and list of partial
+        unlocking scripts corresponding to the input scripts. In
+        practice, the input scripts should be locking scripts, and then
+        they should be used by providing the corresponding unlocking
+        script and the unlocking script from this function.
+    """
+    leaves = [Script.from_src(l) if type(l) is str else l for l in leaves]
+    tree = create_script_tree_balanced(leaves)
+    lock = tree.locking_script()
+
+    def _find_leaves(node: ScriptNode) -> list[ScriptLeaf]:
+        _leaves = []
+        if type(node.left) is ScriptLeaf:
+            _leaves.append(node.left)
+        else:
+            _leaves.extend(_find_leaves(node.left))
+        if type(node.right) is ScriptLeaf:
+            _leaves.append(node.right)
+        else:
+            _leaves.extend(_find_leaves(node.right))
+        return _leaves
+
+    script_leaves = _find_leaves(tree)
+    script_leaves = script_leaves[:len(leaves)]
+    scripts = [leaf.unlocking_script() for leaf in script_leaves]
+    return lock, scripts
 
 def repl(cache: dict = {}, contracts: dict = {}, add_flags: dict = {}, plugins: dict = {}):
     """Provides a REPL (Read Execute Print Loop). Lines of source code
@@ -524,6 +607,8 @@ def generate_docs() -> list[str]:
     paragraphs.append(_format_class_doc(ScriptNode))
     paragraphs.append(_format_function_doc(create_script_tree_prioritized))
     paragraphs.append(_format_function_doc(create_merklized_script_prioritized))
+    paragraphs.append(_format_function_doc(create_script_tree_balanced))
+    paragraphs.append(_format_function_doc(create_merklized_script_balanced))
     paragraphs.append(_format_function_doc(make_adapter_lock_pub))
     paragraphs.append(_format_function_doc(make_adapter_lock_prv))
     paragraphs.append(_format_function_doc(make_single_sig_lock))

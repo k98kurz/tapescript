@@ -44,6 +44,8 @@ from .tools import (
     ScriptNode,
     create_script_tree_prioritized,
     create_merklized_script_prioritized,
+    create_script_tree_balanced,
+    create_merklized_script_balanced,
     generate_docs,
     add_soft_fork,
     make_adapter_lock_pub,

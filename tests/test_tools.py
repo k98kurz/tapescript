@@ -110,7 +110,7 @@ class TestTools(unittest.TestCase):
     def test_merklized_script_tree_classes_e2e(self):
         tree = tools.ScriptNode(
             tools.ScriptNode(
-                tools.ScriptLeaf.from_src('push s"hello world"'),
+                tools.ScriptLeaf.from_src(f'sha256 push x{sha256(b"secret").digest().hex()} equal'),
                 tools.ScriptLeaf.from_src('true'),
             ),
             tools.ScriptNode(
@@ -126,9 +126,19 @@ class TestTools(unittest.TestCase):
         assert type(lock) is tools.Script
         assert functions.run_auth_script(unlock.bytes + lock.bytes)
 
+        unlock = tree.left.left.unlocking_script()
+        assert type(unlock) is tools.Script
+
+        lock = tree.locking_script()
+        assert type(lock) is tools.Script
+        assert functions.run_auth_script(
+            tools.Script.from_src('push s"secret"') + unlock + lock
+        )
+
         packed = tree.pack()
         unpacked = tools.ScriptNode.unpack(packed)
         assert unpacked.locking_script().bytes == lock.bytes
+        assert unpacked.right.right.commitment() == tree.right.right.commitment()
 
     def test_create_merklized_script_prioritized_returns_tuple_of_Script_and_list_of_Scripts(self):
         result = tools.create_merklized_script_prioritized(['OP_PUSH d123'])
@@ -218,6 +228,68 @@ class TestTools(unittest.TestCase):
             assert not stack.empty()
             assert int.from_bytes(stack.get(), 'big') == i
             assert stack.empty()
+
+    def test_create_script_tree_balanced_4_leaves_e2e(self):
+        scripts = [f'push d{i} pop0 true' for i in range(4)]
+        tree = tools.create_script_tree_balanced(scripts)
+        assert type(tree.left) is tools.ScriptNode
+        assert type(tree.left.left) is tools.ScriptLeaf
+        assert type(tree.left.right) is tools.ScriptLeaf
+        assert type(tree.right) is tools.ScriptNode
+        assert type(tree.right.left) is tools.ScriptLeaf
+        assert type(tree.right.right) is tools.ScriptLeaf
+
+    def test_create_script_tree_balanced_7_leaves_e2e(self):
+        scripts = [f'push d{i} pop0 true' for i in range(7)]
+        tree = tools.create_script_tree_balanced(scripts)
+        lock = tree.locking_script()
+
+        # prove structure is perfectly balanced as all things should be
+        assert type(tree.left) is tools.ScriptNode
+        assert type(tree.left.left) is tools.ScriptNode
+        assert type(tree.left.left.left) is tools.ScriptLeaf
+        assert type(tree.left.left.right) is tools.ScriptLeaf
+        assert type(tree.left.right) is tools.ScriptNode
+        assert type(tree.left.right.left) is tools.ScriptLeaf
+        assert type(tree.left.right.right) is tools.ScriptLeaf
+        assert type(tree.right) is tools.ScriptNode
+        assert type(tree.right.left) is tools.ScriptNode
+        assert type(tree.right.left.left) is tools.ScriptLeaf
+        assert type(tree.right.left.right) is tools.ScriptLeaf
+        assert type(tree.right.right) is tools.ScriptNode
+        assert type(tree.right.right.left) is tools.ScriptLeaf
+        assert type(tree.right.right.right) is tools.ScriptLeaf
+
+        # prove a good leaf validates
+        unlock = tree.left.left.left.unlocking_script()
+        assert functions.run_auth_script(unlock + lock)
+
+        # prove the filler leaf does not validate
+        unlock = tree.right.right.right.unlocking_script()
+        assert not functions.run_auth_script(unlock + lock)
+        # even if we inject an OP_TRUE
+        hax = tools.Script.from_src('true')
+        assert not functions.run_auth_script(hax + unlock + lock)
+        assert not functions.run_auth_script(unlock + hax + lock)
+        assert not functions.run_auth_script(unlock + lock + hax)
+
+    def test_create_merklized_script_balanced_4_leaves_e2e(self):
+        scripts = [f'push d{i} pop0 true' for i in range(4)]
+        lock, unlocks = tools.create_merklized_script_balanced(scripts)
+        assert len(unlocks) == 4, len(unlocks)
+        assert lock.src.split()[0] == 'OP_MERKLEVAL'
+
+        for unlock in unlocks:
+            assert functions.run_auth_script(unlock + lock)
+
+    def test_create_merklized_script_balanced_7_leaves_e2e(self):
+        scripts = [f'push d{i} pop0 true' for i in range(7)]
+        lock, unlocks = tools.create_merklized_script_balanced(scripts)
+        assert len(unlocks) == 7, len(unlocks)
+        assert lock.src.split()[0] == 'OP_MERKLEVAL'
+
+        for unlock in unlocks:
+            assert functions.run_auth_script(unlock + lock)
 
     def test_add_soft_fork_e2e(self):
         locking_script_old_src = 'NOP255 d3 OP_TRUE'
