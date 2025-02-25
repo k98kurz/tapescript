@@ -1170,7 +1170,7 @@ def make_ptlc_witness(
 
 def make_ptlc_refund_witness(
         prvkey: bytes, sigfields: dict, sigflags: str = '00') -> Script:
-    '''Returns the tapescript source for a PTLC witness unlcoking the
+    '''Returns the tapescript source for a PTLC witness unlocking the
         time locked refund branch.
     '''
     return Script.from_src(f'{make_single_sig_witness(prvkey, sigfields, sigflags).src} false')

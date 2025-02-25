@@ -1,3 +1,32 @@
+## 0.7.0
+
+- Added `@#name` syntactic sugar for `OP_READ_CACHE_SIZE s"name"`
+- Added decompilation feature to repl (type `~~` followed by the hexadecimal
+byte codes of a script to see the disassembled script)
+- Can now pass a `cache_file` path to the repl invocation, and it will load it
+- Repl now automatically sets the "timestamp" cache value to the Unix epoch
+  timestamp at the time the repl is invoked
+- Added more aliases:
+  - `EQ` for `OP_EQUAL`
+  - `EQV` for `OP_EQUAL_VERIFY`
+  - `CS` for `OP_CHECK_SIG`
+- Updated tooling for delegate keys:
+  - Added `make_delegate_key_chain_lock`
+  - Added `make_delegate_key_chain_unlock`
+  - Updated `make_delegate_key_cert`:
+    - Optimized the system by concatenating timestamps into the cert, saving 6
+      bytes in the unlocking script and enabline cert chains
+    - Appended a bool to indicate if the delegate can further delegate access,
+      adding 1 byte of overhead per cert
+    - Overall, the changes result in 5 bytes saved for one cert
+  - Updated `make_delegate_key_lock` parsing to account for new cert format
+  - Optimized `make_delegate_key_lock`, saving 27 bytes compared to 0.6.2 (from
+    125 bytes to 98), including the updated parsing
+  - Updated `make_delegate_key_unlock`: new cert format saved 5 bytes overall
+- Added new tools for using balanced Merklized script trees:
+  - `create_script_tree_balanced`
+  - `create_merklized_script_balanced`
+
 ## 0.6.2
 
 - Made some compatibility patches for systems missing some functions

@@ -104,7 +104,8 @@ Variable assignment uses two possible syntaxes: `@= varname [ vals ]` or
 `OP_WRITE_CACHE` to store those values in the cache at the `varname` key, while
 the second instead just calls `OP_WRITE_CACHE` and takes `count` items from the
 queue. Using `@varname` calls `OP_READ_CACHE` and places the values held at the
-`varname` cache key onto the stack.
+`varname` cache key onto the stack. The number of items in a variable can be
+read with `@#varname` (equivalent to `rcz s"varname"`).
 
 Macros allow use of string interpolation in the compiler: use the syntax
 `!= macroname [ arg1 arg2 ... ] { statements }` to define a macro and
@@ -152,27 +153,33 @@ be invoked outside of them.
 
 #### Merklized scripts
 
-There is an included tool for making merklized branching scripts. To use it,
-write the desired branches, then pass them to the `create_merklized_script`
-function. For example:
+There are included tools for making merklized branching scripts. To use them,
+write the desired branches, then pass them to `create_merklized_script_prioritized`
+or to `create_merklized_script_balanced`. For example:
 
 ```py
-from tapescript import create_merklized_script
+from tapescript import create_merklized_script_prioritized, create_merklized_script_balanced
 
 branches = [
     'OP_PUSH xb26d10053b4b25497081561f529e42da9ccfac860a7b3d1ec932901c2a70afce\nOP_CHECK_SIG x00',
     'OP_PUSH x9e477d55a62fc1ecc6b7c89d69c4f9cba94d5173f0d59f971951ff46acb9017b\nOP_CHECK_SIG x00',
     'OP_PUSH xdd86edfbcfd5ac3e8c1acb527cc4178a14af0755aea1e447dc2b278f52fcedbf\nOP_CHECK_SIG x00',
 ]
-locking_script, unlocking_scripts = create_merklized_script(branches)
+# prioritized script tree has one leaf and one node per level, so the scripts at
+# lower indices have shorter tree inclusion proof unlocking scripts
+locking_script, unlocking_scripts = create_merklized_script_prioritized(branches)
+
+# balanced script tree has all leaves at the same level, so all scripts have the
+# same size inclusion proof unlocking scripts
+locking_script, unlocking_scripts = create_merklized_script_balanced(branches)
 ```
 
-This function returns a tuple containing the locking script that uses
+These functions return a tuple containing the locking script that uses
 `OP_MERKLEVAL` to enforce the cryptographic commitment to the branches and a
 list of unlocking scripts that fulfill the cryptographic commitment and execute
 the individual script branches. The unlocking scripts are ordered identically to
-the input branches. In the above example, each branch expects a signature from
-the given public key. To use as an auth script, the locking script would be
+the input leaf scripts. In the above example, each branch expects a signature
+from the given public key. To use as an auth script, the locking script would be
 compiled and used as the locking condition. A signature would be prepended to
 the unlocking script with an `OP_PUSH x<hex signature> `, and this would then be
 compiled to become the unlocking bytes. Then concatenate the locking script to
@@ -184,13 +191,19 @@ Tools are included for making merklized scripts:
 - `ScriptLeaf` and `ScriptNode` classes
 - `create_script_tree_prioritized(...) -> ScriptNode`
 - `create_merklized_script_prioritized(...) -> tuple[Script, list[Script]]`,
-which uses `create_script_tree_prioritized` under the hood
+  which uses `create_script_tree_prioritized` under the hood
+- `create_script_tree_balanced(...) -> ScriptNode`
+- `create_merklized_script_balanced(...) -> tuple[Script, list[Script]]`,
+  which uses `create_script_tree_balanced` under the hood
 
-The two functions accept a list of leaf scripts and produce an unbalanced tree
-that priotizes efficient execution of lowest index scripts at the expense of
-linearly increasing unlocking script size for higher index scripts. There are
-not currently any functions for producing a balanced tree, but the included
-`ScriptLeaf` and `ScriptNode` classes can be used to make any arbitrary tree:
+The `_prioritized` functions accept a list of leaf scripts and produce an
+unbalanced tree that priotizes efficient execution of lowest index scripts at
+the expense of linearly increasing unlocking script size for higher index
+scripts. The `_balanced` functions accept the same arguments but produce a
+balanced tree that gives all leaf executions identical Merkle proof overhead.
+
+Additionally, the `ScriptLeaf` and `ScriptNode` classes can be used to make
+arbitrary script tree structures. For example:
 
 ```python
 from tapescript import ScriptLeaf, ScriptNode
@@ -211,6 +224,15 @@ tree = ScriptNode(
         ScriptLeaf.from_src(sources[4]),
     )
 )
+
+lock = tree.locking_script()
+unlocks = [
+    tree.left.left.unlocking_script(),
+    tree.left.right.left.unlocking_script(),
+    tree.left.right.right.unlocking_script(),
+    tree.right.left.unlocking_script(),
+    tree.right.right.unlocking_script(),
+]
 ```
 
 #### Taproot scripts
@@ -235,6 +257,58 @@ Tools are included for using taproot:
 - `make_taproot_lock`
 - `make_taproot_witness_keyspend`
 - `make_taproot_witness_scriptspend`
+
+### Delegated access (Graftroot ish)
+
+The general concept behind the Graftroot proposal by Gregory Maxwell is that the
+holder(s) of a private key should be able to authorize another locking script to
+replace the existing one without first broadcasting this change; the holder(s)
+instead sign the new locking script and retain the signature. In the case of a
+multi-party signature, this allows infinite variations to be generated ahead of
+time by collaborating parties which can be used as fallbacks in the case that
+multi-sig collaboration fails or otherwise is not possible in the future. In
+Graftroot terminology, these scripts are called "surrogates" or "delegates". But
+in the case that the parties can collaborate in the future, they can safely make
+a valid signature and discard the pre-signed delegate scripts.
+
+I considered whether to implement Graftroot as an op code when I implemented
+Taproot, and I decided against it partly because of the forward security risk of
+reusing an aggregate public key. (I.e. if several parties make a multi-sig
+public key, e.g. with [musig](https://pypi.org/project/musig), and they sign a
+surrogate script that is not used before they sign a transaction collaboratively,
+then reusing that public key means the earlier surrogate script becomes valid
+again in a new context.) The unconstrained validity of the surrogate scripts
+seemed a bit too much.
+
+However, delegating access after the lock is set still makes sense, and for this
+purpose I have included some tooling around delegating access:
+
+- `make_delegate_key_lock`
+- `make_delegate_key_chain_lock`
+- `make_delegate_key_cert`
+- `make_delegate_key_unlock`
+- `make_delegate_key_chain_unlock`
+
+The idea is that the holder of a root private key will be able to generate a
+certificate authorizing an arbitrary public key for a set amount of time, and
+optionally allow that delegate to authorize further public keys. The chain lock
+allows delegates of delegates to unlock it, but the non-chain lock allows only a
+single layer of delegation, regardless of the content of that field in the cert.
+
+The time constraints in the certs provide an amount of forward security as long
+as you do not provide an `end_ts` too far into the future, eliminating the main
+drawback of Graftroot. However, there are two drawbacks of this scheme compared
+to Graftroot:
+
+1. The locks provided do not directly allow signatures from the root.
+2. The surrogate script is always a form of `push x{pubkey} check_sig x{sigflags}`;
+   i.e. there is not infinite variation in surrogate scripts.
+
+The former can be alleviated by using `OP_TAPROOT` and committing the delegate
+key/chain lock, adding <40 bytes of additional overhead to the delegate access
+execution path. The latter may be addressed in a future update after I have had
+time to think it through -- I may still implement an `OP_GRAFTROOT` or
+equivalent tooling in a future version.
 
 #### Hash Time Locked Contracts and Point Time Locked Contracts
 
@@ -635,7 +709,8 @@ ed25519 and a test proving that all symmetric script trees share the same root.
 Check out the [Pycelium discord server](https://discord.gg/b2QFEJDX69). If you
 experience a problem, please discuss it on the Discord server. All suggestions
 for improvement are also welcome, and the best place for that is also Discord.
-If you experience a bug and do not use Discord, open an issue on Github.
+If you experience a bug and do not use Discord, open an issue or discussion on
+Github.
 
 ## ISC License
 
