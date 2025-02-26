@@ -1303,7 +1303,9 @@ def OP_SIGN(tape: Tape, stack: Stack, cache: dict) -> None:
         the stack, interpreting as a SigningKey; creates a signature
         using the correct sigfields; puts the signature onto the stack.
         Raises ValueError for invalid key seed length. Runs the
-        signature extension plugins beforehand.
+        signature extension plugins beforehand. Resulting signature will
+        have the sig_flag appended to it if a non-null sig_flag is
+        specified.
     """
     run_sig_extensions(tape, stack, cache)
     sig_flag = int.from_bytes(tape.read(1), 'big')
