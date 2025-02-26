@@ -81,7 +81,7 @@ class ScriptLeaf:
     """A leaf in a Merklized script tree."""
     hash: bytes = field()
     script: Script|None = field(default=None)
-    parent: ScriptNode = field(default=None)
+    parent: ScriptNode|None = field(default=None)
 
     def __str__(self) -> str:
         """Return a human-readable string representation of the script leaf."""
@@ -109,6 +109,10 @@ class ScriptLeaf:
     def unlocking_script(self) -> Script:
         """Calculate an unlocking script recursively, traveling up the
             parents. Returns a Script with the source and byte codes.
+            When executed, this will validate the LeafScript against the
+            root ScriptNode commitment (within an `OP_MERKLEVAL` locking
+            script), and then `OP_MERKLEVAL` will execute the underlying
+            script.
         """
         vert(self.parent is not None,
              'leaf must be part of a tree to generate an unlocking script')
@@ -134,7 +138,7 @@ class ScriptNode:
     """A node in a Merklized script tree."""
     left: ScriptLeaf|ScriptNode
     right: ScriptLeaf|ScriptNode
-    parent: ScriptNode
+    parent: ScriptNode|None
 
     def __init__(self, left: ScriptLeaf|ScriptNode, right: ScriptLeaf|ScriptNode) -> None:
         """Initialize the instance."""
@@ -156,8 +160,9 @@ class ScriptNode:
         )
 
     def locking_script(self) -> Script:
-        """Calculates the locking script for the node. Returns a tuple
-            with the source and byte codes.
+        """Calculates the locking script for the node. Returns a Script
+            with the source and byte codes in the form
+            `OP_MERKLEVAL <root>`.
         """
         return Script.from_src(f'OP_MERKLEVAL x{self.root().hex()}')
 
@@ -211,6 +216,7 @@ class ScriptNode:
         right = ScriptLeaf.unpack(right_data) if right_type == b'L' else ScriptNode.unpack(right_data)
         return cls(left, right)
 
+
 def create_script_tree_prioritized(
         leaves: list[str|ScriptProtocol], tree: ScriptNode|None = None
     ) -> ScriptNode:
@@ -262,7 +268,10 @@ def create_merklized_script_prioritized(
         balanced. Returns a tuple of root locking script and list of
         unlocking scripts. The tree is unbalanced; execution is
         optimized for earlier branches (lower index leaf scripts), and
-        execution is linearly worse for each subsequent branch.
+        execution is linearly worse for each subsequent branch. In
+        practice, the input scripts should be locking scripts, and then
+        they should be used by concatenating the corresponding unlocking
+        script and the unlocking script from this function.
     """
     tree = create_script_tree_prioritized(leaves)
     lock = tree.locking_script()
@@ -276,12 +285,11 @@ def create_merklized_script_prioritized(
 def create_script_tree_balanced(leaves: list[str|ScriptProtocol]) -> ScriptNode:
     """Create a balanced script tree from the leaves, filling with
         filler leaves/branches to make sure the tree is balanced. The
-        filler leaves take the form of "push x{4 random bytes} return",
+        filler leaves take the form of `push x{16 random bytes} return`,
         so they can never validate, and they will have unique hashes to
         avoid revealing the presence of empty leaves/branches during
-        execution of actual leaf scripts. Used by the
-        create_merklized_script_balanced function; that is probably the
-        best way to use this tool.
+        execution of actual leaf scripts. Used internally by the
+        `create_merklized_script_balanced` function.
     """
     tert(type(leaves) in (list, tuple), 'leaves must be list or tuple')
     for item in leaves:
@@ -291,7 +299,7 @@ def create_script_tree_balanced(leaves: list[str|ScriptProtocol]) -> ScriptNode:
     # prepare leaves
     leaves = [Script.from_src(l) if type(l) is str else l for l in leaves]
     leaves: list[ScriptLeaf] = [ScriptLeaf.from_script(l) for l in leaves]
-    empty_leaf = lambda: ScriptLeaf.from_src('push ~! { push d4 random } return')
+    empty_leaf = lambda: ScriptLeaf.from_src('push ~! { push d16 random } return')
     empty_node = lambda: ScriptNode(empty_leaf(), empty_leaf())
     if len(leaves) % 2:
         leaves.append(empty_leaf())
@@ -318,12 +326,12 @@ def create_merklized_script_balanced(
     ) -> tuple[Script, list[Script]]:
     """Produces a Merklized, branching script with a balanced tree
         structure, filling with filler branches to make sure the tree is
-        balanced (calls create_script_tree_balanced under the hood).
-        Returns a tuple of root locking script and list of partial
-        unlocking scripts corresponding to the input scripts. In
-        practice, the input scripts should be locking scripts, and then
-        they should be used by providing the corresponding unlocking
-        script and the unlocking script from this function.
+        balanced (calls `create_script_tree_balanced` under the hood).
+        Returns a tuple of root locking script and list of unlocking
+        scripts corresponding to the input scripts. In practice, the
+        input scripts should be locking scripts, and then they should be
+        used by concatenating the corresponding unlocking script and the
+        unlocking script from this function.
     """
     leaves = [Script.from_src(l) if type(l) is str else l for l in leaves]
     tree = create_script_tree_balanced(leaves)
@@ -394,9 +402,17 @@ def repl(cache: dict = {}, contracts: dict = {}, add_flags: dict = {}, plugins: 
             continue
         if src in ("quit", "return", "exit", "q"):
             return
+        if src == '!ts':
+            cache["timestamp"] = int(time())
+            print(cache["timestamp"])
+            continue
         if src in ("help", "?"):
-            print('Assembles and runs scripts. Type "exit", "quit", or "q" to exit,' + \
-                  ' or "show" to show the stack and cache.')
+            print(
+                'Assembles and runs scripts. Type "exit", "quit", or "q" ' +\
+                'to exit; "show" to show the stack and cache; "~~ x<hex>" ' +\
+                'to decompile bytecode; or "!ts" to update the cached ' +\
+                'timestamp to the current Unix epoch timestamp.'
+            )
             continue
 
         while src.count("{") > src.count("}") or src.count("(") > src.count("}"):
@@ -429,10 +445,9 @@ def repl(cache: dict = {}, contracts: dict = {}, add_flags: dict = {}, plugins: 
                 add_flags,
             )
             defs = tape.definitions
+            printout()
         except BaseException as e:
             print(str(e))
-
-        printout()
 
 def _format_docstring(docstring: str) -> str:
     """Takes a docstring, tokenizes it, and returns a str formatted to
