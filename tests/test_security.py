@@ -60,13 +60,19 @@ class TestSecurityAssumptions(unittest.TestCase):
         intended_script = tools.make_single_sig_lock(pubkey)
         taproot_lock = tools.make_taproot_lock(pubkey, intended_script)
         sigfields = {'sigfield1': b'hello world'}
-        taproot_unlock_keyspend = tools.make_taproot_witness_keyspend(seed, sigfields, intended_script)
+        taproot_unlock_keyspend = tools.make_taproot_witness_keyspend(
+            seed, sigfields, intended_script
+        )
         taproot_unlock_scriptspend = tools.make_single_sig_witness(seed, sigfields) + \
             tools.make_taproot_witness_scriptspend(pubkey, intended_script)
 
         # prove normal functioning
-        assert functions.run_auth_script(taproot_unlock_keyspend + taproot_lock, sigfields)
-        assert functions.run_auth_script(taproot_unlock_scriptspend + taproot_lock, sigfields)
+        assert functions.run_auth_script(
+            taproot_unlock_keyspend + taproot_lock, sigfields
+        )
+        assert functions.run_auth_script(
+            taproot_unlock_scriptspend + taproot_lock, sigfields
+        )
 
         # derive point from malicious script
         malicious_script = tools.Script.from_src('true')
@@ -76,7 +82,9 @@ class TestSecurityAssumptions(unittest.TestCase):
 
         # subtract point
         script_point_inverse = nacl.bindings.crypto_core_ed25519_sub(root, script_point)
-        malicious_unlock = tools.make_taproot_witness_scriptspend(script_point_inverse, malicious_script)
+        malicious_unlock = tools.make_taproot_witness_scriptspend(
+            script_point_inverse, malicious_script
+        )
         assert not functions.run_auth_script(malicious_unlock + taproot_lock)
 
     # problem cases to avoid
