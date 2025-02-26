@@ -154,11 +154,11 @@ be invoked outside of them.
 #### Merklized scripts
 
 There are included tools for making merklized branching scripts. To use them,
-write the desired branches, then pass them to `create_merklized_script_prioritized`
-or to `create_merklized_script_balanced`. For example:
+write the desired branches, then pass them to `make_merklized_script_prioritized`
+or to `make_merklized_script_balanced`. For example:
 
 ```py
-from tapescript import create_merklized_script_prioritized, create_merklized_script_balanced
+from tapescript import make_merklized_script_prioritized, make_merklized_script_balanced
 
 branches = [
     'OP_PUSH xb26d10053b4b25497081561f529e42da9ccfac860a7b3d1ec932901c2a70afce\nOP_CHECK_SIG x00',
@@ -167,11 +167,11 @@ branches = [
 ]
 # prioritized script tree has one leaf and one node per level, so the scripts at
 # lower indices have shorter tree inclusion proof unlocking scripts
-locking_script, unlocking_scripts = create_merklized_script_prioritized(branches)
+locking_script, unlocking_scripts = make_merklized_script_prioritized(branches)
 
 # balanced script tree has all leaves at the same level, so all scripts have the
 # same size inclusion proof unlocking scripts
-locking_script, unlocking_scripts = create_merklized_script_balanced(branches)
+locking_script, unlocking_scripts = make_merklized_script_balanced(branches)
 ```
 
 These functions return a tuple containing the locking script that uses
@@ -189,12 +189,12 @@ successfully and `False` otherwise.
 
 Tools are included for making merklized scripts:
 - `ScriptLeaf` and `ScriptNode` classes
-- `create_script_tree_prioritized(...) -> ScriptNode`
-- `create_merklized_script_prioritized(...) -> tuple[Script, list[Script]]`,
-  which uses `create_script_tree_prioritized` under the hood
-- `create_script_tree_balanced(...) -> ScriptNode`
-- `create_merklized_script_balanced(...) -> tuple[Script, list[Script]]`,
-  which uses `create_script_tree_balanced` under the hood
+- `make_script_tree_prioritized(...) -> ScriptNode`
+- `make_merklized_script_prioritized(...) -> tuple[Script, list[Script]]`,
+  which uses `make_script_tree_prioritized` under the hood
+- `make_script_tree_balanced(...) -> ScriptNode`
+- `make_merklized_script_balanced(...) -> tuple[Script, list[Script]]`,
+  which uses `make_script_tree_balanced` under the hood
 
 The `_prioritized` functions accept a list of leaf scripts and produce an
 unbalanced tree that priotizes efficient execution of lowest index scripts at

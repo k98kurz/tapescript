@@ -142,7 +142,7 @@ class TestTools(unittest.TestCase):
         assert unpacked.right.right.commitment() == tree.right.right.commitment()
 
     def test_create_merklized_script_prioritized_returns_tuple_of_Script_and_list_of_Scripts(self):
-        result = tools.create_merklized_script_prioritized(['OP_PUSH d123'])
+        result = tools.make_merklized_script_prioritized(['OP_PUSH d123'])
         assert type(result) is tuple
         assert len(result) == 2
 
@@ -161,7 +161,7 @@ class TestTools(unittest.TestCase):
             assert type(unlocking_script) is tools.Script
 
     def test_create_merklized_script_prioritized_1_branch_e2e(self):
-        lock, unlocks = tools.create_merklized_script_prioritized(['OP_PUSH d123'])
+        lock, unlocks = tools.make_merklized_script_prioritized(['OP_PUSH d123'])
         locking_script = lock.bytes
         unlocking_script = unlocks[0].bytes
 
@@ -173,7 +173,7 @@ class TestTools(unittest.TestCase):
         assert stack.empty()
 
     def test_create_merklized_script_prioritized_2_branches_e2e(self):
-        lock, unlocks = tools.create_merklized_script_prioritized(['OP_PUSH d123', 'OP_PUSH x0123'])
+        lock, unlocks = tools.make_merklized_script_prioritized(['OP_PUSH d123', 'OP_PUSH x0123'])
         locking_script = lock.bytes
         unlocking_scripts = [s.bytes for s in unlocks]
         assert len(unlocking_scripts) == 2
@@ -191,7 +191,7 @@ class TestTools(unittest.TestCase):
         assert stack.empty()
 
     def test_create_merklized_script_prioritized_3_branches_e2e(self):
-        lock, unlocks = tools.create_merklized_script_prioritized([
+        lock, unlocks = tools.make_merklized_script_prioritized([
             'OP_PUSH d123', 'OP_PUSH x0123', 'OP_PUSH s"hello world"'
         ])
         locking_script = lock.bytes
@@ -218,7 +218,7 @@ class TestTools(unittest.TestCase):
 
     def test_create_merklized_script_prioritized_20_branches_e2e(self):
         scripts = [f'OP_PUSH d{i}' for i in range(20)]
-        lock, unlocks = tools.create_merklized_script_prioritized(scripts)
+        lock, unlocks = tools.make_merklized_script_prioritized(scripts)
         locking_script = lock.bytes
         unlocking_scripts = [s.bytes for s in unlocks]
         assert len(unlocking_scripts) == 20
@@ -232,7 +232,7 @@ class TestTools(unittest.TestCase):
 
     def test_create_script_tree_balanced_4_leaves_e2e(self):
         scripts = [f'push d{i} pop0 true' for i in range(4)]
-        tree = tools.create_script_tree_balanced(scripts)
+        tree = tools.make_script_tree_balanced(scripts)
         assert type(tree.left) is tools.ScriptNode
         assert type(tree.left.left) is tools.ScriptLeaf
         assert type(tree.left.right) is tools.ScriptLeaf
@@ -242,7 +242,7 @@ class TestTools(unittest.TestCase):
 
     def test_create_script_tree_balanced_7_leaves_e2e(self):
         scripts = [f'push d{i} pop0 true' for i in range(7)]
-        tree = tools.create_script_tree_balanced(scripts)
+        tree = tools.make_script_tree_balanced(scripts)
         lock = tree.locking_script()
 
         # prove structure is perfectly balanced as all things should be
@@ -276,7 +276,7 @@ class TestTools(unittest.TestCase):
 
     def test_create_merklized_script_balanced_4_leaves_e2e(self):
         scripts = [f'push d{i} pop0 true' for i in range(4)]
-        lock, unlocks = tools.create_merklized_script_balanced(scripts)
+        lock, unlocks = tools.make_merklized_script_balanced(scripts)
         assert len(unlocks) == 4, len(unlocks)
         assert lock.src.split()[0] == 'OP_MERKLEVAL'
 
@@ -285,7 +285,7 @@ class TestTools(unittest.TestCase):
 
     def test_create_merklized_script_balanced_7_leaves_e2e(self):
         scripts = [f'push d{i} pop0 true' for i in range(7)]
-        lock, unlocks = tools.create_merklized_script_balanced(scripts)
+        lock, unlocks = tools.make_merklized_script_balanced(scripts)
         assert len(unlocks) == 7, len(unlocks)
         assert lock.src.split()[0] == 'OP_MERKLEVAL'
 
@@ -357,11 +357,11 @@ class TestTools(unittest.TestCase):
         good_scripts = [good_unlocking_script_src for i in range(20)]
         bad_scripts = [bad_unlocking_script_src for i in range(20)]
 
-        result = tools.create_merklized_script_prioritized(good_scripts)
+        result = tools.make_merklized_script_prioritized(good_scripts)
         good_locking_script = result[0].bytes
         good_unlocking_scripts = [s.bytes for s in result[1]]
 
-        result = tools.create_merklized_script_prioritized(bad_scripts)
+        result = tools.make_merklized_script_prioritized(bad_scripts)
         bad_locking_script = result[0].bytes
         bad_unlocking_scripts = [s.bytes for s in result[1]]
 
@@ -381,11 +381,11 @@ class TestTools(unittest.TestCase):
         good_scripts = [good_unlocking_script_src for i in range(20)]
         bad_scripts = [bad_unlocking_script_src for i in range(20)]
 
-        result = tools.create_merklized_script_prioritized(good_scripts)
+        result = tools.make_merklized_script_prioritized(good_scripts)
         good_locking_script = result[0].bytes
         good_unlocking_scripts = [s.bytes for s in result[1]]
 
-        result = tools.create_merklized_script_prioritized(bad_scripts)
+        result = tools.make_merklized_script_prioritized(bad_scripts)
         bad_locking_script = result[0].bytes
         bad_unlocking_scripts = [s.bytes for s in result[1]]
 
@@ -913,7 +913,7 @@ class TestTools(unittest.TestCase):
         sigfields = {'sigfield1': b'hello ', 'sigfield2': b'world'}
         script = tools.Script.from_src('true')
 
-        lock = tools.make_taproot2_lock(bytes(self.pubkeyA), script)
+        lock = tools.make_nonnative_taproot_lock(bytes(self.pubkeyA), script)
         assert len(lock.bytes) == 72, (lock.src, len(lock.bytes))
 
         unlock1 = tools.make_taproot_witness_keyspend(

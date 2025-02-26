@@ -217,7 +217,7 @@ class ScriptNode:
         return cls(left, right)
 
 
-def create_script_tree_prioritized(
+def make_script_tree_prioritized(
         leaves: list[str|ScriptProtocol], tree: ScriptNode|None = None
     ) -> ScriptNode:
     """Construct a script tree from the leaves using a ScriptLeaf for
@@ -244,7 +244,7 @@ def create_script_tree_prioritized(
             tree
         )
         if len(leaves):
-            return create_script_tree_prioritized(leaves, node)
+            return make_script_tree_prioritized(leaves, node)
         return node
 
     if len(leaves) == 1:
@@ -257,10 +257,10 @@ def create_script_tree_prioritized(
     )
 
     if len(leaves):
-        return create_script_tree_prioritized(leaves, node)
+        return make_script_tree_prioritized(leaves, node)
     return node
 
-def create_merklized_script_prioritized(
+def make_merklized_script_prioritized(
         leaves: list[str|ScriptProtocol]
     ) -> tuple[Script, list[Script]]:
     """Produces a Merklized, branching script structure with one leaf
@@ -273,7 +273,7 @@ def create_merklized_script_prioritized(
         they should be used by concatenating the corresponding unlocking
         script and the unlocking script from this function.
     """
-    tree = create_script_tree_prioritized(leaves)
+    tree = make_script_tree_prioritized(leaves)
     lock = tree.locking_script()
     scripts = [tree.left.unlocking_script()]
     while type(tree.right) is ScriptNode:
@@ -282,14 +282,14 @@ def create_merklized_script_prioritized(
     scripts.append(tree.right.unlocking_script())
     return (lock, scripts)
 
-def create_script_tree_balanced(leaves: list[str|ScriptProtocol]) -> ScriptNode:
+def make_script_tree_balanced(leaves: list[str|ScriptProtocol]) -> ScriptNode:
     """Create a balanced script tree from the leaves, filling with
         filler leaves/branches to make sure the tree is balanced. The
         filler leaves take the form of `push x{16 random bytes} return`,
         so they can never validate, and they will have unique hashes to
         avoid revealing the presence of empty leaves/branches during
         execution of actual leaf scripts. Used internally by the
-        `create_merklized_script_balanced` function.
+        `make_merklized_script_balanced` function.
     """
     tert(type(leaves) in (list, tuple), 'leaves must be list or tuple')
     for item in leaves:
@@ -321,12 +321,12 @@ def create_script_tree_balanced(leaves: list[str|ScriptProtocol]) -> ScriptNode:
 
     return nodes[0]
 
-def create_merklized_script_balanced(
+def make_merklized_script_balanced(
         leaves: list[str|ScriptProtocol]
     ) -> tuple[Script, list[Script]]:
     """Produces a Merklized, branching script with a balanced tree
         structure, filling with filler branches to make sure the tree is
-        balanced (calls `create_script_tree_balanced` under the hood).
+        balanced (calls `make_script_tree_balanced` under the hood).
         Returns a tuple of root locking script and list of unlocking
         scripts corresponding to the input scripts. In practice, the
         input scripts should be locking scripts, and then they should be
@@ -334,7 +334,7 @@ def create_merklized_script_balanced(
         unlocking script from this function.
     """
     leaves = [Script.from_src(l) if type(l) is str else l for l in leaves]
-    tree = create_script_tree_balanced(leaves)
+    tree = make_script_tree_balanced(leaves)
     lock = tree.locking_script()
 
     def _find_leaves(node: ScriptNode) -> list[ScriptLeaf]:
@@ -354,7 +354,10 @@ def create_merklized_script_balanced(
     scripts = [leaf.unlocking_script() for leaf in script_leaves]
     return lock, scripts
 
-def repl(cache: dict = {}, contracts: dict = {}, add_flags: dict = {}, plugins: dict = {}):
+def repl(
+        cache: dict = {}, contracts: dict = {}, add_flags: dict = {},
+        plugins: dict = {}
+    ) -> None:
     """Provides a REPL (Read Execute Print Loop). Lines of source code
         are read, compiled, and executed, and the runtime state is
         shared between executions. If a code block is opened, the Read
@@ -467,7 +470,11 @@ def _format_docstring(docstring: str) -> str:
 
     while len(tokens):
         line, tokens = make_line(tokens)
-        lines.append(line)
+        if len(line) == 0 and len(tokens):
+            lines.append(tokens[0])
+            tokens = tokens[1:]
+        else:
+            lines.append(line)
 
     return '\n'.join(lines)
 
@@ -489,7 +496,7 @@ def _format_function_doc(function: Callable, extra_indent: int = 0) -> str:
         annotations[i+offset] += f' = {defaults[i]}'
     annotations = ', '.join(annotations) or ''
 
-    return_annotation = function.__annotations__['return'] or 'unseen_return_value'
+    return_annotation = function.__annotations__.get('return', 'unseen_return_value')
     if hasattr(return_annotation, '__name__'):
         return_annotation = return_annotation.__name__
 
@@ -585,10 +592,11 @@ def generate_docs() -> list[str]:
     paragraphs.append(_format_class_doc(Script))
     paragraphs.append(_format_class_doc(ScriptLeaf))
     paragraphs.append(_format_class_doc(ScriptNode))
-    paragraphs.append(_format_function_doc(create_script_tree_prioritized))
-    paragraphs.append(_format_function_doc(create_merklized_script_prioritized))
-    paragraphs.append(_format_function_doc(create_script_tree_balanced))
-    paragraphs.append(_format_function_doc(create_merklized_script_balanced))
+    paragraphs.append(_format_function_doc(repl))
+    paragraphs.append(_format_function_doc(make_script_tree_prioritized))
+    paragraphs.append(_format_function_doc(make_merklized_script_prioritized))
+    paragraphs.append(_format_function_doc(make_script_tree_balanced))
+    paragraphs.append(_format_function_doc(make_merklized_script_balanced))
     paragraphs.append(_format_function_doc(make_adapter_lock_pub))
     paragraphs.append(_format_function_doc(make_adapter_lock_prv))
     paragraphs.append(_format_function_doc(make_single_sig_lock))
@@ -613,6 +621,13 @@ def generate_docs() -> list[str]:
     paragraphs.append(_format_function_doc(make_ptlc_lock))
     paragraphs.append(_format_function_doc(make_ptlc_witness))
     paragraphs.append(_format_function_doc(make_ptlc_refund_witness))
+    paragraphs.append(_format_function_doc(make_taproot_lock))
+    paragraphs.append(_format_function_doc(make_taproot_witness_keyspend))
+    paragraphs.append(_format_function_doc(make_taproot_witness_scriptspend))
+    paragraphs.append(_format_function_doc(make_nonnative_taproot_lock))
+    paragraphs.append(_format_function_doc(make_graftap_lock))
+    paragraphs.append(_format_function_doc(make_graftap_witness_keyspend))
+    paragraphs.append(_format_function_doc(make_graftap_witness_scriptspend))
     paragraphs.append(_format_function_doc(setup_amhl))
     paragraphs.append(_format_function_doc(release_left_amhl_lock))
     paragraphs.append(_format_function_doc(add_soft_fork))
@@ -1288,7 +1303,7 @@ def make_taproot_witness_scriptspend(
     tert(isinstance(committed_script, ScriptProtocol), 'committed_script must be ScriptProtocol')
     return Script.from_src(f'push x{committed_script.bytes.hex()} push x{pubkey.hex()}')
 
-def make_taproot2_lock(
+def make_nonnative_taproot_lock(
         pubkey: bytes, script: Script = None, script_commitment: bytes = None,
         sigflags: str = '00'
     ) -> Script:
