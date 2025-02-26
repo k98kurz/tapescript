@@ -1272,6 +1272,36 @@ def make_taproot_witness_scriptspend(
     tert(isinstance(committed_script, ScriptProtocol), 'committed_script must be ScriptProtocol')
     return Script.from_src(f'push x{committed_script.bytes.hex()} push x{pubkey.hex()}')
 
+def make_taproot2_lock(
+        pubkey: bytes, script: Script = None, script_commitment: bytes = None,
+        sigflags: str = '00'
+    ) -> Script:
+    """Locking script for non-native taproot. The main benefit of this
+        script is that it allows constraining sigflags directly. This
+        will be removed after OP_TAPROOT implementation is changed as
+        planned for v0.7.0
+    """
+    tert(isinstance(script, Script) or type(script_commitment) is bytes,
+         'must supply either committed_script or script_commitment')
+    script_commitment = script_commitment or script.commitment()
+    vert(len(script_commitment) == 32, 'script_commitment must be 32 bytes')
+    X = derive_point_from_scalar(clamp_scalar(sha256(pubkey + script_commitment).digest()))
+    root = aggregate_points((pubkey, X))
+    return Script.from_src(f'''
+        def 0 {{ push x{root.hex()} }}
+        if ( dup size push d32 equal ) {{
+            # stack: script, internal pubkey #
+            dup swap d0 d2
+            dup swap d1 d3
+            sha256 cat sha256 clamp_scalar x00 derive_point
+            add_points d2
+            call d0 eqv eval
+        }} else {{
+            # stack: signature #
+            call d0 check_sig x{sigflags}
+        }}
+    ''')
+
 def _make_graftap_committed_script(pubkey: bytes) -> Script:
     """Returns the tapescript source for a graftroot lock."""
     return Script.from_src(f'''

@@ -908,6 +908,32 @@ class TestTools(unittest.TestCase):
             f'\nexpected @= trsf [ x01 ] push x{sig.hex()}01\nobserved {unlock1.src}'
         assert functions.run_auth_script(unlock1 + lock, sigfields)
 
+    def test_make_taproot2_lock_e2e(self):
+        sigfields = {'sigfield1': b'hello ', 'sigfield2': b'world'}
+        script = tools.Script.from_src('true')
+
+        lock = tools.make_taproot2_lock(bytes(self.pubkeyA), script)
+        assert len(lock.bytes) == 72, (lock.src, len(lock.bytes))
+
+        unlock1 = tools.make_taproot_witness_keyspend(
+            bytes(self.prvkeyA),
+            sigfields,
+            script
+        )
+
+        unlock2 = tools.make_taproot_witness_scriptspend(bytes(self.pubkeyA), script)
+
+        assert functions.run_auth_script(unlock1 + lock, sigfields)
+        assert functions.run_auth_script(unlock2 + lock, sigfields), \
+            (unlock2 + lock).src
+
+        unlock1 = tools.make_taproot_witness_keyspend(
+            bytes(self.prvkeyA),
+            sigfields,
+            script
+        )
+        assert functions.run_auth_script(unlock1 + lock, sigfields)
+
     def test_make_graftap_lock_and_witnesses_e2e(self):
         sigfields = {'sigfield1': b'hello world'}
         lock = tools.make_graftap_lock(bytes(self.pubkeyA))
