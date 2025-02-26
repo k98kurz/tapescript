@@ -1426,7 +1426,7 @@ def OP_DERIVE_POINT(tape: Tape, stack: Stack, cache: dict) -> None:
 def OP_SUBTRACT_POINTS(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int;
         pull that many values from the stack, interpreting them as
-        ed25519 scalars; subtract them from the first one; put the
+        ed25519 scalars; subtract the rest from the first one; put the
         result onto the stack.
     """
     count = int.from_bytes(tape.read(1), 'big')
@@ -1667,9 +1667,10 @@ def OP_CHECK_TEMPLATE_VERIFY(tape: Tape, stack: Stack, cache: dict) -> None:
     OP_VERIFY(tape, stack, cache)
 
 def OP_TAPROOT(tape: Tape, stack: Stack, cache: dict) -> None:
-    """Reads 32 bytes from the tape as the root; gets a copy of the top
-        stack item (using stack.peek); if the item has length 32, it is
-        an ed25519 public key, otherwise it is a signature; if it was a
+    """Reads 1 byte from the tape as allowable sigflags; pops the top
+        item of the stack as the root; gets a copy of the next stack
+        item (using stack.peek); if the item has length 32, it is an
+        ed25519 public key, otherwise it is a signature; if it was a
         public key, then it is executing the committed script; if it is
         a signature, then it is executing the key-spend path. For
         key-spend, pull the sigflags from cache b'trsf' or
@@ -1683,7 +1684,9 @@ def OP_TAPROOT(tape: Tape, stack: Stack, cache: dict) -> None:
         otherwise remove the script and put 0x00 (False) onto the stack.
         https://lists.linuxfoundation.org/pipermail/bitcoin-dev/2018-January/015614.html
     """
-    root = tape.read(32)
+    allowable_sigflags = tape.read(1)
+    root = stack.get()
+    sert(len(root) == 32, 'OP_TAPROOT: supplied root was not 32 bytes')
     pubkey_or_sig = stack.peek()
     is_pubkey = len(pubkey_or_sig) == 32
 
@@ -1701,13 +1704,8 @@ def OP_TAPROOT(tape: Tape, stack: Stack, cache: dict) -> None:
         stack.put(script)
         OP_EVAL(tape, stack, cache)
     else:
-        # take sigflags from cache address b'trsf' or default
-        sigflags = cache.get(b'trsf', cache.get('taproot_sigflags', [b'\x00']))[0]
-        # ensure that at least one field is not allowed to be excluded (null bit)
-        if not bytes_to_bool(not_bytes(sigflags)) or len(sigflags) != 1:
-            sigflags = b'\x00'
         stack.put(root)
-        OP_CHECK_SIG(Tape(sigflags), stack, cache)
+        OP_CHECK_SIG(Tape(allowable_sigflags), stack, cache)
 
 def NOP(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as a signed int

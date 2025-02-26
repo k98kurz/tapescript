@@ -876,8 +876,9 @@ class TestTools(unittest.TestCase):
             b'hello world'
         )
 
-        lock = tools.make_taproot_lock(X, script)
-        assert lock.src == f'taproot x{root.hex()}'
+        lock = tools.make_taproot_lock(X, script, sigflags='01')
+        assert lock.src == f'push x{root.hex()} tr x01', lock.src
+        assert len(lock.bytes) == 36, len(lock.bytes)
 
         unlock1 = tools.make_taproot_witness_keyspend(
             bytes(self.prvkeyA),
@@ -904,8 +905,8 @@ class TestTools(unittest.TestCase):
             script,
             sigflags='01'
         )
-        assert unlock1.src == f'@= trsf [ x01 ] push x{sig.hex()}01', \
-            f'\nexpected @= trsf [ x01 ] push x{sig.hex()}01\nobserved {unlock1.src}'
+        assert unlock1.src == f'push x{sig.hex()}01', \
+            f'\nexpected push x{sig.hex()}01\nobserved {unlock1.src}'
         assert functions.run_auth_script(unlock1 + lock, sigfields)
 
     def test_make_taproot2_lock_e2e(self):
@@ -937,7 +938,7 @@ class TestTools(unittest.TestCase):
     def test_make_graftap_lock_and_witnesses_e2e(self):
         sigfields = {'sigfield1': b'hello world'}
         lock = tools.make_graftap_lock(bytes(self.pubkeyA))
-        assert len(lock.bytes) == 33, len(lock.bytes)
+        assert len(lock.bytes) == 36, len(lock.bytes)
 
         unlock = tools.make_graftap_witness_keyspend(bytes(self.prvkeyA), sigfields)
         assert len(unlock.bytes) == 66, len(unlock.bytes)

@@ -70,7 +70,7 @@ class TestSecurityAssumptions(unittest.TestCase):
 
         # derive point from malicious script
         malicious_script = tools.Script.from_src('true')
-        root = taproot_lock.bytes[-32:]
+        root = taproot_lock.bytes[2:-2]
         script_scalar = functions.clamp_scalar(malicious_script.commitment())
         script_point = functions.derive_point_from_scalar(script_scalar)
 

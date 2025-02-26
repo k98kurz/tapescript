@@ -1223,7 +1223,8 @@ def make_ptlc_refund_witness(
     return Script.from_src(f'{make_single_sig_witness(prvkey, sigfields, sigflags).src} false')
 
 def make_taproot_lock(
-        pubkey: bytes, script: Script = None, script_commitment: bytes = None
+        pubkey: bytes, script: Script = None, script_commitment: bytes = None,
+        sigflags: str = '00'
     ) -> Script:
     """Returns a tapescript Script for a taproot locking script that can
         either be unlocked with a signature that validates using the
@@ -1237,7 +1238,7 @@ def make_taproot_lock(
     vert(len(script_commitment) == 32, 'script_commitment must be 32 bytes')
     X = derive_point_from_scalar(clamp_scalar(sha256(pubkey + script_commitment).digest()))
     root = aggregate_points((pubkey, X))
-    return Script.from_src(f'taproot x{root.hex()}')
+    return Script.from_src(f'push x{root.hex()} tr x{sigflags}')
 
 def make_taproot_witness_keyspend(
         prvkey: bytes, sigfields: dict, committed_script: Script = None,
@@ -1259,7 +1260,7 @@ def make_taproot_witness_keyspend(
     sig = sign_with_scalar(aggregate_scalars((x, t)), message)
 
     if sigflags != '00':
-        return Script.from_src(f'@= trsf [ x{sigflags} ] push x{sig.hex()}{sigflags}')
+        sig += bytes.fromhex(sigflags)
     return Script.from_src(f'push x{sig.hex()}')
 
 def make_taproot_witness_scriptspend(

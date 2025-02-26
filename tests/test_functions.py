@@ -2142,7 +2142,7 @@ class TestFunctions(unittest.TestCase):
         pubk = functions.derive_point_from_scalar(skey)
 
         # setup script
-        # script_src = 'push d1 less'
+        # script_src = 'true'
         script_bin = b'\x01'
         script_hash = sha256(pubk + sha256(script_bin).digest()).digest()
         script_scalar = functions.clamp_scalar(script_hash)
@@ -2151,7 +2151,7 @@ class TestFunctions(unittest.TestCase):
         # combine pubk and script point
         root = functions.aggregate_points([pubk, script_point])
 
-        tape = classes.Tape(root)
+        tape = classes.Tape(b'\x01')
         stack = classes.Stack()
         cache = {'sigfield1': b'nope ', 'sigfield2': b'hello world'}
 
@@ -2161,9 +2161,9 @@ class TestFunctions(unittest.TestCase):
 
         # test unlock1 (key spend): should result in True value
         tape.reset_pointer()
-        cache[b'trsf'] = [b'\x01']
         assert len(stack) == 0
         stack.put(sig + b'\x01')
+        stack.put(root)
         functions.OP_TAPROOT(tape, stack, cache)
         assert len(stack) == 1
         assert stack.get() == b'\xff'
@@ -2171,6 +2171,7 @@ class TestFunctions(unittest.TestCase):
         # test malformed unlock1: should result in False value
         tape.reset_pointer()
         stack.put(bytes(reversed(sig)))
+        stack.put(root)
         functions.OP_TAPROOT(tape, stack, cache)
         assert len(stack) == 1
         assert stack.get() == b'\x00'
@@ -2179,6 +2180,7 @@ class TestFunctions(unittest.TestCase):
         tape.reset_pointer()
         stack.put(script_bin)
         stack.put(pubk)
+        stack.put(root)
         functions.OP_TAPROOT(tape, stack, cache)
         assert len(stack) == 1
         assert stack.get() == b'\xff'
@@ -2187,6 +2189,7 @@ class TestFunctions(unittest.TestCase):
         tape.reset_pointer()
         stack.put(script_bin + b'\x01')
         stack.put(pubk)
+        stack.put(root)
         functions.OP_TAPROOT(tape, stack, cache)
         assert len(stack) == 1
         assert stack.get() == b'\x00'

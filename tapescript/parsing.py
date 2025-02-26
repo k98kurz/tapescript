@@ -568,11 +568,11 @@ def get_args(
             'OP_MULT_INTS' | 'OP_ADD_FLOATS' | \
             'OP_SUBTRACT_FLOATS' | 'OP_ADD_POINTS' | 'OP_CALL' | \
             'OP_COPY' | 'OP_SHAKE256' | 'OP_REVERSE' | \
-            'OP_CHECK_SIG' | 'OP_SIGN' | \
+            'OP_CHECK_SIG' | 'OP_SIGN' | 'OP_TAPROOT' | \
             'OP_CHECK_SIG_VERIFY' | 'OP_CLAMP_SCALAR' | 'OP_ADD_SCALARS' | \
             'OP_SUBTRACT_SCALARS' | 'OP_SUBTRACT_POINTS' | \
             'OP_GET_MESSAGE' | 'OP_CHECK_TEMPLATE' | 'OP_CHECK_TEMPLATE_VERIFY':
-            # ops that have tape argument of form [-128 to 127]
+            # ops that have tape argument of form [-128 to 127] or [x00-ff]
             # human-readable syntax of OP_[whatever] [int]
             return _get_OP_PUSH0_type_args(opname, symbols, symbols_to_advance, symbol_index)
         case 'OP_PUSH2':
@@ -589,7 +589,7 @@ def get_args(
             return _get_OP_SWAP_type_args(opname, symbols, symbols_to_advance, symbol_index)
         case 'OP_CHECK_MULTISIG' | 'OP_CHECK_MULTISIG_VERIFY':
             return _get_OP_CHECK_MULTISIG_args(opname, symbols, symbols_to_advance, symbol_index)
-        case 'OP_MERKLEVAL' | 'OP_TAPROOT':
+        case 'OP_MERKLEVAL':
             # op has tape argument of form [32-byte val]
             return _get_OP_MERKLEVAL_args(opname, symbols, symbols_to_advance, symbol_index)
         case _:
@@ -1172,7 +1172,8 @@ def decompile_script(script: bytes, indent: int = 0) -> list[str]:
                 val = bytes_to_int(tape.read(1))
                 add_line(f'{op_name} d{val}')
             case 'OP_CHECK_SIG' | 'OP_CHECK_SIG_VERIFY' | 'OP_SIGN' | \
-                'OP_GET_MESSAGE' | 'OP_CHECK_TEMPLATE' | 'OP_CHECK_TEMPLATE_VERIFY':
+                'OP_TAPROOT' | 'OP_GET_MESSAGE' | 'OP_CHECK_TEMPLATE' | \
+                'OP_CHECK_TEMPLATE_VERIFY':
                 # ops that have tape argument of form x[00-ff]
                 # human-readable syntax of OP_[whatever] x[00-ff]
                 val = tape.read(1)
@@ -1201,7 +1202,7 @@ def decompile_script(script: bytes, indent: int = 0) -> list[str]:
                 idx1 = tape.read(1)[0]
                 idx2 = tape.read(1)[0]
                 add_line(f'{op_name} x{flag} d{idx1} d{idx2}')
-            case 'OP_MERKLEVAL' | 'OP_TAPROOT':
+            case 'OP_MERKLEVAL':
                 # op has tape argument of form [32-byte val]
                 digest = tape.read(32)
                 add_line(f'{op_name} x{digest.hex()}')

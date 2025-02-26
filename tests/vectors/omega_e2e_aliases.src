@@ -161,7 +161,7 @@ and
 msg x00
 ct x00
 ctv x00
-tr xb94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9
+push xb94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9 tr x00
 nop92 d1
 nop93 d1
 nop94 d1
