@@ -969,6 +969,44 @@ def make_delegate_key_chain_unlock(
         ' true\npush '.join([f'x{c.hex()}' for c in certs])
     )
 
+def make_graftroot_lock(pubkey: bytes, sigflags: str = '00') -> Script:
+    """Creates a locking script which requires either a signature from
+        the pubkey or a surrogate script signed by the pubkey. If a
+        signed surrogate is provided in the unlocking script, the
+        signature will be verified, and then the script will be executed.
+    """
+    return Script.from_src(
+        f'''
+        @= k [ x{pubkey.hex()} ]
+        if {{
+            dup
+            swap d1 d2
+            @k check_sig_stack verify
+            eval
+        }} else {{
+            @k check_sig x{sigflags}
+        }}'''
+    )
+
+def make_graftroot_witness_keyspend(
+        prvkey: bytes, sigfields: dict[str, bytes], sigflags: str = '00'
+    ) -> Script:
+    """Creates a graftroot witness via signature and not by surrogate script."""
+    return make_single_sig_witness(prvkey, sigfields, sigflags) + \
+        Script.from_src('false')
+
+def make_graftroot_witness_surrogate(prvkey: bytes, script: str|Script) -> Script:
+    """Creates a graftroot witness consisting of a signed surrogate script."""
+    script = Script.from_src(script) if type(script) is str else script
+    return Script.from_src(f'''
+        push ~! {{
+            push x{script.bytes.hex()}
+            push x{prvkey.hex()} sign_stack
+        }}
+        push x{script.bytes.hex()}
+        true
+    ''')
+
 def make_htlc_sha256_lock(
         receiver_pubkey: bytes, preimage: bytes, refund_pubkey: bytes,
         timeout: int = 60*60*24, sigflags: str = '00') -> Script:
@@ -1233,6 +1271,49 @@ def make_taproot_witness_scriptspend(
     vert(len(pubkey) == 32, 'pubkey must be the 32 byte committed pubkey')
     tert(isinstance(committed_script, ScriptProtocol), 'committed_script must be ScriptProtocol')
     return Script.from_src(f'push x{committed_script.bytes.hex()} push x{pubkey.hex()}')
+
+def _make_graftap_committed_script(pubkey: bytes) -> Script:
+    """Returns the tapescript source for a graftroot lock."""
+    return Script.from_src(f'''
+        dup
+        swap d1 d2
+        push x{pubkey.hex()} check_sig_stack verify
+        eval
+    ''')
+
+def make_graftap_lock(pubkey: bytes) -> Script:
+    """Make a Taproot lock committing to a graftroot lock."""
+    return make_taproot_lock(pubkey, _make_graftap_committed_script(pubkey))
+
+def make_graftap_witness_keyspend(
+        prvkey: bytes, sigfields: dict, sigflags: str = '00'
+    ) -> Script:
+    """Make a tapescript Script witness for a taproot keyspend,
+        providing the committed graftroot lock hash and a signature.
+    """
+    pubkey = derive_point_from_scalar(derive_key_from_seed(prvkey))
+    return make_taproot_witness_keyspend(
+        prvkey, sigfields, _make_graftap_committed_script(pubkey),
+        sigflags=sigflags
+    )
+
+def make_graftap_witness_scriptspend(
+        prvkey: bytes, surrogate_script: Script
+    ) -> Script:
+    """Make a tapescript Script witness for a taproot scriptspend,
+        providing the committed graftroot lock, the internal pubkey, and
+        the graftroot surrogate witness script.
+    """
+    pubkey = derive_point_from_scalar(derive_key_from_seed(prvkey))
+    return Script.from_src(f'''
+        push ~! {{
+            push x{surrogate_script.bytes.hex()}
+            push x{prvkey.hex()} sign_stack
+        }}
+        push x{surrogate_script.bytes.hex()}
+    ''') + make_taproot_witness_scriptspend(
+        pubkey, _make_graftap_committed_script(pubkey)
+    )
 
 def setup_amhl(
         seed: bytes, pubkeys: tuple[bytes]|list[bytes], sigflags: str = '00',

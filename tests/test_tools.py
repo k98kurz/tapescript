@@ -641,6 +641,28 @@ class TestTools(unittest.TestCase):
         # run e2e 2 certs chained
         assert functions.run_auth_script(unlock.bytes + lock.bytes, cache)
 
+    def test_make_graftroot_lock_e2e(self):
+        sigfields = {'sigfield1': b'hello world'}
+        lock = tools.make_graftroot_lock(bytes(self.pubkeyA))
+        assert len(lock.bytes) == 58, len(lock.bytes)
+
+        unlock = tools.make_graftroot_witness_keyspend(bytes(self.prvkeyA), sigfields)
+        assert len(unlock.bytes) == 67, len(unlock.bytes)
+
+        # run e2e
+        assert functions.run_auth_script(unlock + lock, sigfields), \
+            (unlock + lock).src
+
+        script = tools.Script.from_src('true')
+        surrogate = tools.make_scripthash_lock(script)
+        unlock1 = tools.make_scripthash_witness(script)
+        unlock2 = tools.make_graftroot_witness_surrogate(bytes(self.prvkeyA), surrogate)
+        assert len(unlock2.bytes) == len(surrogate.bytes) + 69, \
+            (len(unlock2.bytes), len(surrogate.bytes))
+
+        # run e2e
+        assert functions.run_auth_script(unlock1 + unlock2 + lock, sigfields)
+
     def test_make_htlc_sha256_lock_e2e(self):
         preimage = token_bytes(16)
         sigfields = {'sigfield1': b'hello world'}
@@ -885,6 +907,30 @@ class TestTools(unittest.TestCase):
         assert unlock1.src == f'@= trsf [ x01 ] push x{sig.hex()}01', \
             f'\nexpected @= trsf [ x01 ] push x{sig.hex()}01\nobserved {unlock1.src}'
         assert functions.run_auth_script(unlock1 + lock, sigfields)
+
+    def test_make_graftap_lock_and_witnesses_e2e(self):
+        sigfields = {'sigfield1': b'hello world'}
+        lock = tools.make_graftap_lock(bytes(self.pubkeyA))
+        assert len(lock.bytes) == 33, len(lock.bytes)
+
+        unlock = tools.make_graftap_witness_keyspend(bytes(self.prvkeyA), sigfields)
+        assert len(unlock.bytes) == 66, len(unlock.bytes)
+
+        # run e2e
+        assert functions.run_auth_script(unlock + lock, sigfields)
+
+        script = tools.Script.from_src('true')
+        surrogate = tools.make_scripthash_lock(script)
+        unlock1 = tools.make_scripthash_witness(script)
+        unlock2 = tools.make_graftap_witness_scriptspend(
+            bytes(self.prvkeyA), surrogate
+        )
+        assert len(unlock2.bytes) == len(surrogate.bytes) + 145, \
+            (len(unlock2.bytes), len(surrogate.bytes))
+
+        # run e2e
+        assert functions.run_auth_script(unlock1 + unlock2 + lock, sigfields), \
+            (unlock1 + unlock2 + lock).src
 
     def test_AMHL_primitive(self):
         """Test for setup, locking, and release of an Anonymous Multi-

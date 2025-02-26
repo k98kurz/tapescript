@@ -64,6 +64,9 @@ from .tools import (
     make_delegate_key_chain_lock,
     make_delegate_key_cert,
     make_delegate_key_unlock,
+    make_graftroot_lock,
+    make_graftroot_witness_keyspend,
+    make_graftroot_witness_surrogate,
     make_htlc_sha256_lock,
     make_htlc_shake256_lock,
     make_htlc_witness,
@@ -76,13 +79,16 @@ from .tools import (
     make_taproot_lock,
     make_taproot_witness_keyspend,
     make_taproot_witness_scriptspend,
+    make_graftap_lock,
+    make_graftap_witness_keyspend,
+    make_graftap_witness_scriptspend,
     make_scripthash_lock,
     make_scripthash_witness,
     setup_amhl,
     release_left_amhl_lock,
 )
 
-__version__ = '0.6.2'
+__version__ = '0.7.0'
 
 def version() -> str:
     """Get the version of the tapescript library."""
