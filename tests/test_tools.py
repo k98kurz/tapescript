@@ -663,6 +663,12 @@ class TestTools(unittest.TestCase):
         # run e2e
         assert functions.run_auth_script(unlock1 + unlock2 + lock, sigfields)
 
+        # additional length check
+        surrogate = tools.Script.from_src('true')
+        unlock2 = tools.make_graftroot_witness_surrogate(bytes(self.prvkeyA), surrogate)
+        assert len(unlock2.bytes) == len(surrogate.bytes) + 68, \
+            (len(unlock2.bytes), len(surrogate.bytes))
+
     def test_make_htlc_sha256_lock_e2e(self):
         preimage = token_bytes(16)
         sigfields = {'sigfield1': b'hello world'}
@@ -909,7 +915,7 @@ class TestTools(unittest.TestCase):
             f'\nexpected push x{sig.hex()}01\nobserved {unlock1.src}'
         assert functions.run_auth_script(unlock1 + lock, sigfields)
 
-    def test_make_taproot2_lock_e2e(self):
+    def test_make_nonnative_taproot_lock_e2e(self):
         sigfields = {'sigfield1': b'hello ', 'sigfield2': b'world'}
         script = tools.Script.from_src('true')
 
@@ -958,6 +964,14 @@ class TestTools(unittest.TestCase):
         # run e2e
         assert functions.run_auth_script(unlock1 + unlock2 + lock, sigfields), \
             (unlock1 + unlock2 + lock).src
+
+        # another length check
+        script = tools.Script.from_src('true')
+        unlock2 = tools.make_graftap_witness_scriptspend(
+            bytes(self.prvkeyA), surrogate
+        )
+        assert len(unlock2.bytes) == len(surrogate.bytes) + 145, \
+            (len(unlock2.bytes), len(surrogate.bytes))
 
     def test_AMHL_primitive(self):
         """Test for setup, locking, and release of an Anonymous Multi-
