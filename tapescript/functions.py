@@ -1713,7 +1713,7 @@ def OP_TAPROOT(tape: Tape, stack: Stack, cache: dict) -> None:
         OP_EVAL(tape, stack, cache)
     else:
         stack.put(root)
-        OP_CHECK_SIG(Tape(allowable_sigflags), stack, cache)
+        OP_CHECK_SIG(Tape(allowable_sigflags, plugins=tape.plugins), stack, cache)
 
 def NOP(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as a signed int
