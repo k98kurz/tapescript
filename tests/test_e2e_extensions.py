@@ -171,28 +171,19 @@ class TestSigExt(unittest.TestCase):
         # witnesses
         sigwit1 = tools.make_single_sig_witness(self.prvkeyA, sigfields)
         functions.add_signature_extension(hash_sigfields)
-        _, stack, _ = functions.run_script(
-            parsing.compile_script(f'@= sigext [ x02 ] push x{self.prvkeyA.hex()} sign x00'),
-            {**sigfields}
+        sigwit2 = tools.make_single_sig_witness(
+            self.prvkeyA, sigfields, sign_script_prefix='@= sigext [ x02 ]'
         )
-        sig: bytes = stack.get()
-        sigwit2 = tools.Script.from_src(f'push x{sig.hex()}')
 
         functions.reset_signature_extensions()
-        _, stack, _ = functions.run_script(
-            parsing.compile_script(f'msg x00 push x{self.prvkeyB.hex()} sign_stack'),
-            {**sigfields}
-        )
-        sig = stack.get()
-        multiwit1 = tools.Script.from_src(f'{sigwit1.src} push x{sig.hex()}')
+        sig = tools.make_single_sig_witness(self.prvkeyB, sigfields)
+        multiwit1 = tools.Script.from_src(f'{sigwit1.src} {sig.src}')
 
         functions.add_signature_extension(hash_sigfields)
-        _, stack, _ = functions.run_script(
-            parsing.compile_script(f'@= sigext [ x02 ] push x{self.prvkeyB.hex()} sign x00'),
-            {**sigfields}
+        sig = tools.make_single_sig_witness(
+            self.prvkeyB, sigfields, sign_script_prefix='@= sigext [ x02 ]'
         )
-        sig = stack.get()
-        multiwit2 = tools.Script.from_src(f'{sigwit2.src} push x{sig.hex()}')
+        multiwit2 = tools.Script.from_src(f'{sigwit2.src} {sig.src}')
 
         functions.reset_signature_extensions()
         trwit1 = tools.make_taproot_witness_keyspend(
@@ -202,7 +193,7 @@ class TestSigExt(unittest.TestCase):
         functions.add_signature_extension(hash_sigfields)
         trwit2 = tools.make_taproot_witness_keyspend(
             self.prvkeyA, {**sigfields}, committed_script,
-            get_msg_script_prefix='@= sigext [ x02 ]'
+            sign_script_prefix='@= sigext [ x02 ]'
         )
 
         # auth tests using the VM-wide plugin management functions
