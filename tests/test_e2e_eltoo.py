@@ -36,7 +36,7 @@ def eltoo_update_lock(pubkeyA: bytes, pubkeyB: bytes, state: int) -> tools.Scrip
             # 2 second delay is all I'm willing to wait in a test #
             val s"input_ts" push d2 add_ints d2
             less verify
-            val s"time"
+            val s"timestamp"
             val s"sigfield4"
             leq verify
             push x{bytes(pubkeyA).hex()}
