@@ -37,6 +37,9 @@
       the first 2 chars, it will be interpreter as hexadecimal; otherwise, it
       will be interpreted as a string
 - Added `sign_script_prefix` parameter to many `make_*_witness` functions
+- Added ability to pass `SigningKey` objects to `make_*_witness` functions
+- Added ability to pass `VerifyKey` objects as pubkeys to functions that make
+  locks
 - Updated tooling for delegate keys:
   - Updated `make_delegate_key_cert`:
     - Optimized the system by concatenating timestamps into the cert, saving 6

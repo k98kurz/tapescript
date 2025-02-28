@@ -68,6 +68,7 @@ from .tools import (
     make_delegate_key_chain_lock,
     make_delegate_key_cert,
     make_delegate_key_witness,
+    make_delegate_key_chain_witness,
     make_graftroot_lock,
     make_graftroot_witness_keyspend,
     make_graftroot_witness_surrogate,

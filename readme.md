@@ -103,7 +103,7 @@ Variable assignment uses two possible syntaxes: `@= varname [ vals ]` or
 `@= varname count`; the first pushes the values onto the stack then calls
 `OP_WRITE_CACHE` to store those values in the cache at the `varname` key, while
 the second instead just calls `OP_WRITE_CACHE` and takes `count` items from the
-queue. Using `@varname` calls `OP_READ_CACHE` and places the values held at the
+stack. Using `@varname` calls `OP_READ_CACHE` and places the values held at the
 `varname` cache key onto the stack. The number of items in a variable can be
 read with `@#varname` (equivalent to `rcz s"varname"`).
 
@@ -119,7 +119,10 @@ hexadecimal value symbol equal to the compiled byte code of `ops`; `~! { ops }`
 is replaced with the top stack value as a hexadecimal symbol after compiling and
 executing `ops`. This allows the cryptographic commitment for scripts to be
 generated from the source code directly where the commitment is used. Below is
-an example taken from the compilation test vectors:
+an example taken from the compilation test vectors.
+
+<details>
+<summary>Example</summary>
 
 ```s
 # locking script #
@@ -145,6 +148,8 @@ OP_EQUAL_VERIFY
 OP_EVAL
 ```
 
+</details>
+
 Note that variables defined outside of a comptime block cannot be used within
 an executed comptime block, and variables defined within an executed comptime
 block cannot be used outside of it. However, macros defined outside of comptime
@@ -155,15 +160,27 @@ be invoked outside of them.
 
 There are included tools for making merklized branching scripts. To use them,
 write the desired branches, then pass them to `make_merklized_script_prioritized`
-or to `make_merklized_script_balanced`. For example:
+or to `make_merklized_script_balanced`.
+
+<details>
+<summary>Example</summary>
 
 ```py
-from tapescript import make_merklized_script_prioritized, make_merklized_script_balanced
+from tapescript import (
+    make_merklized_script_prioritized,
+    make_merklized_script_balanced,
+    make_single_sig_lock,
+    make_single_sig_witness,
+    run_auth_script,
+)
+from os import urandom
+from nacl.signing import SigningKey
 
+seeds = [urandom(32) for _ in range(3)]
 branches = [
-    'OP_PUSH xb26d10053b4b25497081561f529e42da9ccfac860a7b3d1ec932901c2a70afce\nOP_CHECK_SIG x00',
-    'OP_PUSH x9e477d55a62fc1ecc6b7c89d69c4f9cba94d5173f0d59f971951ff46acb9017b\nOP_CHECK_SIG x00',
-    'OP_PUSH xdd86edfbcfd5ac3e8c1acb527cc4178a14af0755aea1e447dc2b278f52fcedbf\nOP_CHECK_SIG x00',
+    make_single_sig_lock(bytes(SigningKey(seeds[0]).verify_key)),
+    make_single_sig_lock(bytes(SigningKey(seeds[1]).verify_key)),
+    make_single_sig_lock(bytes(SigningKey(seeds[2]).verify_key)),
 ]
 # prioritized script tree has one leaf and one node per level, so the scripts at
 # lower indices have shorter tree inclusion proof unlocking scripts
@@ -172,7 +189,17 @@ locking_script, unlocking_scripts = make_merklized_script_prioritized(branches)
 # balanced script tree has all leaves at the same level, so all scripts have the
 # same size inclusion proof unlocking scripts
 locking_script, unlocking_scripts = make_merklized_script_balanced(branches)
+
+# run a script
+sigfields = {'sigfield1': urandom(64)}
+witness = make_single_sig_witness(seeds[0], sigfields)
+assert run_auth_script(
+    witness + unlocking_scripts[0] + locking_script,
+    cache_vals={'sigfield1': sigfields['sigfield1']}
+)
 ```
+
+</details>
 
 These functions return a tuple containing the locking script that uses
 `OP_MERKLEVAL` to enforce the cryptographic commitment to the branches and a
@@ -203,13 +230,22 @@ scripts. The `_balanced` functions accept the same arguments but produce a
 balanced tree that gives all leaf executions identical Merkle proof overhead.
 
 Additionally, the `ScriptLeaf` and `ScriptNode` classes can be used to make
-arbitrary script tree structures. For example:
+arbitrary script tree structures.
+
+<details>
+<summary>Example</summary>
 
 ```python
-from tapescript import ScriptLeaf, ScriptNode
+from tapescript import ScriptLeaf, ScriptNode, Script, run_auth_script
 
 # get some scripts from somewhere
-sources = get_five_script_sources()
+sources = [
+    'equal',
+    'and',
+    'or',
+    'xor',
+    'not',
+]
 
 tree = ScriptNode(
     ScriptNode(
@@ -233,7 +269,16 @@ unlocks = [
     tree.right.left.unlocking_script(),
     tree.right.right.unlocking_script(),
 ]
+
+# run each script
+assert run_auth_script(Script.from_src('push d1 dup') + unlocks[0] + lock)
+assert run_auth_script(Script.from_src('true dup') + unlocks[1] + lock)
+assert run_auth_script(Script.from_src('true false') + unlocks[2] + lock)
+assert run_auth_script(Script.from_src('true false') + unlocks[3] + lock)
+assert run_auth_script(Script.from_src('false') + unlocks[4] + lock)
 ```
+
+</details>
 
 #### Taproot scripts
 
@@ -260,7 +305,45 @@ Tools are included for using taproot:
 - `make_taproot_witness_scriptspend` - 35-36 bytes + committed script length
 - `make_nonnative_taproot_lock` - 72 bytes
 
-### Delegated access and Graftroot
+<details>
+<summary>Example</summary>
+
+```python
+from tapescript import (
+    make_taproot_lock,
+    make_taproot_witness_keyspend,
+    make_taproot_witness_scriptspend,
+    make_nonnative_taproot_lock,
+    Script,
+    run_auth_script,
+)
+from nacl.signing import SigningKey
+from os import urandom
+
+sk = SigningKey(urandom(32))
+committed_script = Script.from_src('equal')
+lock = make_taproot_lock(sk.verify_key, committed_script)
+sigfields = {'sigfield1': urandom(64)}
+witness_keyspend = make_taproot_witness_keyspend(
+    sk, sigfields, committed_script=committed_script
+)
+witness_scriptspend = Script.from_src('push d1 dup') + make_taproot_witness_scriptspend(
+    sk.verify_key, committed_script
+)
+
+# get a nonnative taproot lock
+nonnative_lock = make_nonnative_taproot_lock(sk.verify_key, committed_script)
+
+# run the script
+assert run_auth_script(witness_keyspend + lock, sigfields)
+assert run_auth_script(witness_scriptspend + lock, sigfields)
+assert run_auth_script(witness_keyspend + nonnative_lock, sigfields)
+assert run_auth_script(witness_scriptspend + nonnative_lock, sigfields)
+```
+
+</details>
+
+#### Delegated access and Graftroot
 
 The general concept behind the Graftroot proposal by Gregory Maxwell is that the
 holder(s) of a private key should be able to authorize another locking script to
@@ -291,6 +374,39 @@ purpose I have included some tooling around delegating access:
 - `make_delegate_key_witness` - 173 bytes
 - `make_delegate_key_chain_witness` - 66 bytes + 108 bytes per cert
 
+<details>
+<summary>Example</summary>
+
+```python
+from tapescript import (
+    make_delegate_key_lock,
+    make_delegate_key_cert,
+    make_delegate_key_witness,
+    make_delegate_key_chain_lock,
+    make_delegate_key_chain_witness,
+    run_auth_script,
+)
+from nacl.signing import SigningKey
+from os import urandom
+from time import time
+
+now = lambda: int(time())
+hour = 60*60
+
+root_prvkey = SigningKey(urandom(32))
+delegate_prvkey = SigningKey(urandom(32))
+sigfields = {'sigfield1': urandom(64)}
+lock = make_delegate_key_lock(root_prvkey.verify_key)
+cert = make_delegate_key_cert(root_prvkey, delegate_prvkey.verify_key, now()-hour, now() + hour)
+witness = make_delegate_key_witness(delegate_prvkey, cert, sigfields)
+chain_lock = make_delegate_key_chain_lock(root_prvkey.verify_key)
+chain_witness = make_delegate_key_chain_witness(delegate_prvkey, [cert], sigfields)
+
+assert run_auth_script(witness + lock, sigfields)
+assert run_auth_script(chain_witness + chain_lock, sigfields)
+```
+</details>
+
 The idea is that the holder of a root private key will be able to generate a
 certificate authorizing an arbitrary public key for a set amount of time, and
 optionally allow that delegate to authorize further public keys. The chain lock
@@ -317,6 +433,34 @@ the original graftroot concept using pure tapescript:
 - `make_graftroot_witness_keyspend` - 67 bytes
 - `make_graftroot_witness_surrogate` - 68-69 byte overhead + surrogate length
 
+<details>
+<summary>Example</summary>
+
+```python
+from tapescript import (
+    make_graftroot_lock,
+    make_graftroot_witness_keyspend,
+    make_graftroot_witness_surrogate,
+    run_auth_script,
+    Script,
+)
+from nacl.signing import SigningKey
+from os import urandom
+
+prvkey = SigningKey(urandom(32))
+sigfields = {'sigfield1': urandom(64)}
+surrogate = Script.from_src('equal')
+lock = make_graftroot_lock(prvkey.verify_key)
+witness = make_graftroot_witness_keyspend(prvkey, sigfields)
+surrogate_witness = Script.from_src('push d1 dup') + make_graftroot_witness_surrogate(
+    prvkey, surrogate
+)
+
+assert run_auth_script(witness + lock, sigfields)
+assert run_auth_script(surrogate_witness + lock, sigfields)
+```
+</details>
+
 I have also added tools for a graftroot within taproot construction, which
 commits to a script that checks a signature of a surrogate and then executes the
 surrogate script; keyspend path is then taproot, and executing a surrogate first
@@ -325,6 +469,34 @@ takes the taproot scriptspend path before engaging the graftroot mechanism.
 - `make_graftap_lock` - 36 bytes
 - `make_graftap_witness_keyspend` - 66 bytes
 - `make_graftap_witness_scriptspend` - 145 byte overhead + surrogate length
+
+<details>
+<summary>Example</summary>
+
+```python
+from tapescript import (
+    make_graftap_lock,
+    make_graftap_witness_keyspend,
+    make_graftap_witness_scriptspend,
+    run_auth_script,
+    Script,
+)
+from nacl.signing import SigningKey
+from os import urandom
+
+prvkey = SigningKey(urandom(32))
+sigfields = {'sigfield1': urandom(64)}
+surrogate = Script.from_src('equal')
+lock = make_graftap_lock(prvkey.verify_key)
+witness_keyspend = make_graftap_witness_keyspend(prvkey, sigfields)
+witness_scriptspend = Script.from_src('push d1 dup') + make_graftap_witness_scriptspend(
+    prvkey, surrogate
+)
+
+assert run_auth_script(witness_keyspend + lock, sigfields)
+assert run_auth_script(witness_scriptspend + lock, sigfields)
+```
+</details>
 
 #### Hash Time Locked Contracts and Point Time Locked Contracts
 
@@ -348,6 +520,97 @@ receiver_pubkey, while the refund branch can be unlocked with a signature
 matching the refund_pubkey only after a timeout has expired. The PTLC by
 comparison drops the hash lock and instead locks to a point on the ed25519
 curve, i.e. it simply uses a `check_sig` lock.
+
+<details>
+<summary>Example</summary>
+
+```python
+from tapescript import (
+    make_htlc_sha256_lock,
+    make_htlc_shake256_lock,
+    make_htlc2_sha256_lock,
+    make_htlc2_shake256_lock,
+    make_htlc_witness,
+    make_htlc2_witness,
+    make_ptlc_lock,
+    make_ptlc_witness,
+    make_ptlc_refund_witness,
+    run_auth_script,
+    clamp_scalar,
+    derive_point_from_scalar,
+    Script,
+)
+from nacl.signing import SigningKey
+from os import urandom
+from time import time
+
+receiver_prvkey = SigningKey(urandom(32))
+receiver_pubkey = receiver_prvkey.verify_key
+sender_prvkey = SigningKey(urandom(32))
+refund_pubkey = sender_prvkey.verify_key
+sigfields = {'sigfield1': urandom(16)}
+timeout = 10
+get_refund_cache = lambda: {
+    'timestamp': int(time()) + timeout,
+    **sigfields
+}
+preimage = b'super secret: ' + urandom(16)
+
+# HTLC-SHA256
+lock = make_htlc_sha256_lock(receiver_pubkey, preimage, refund_pubkey, timeout=timeout)
+# receiver gets the preimage
+receiver_witness = make_htlc_witness(receiver_prvkey, preimage, sigfields)
+assert run_auth_script(receiver_witness + lock, sigfields)
+# sender is refunded in the future
+refund_witness = make_htlc_witness(sender_prvkey, b'1', sigfields)
+assert run_auth_script(refund_witness + lock, get_refund_cache())
+
+# HTLC-SHAKE256
+lock = make_htlc_shake256_lock(receiver_pubkey, preimage, refund_pubkey, timeout=timeout)
+# receiver gets the preimage
+receiver_witness = make_htlc_witness(receiver_prvkey, preimage, sigfields)
+assert run_auth_script(receiver_witness + lock, sigfields)
+# sender is refunded in the future
+assert run_auth_script(refund_witness + lock, get_refund_cache())
+
+# HTLC2-SHA256
+lock = make_htlc2_sha256_lock(receiver_pubkey, preimage, refund_pubkey, timeout=timeout)
+# receiver gets the preimage
+receiver_witness = make_htlc2_witness(receiver_prvkey, preimage, sigfields)
+assert run_auth_script(receiver_witness + lock, sigfields)
+# sender is refunded in the future
+refund_witness = make_htlc2_witness(sender_prvkey, b'1', sigfields)
+assert run_auth_script(refund_witness + lock, get_refund_cache())
+
+# HTLC2-SHAKE256
+lock = make_htlc2_shake256_lock(receiver_pubkey, preimage, refund_pubkey, timeout=timeout)
+# receiver gets the preimage
+receiver_witness = make_htlc2_witness(receiver_prvkey, preimage, sigfields)
+assert run_auth_script(receiver_witness + lock, sigfields)
+# sender is refunded in the future
+assert run_auth_script(refund_witness + lock, get_refund_cache())
+
+# PTLC without tweak
+lock = make_ptlc_lock(receiver_pubkey, refund_pubkey, timeout=timeout)
+# receiver gets the preimage
+witness = make_ptlc_witness(receiver_prvkey, sigfields)
+assert run_auth_script(witness + lock, sigfields)
+# sender is refunded in the future
+refund_witness = make_ptlc_refund_witness(sender_prvkey, sigfields)
+assert run_auth_script(refund_witness + lock, get_refund_cache())
+
+# PTLC with tweak
+scalar = clamp_scalar(urandom(32))
+point = derive_point_from_scalar(scalar)
+lock = make_ptlc_lock(receiver_pubkey, refund_pubkey, tweak_point=point, timeout=timeout)
+# receiver gets the preimage
+witness = make_ptlc_witness(receiver_prvkey, sigfields, tweak_scalar=scalar)
+assert run_auth_script(witness + lock, sigfields)
+# sender is refunded in the future
+refund_witness = make_ptlc_refund_witness(sender_prvkey, sigfields)
+assert run_auth_script(refund_witness + lock, get_refund_cache())
+```
+</details>
 
 #### Adapter Signatures and Anonymous Multi-Hop Locks
 
@@ -649,6 +912,8 @@ Scripts written with the new op will always execute successfully on nodes
 running the old version of the interpreter. Example script:
 
 ```python
+from tapescript import Script, run_auth_script
+
 # locking script
 lock = Script.from_src('OP_CHECK_ALL_EQUAL_VERIFY d3 OP_TRUE')
 # or to use aliases
@@ -656,7 +921,8 @@ lock = Script.from_src('caev d3 true')
 assert lock.bytes.hex() == 'ff0301'
 
 # locking script as decompiled by old nodes
-print(Script.from_bytes(bytes.fromhex('ff0301')).src)
+lock = Script.from_bytes(bytes.fromhex('ff0301'))
+print(lock.src)
 '''NOP255 d3
 OP_TRUE'''
 

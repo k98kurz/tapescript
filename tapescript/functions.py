@@ -143,7 +143,7 @@ def float_to_bytes(number: float) -> bytes:
     tert(type(number) is float, 'number must be float')
     return struct.pack('!f', number)
 
-def clamp_scalar(scalar: bytes, from_private_key: bool = False) -> bytes:
+def clamp_scalar(scalar: bytes|SigningKey, from_private_key: bool = False) -> bytes:
     """Make a clamped ed25519 scalar by setting specific bits."""
     if type(scalar) is bytes and len(scalar) >= 32:
         x_i = bytearray(scalar[:32])
@@ -765,12 +765,13 @@ def OP_CHECK_SIG_VERIFY(tape: Tape, stack: Stack, cache: dict) -> None:
     OP_VERIFY(tape, stack, cache)
 
 def OP_CHECK_TIMESTAMP(tape: Tape, stack: Stack, cache: dict) -> None:
-    """Pulls a value from the stack, interpreting as an unsigned int;
-        gets the timestamp to check from the cache; compares the two
-        values; if the cache timestamp is less than the stack time, or
-        if current Unix epoch is behind cache timestamp by the flagged
-        amount, put False onto the stack; otherwise, put True onto the
-        stack. If the ts_threshold flag is <= 0, that check will be
+    """Pulls a value from the stack, interpreting as an unsigned int
+        constraint; gets the timestamp to check against from the cache;
+        compares the two values; if the cache timestamp is less than the
+        stack time, or if the cache time is in the future by more than
+        the ts_threshold according to the current Unix epoch, put False
+        onto the stack; otherwise, put True onto the stack. If the
+        ts_threshold flag is <= 0, the future timestamp check will be
         skipped.
     """
     constraint = stack.get()
