@@ -1682,15 +1682,13 @@ def OP_TAPROOT(tape: Tape, stack: Stack, cache: dict) -> None:
         ed25519 public key, otherwise it is a signature; if it was a
         public key, then it is executing the committed script; if it is
         a signature, then it is executing the key-spend path. For
-        key-spend, pull the sigflags from cache b'trsf' or
-        'taproot_sigflags', but replace with 0x00 if it does not
-        disallow exclusion of at least one sigfield (i.e. has at least
-        one null bit), then run `OP_CHECK_SIG`. For committed script
-        execution, get the script and public key from the stack,
-        concatenate, sha256, clamp to the ed25519 scalar field, derive a
-        point, and add the point to the public key; if the result was
-        the root, then put the script back on the stack and `OP_EVAL`,
-        otherwise remove the script and put 0x00 (False) onto the stack.
+        committed script execution, get the public key and script from
+        the stack, concatenate the pubkey||sha256(script), sha256, clamp
+        to the ed25519 scalar field, derive a point, and add the point
+        to the public key; if the result was the root, then put the
+        script back on the stack and `OP_EVAL`, otherwise remove the
+        script and put 0x00 (False) onto the stack. For key-spend, run
+        `OP_CHECK_SIG` using the allowable sigflags.
         https://lists.linuxfoundation.org/pipermail/bitcoin-dev/2018-January/015614.html
     """
     allowable_sigflags = tape.read(1)
