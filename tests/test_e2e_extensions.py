@@ -271,7 +271,7 @@ def ctv_plugin_check_constraint(tape: classes.Tape, stack: classes.Stack, cache:
         ConstraintCodes.MATCH_AT_MOST_N
     ):
         matches = 0
-        expected = int.from_bytes(constraint.data)
+        expected = int.from_bytes(constraint.data, 'big')
         for item in items:
             for child in constraint.children:
                 if child.code is ConstraintCodes.EXACT:

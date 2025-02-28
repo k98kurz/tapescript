@@ -162,7 +162,6 @@ def validate_txn(txn: Txn) -> bool:
                 witness + input.lock,
                 {
                     **cache_values[entry.id()],
-                    'time': int(time()),
                     'input_ts': input_ts,
                 }
             ):
