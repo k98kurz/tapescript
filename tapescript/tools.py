@@ -420,18 +420,20 @@ def repl(
                 val = stack.peek()
                 print(bytes_to_float(val))
                 continue
-            if src.split()[0][:2] == '~s' and len(src.split()) > 1:
-                src = src.split()
-                src2 = ' '.join(src[1:])
+            if src.split()[0][:2] == '~s':
+                src = src.split(maxsplit=1)
+                src2 = ''.join(src[1:])
                 src = f'sigfield{src[0][2:]}'
-                if 'x' in src2[:2]:
-                    cache[src] = bytes.fromhex(src2.split('x')[1])
-                elif len(src2):
-                    cache[src] = src2.encode()
+                if len(src2) > 1:
+                    if 'x' in src2[:2]:
+                        cache[src] = bytes.fromhex(src2.split('x')[1])
+                    elif len(src2):
+                        cache[src] = src2.encode()
                 print(cache[src])
                 continue
         except BaseException as e:
             print(f"{e.__class__.__name__}: {str(e)}")
+            continue
         if src in ("help", "?"):
             print(
                 'Assembles and runs scripts. Type "exit", "quit", or "q" ' +\
