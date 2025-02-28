@@ -30,7 +30,7 @@ Steps to reproduce the behavior:
 - Platform/device: [e.g. desktop or specific phone model]
 - OS: [e.g. Ubuntu]
 - Python Version: [e.g. 3.10]
-- Tapescript Version [e.g. 0.6.0]
+- Tapescript Version: [e.g. 0.7.0]
 
 ### Additional context
 
