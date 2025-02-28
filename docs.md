@@ -320,6 +320,8 @@ Pull 2 items from the stack; compare them; put the bool result onto the stack.
 
 Aliases:
 - EQUAL
+- OP_EQ
+- EQ
 
 ## OP_EQUAL_VERIFY - 34 - x22
 
@@ -327,6 +329,8 @@ Runs OP_EQUAL then OP_VERIFY.
 
 Aliases:
 - EQUAL_VERIFY
+- OP_EQV
+- EQV
 
 ## OP_CHECK_SIG - 35 - x23
 
@@ -339,6 +343,8 @@ extension plugins beforehand.
 
 Aliases:
 - CHECK_SIG
+- OP_CS
+- CS
 
 ## OP_CHECK_SIG_VERIFY - 36 - x24
 
@@ -681,7 +687,8 @@ Aliases:
 Reads 1 byte from the tape as the sig_flag; pulls a value from the stack,
 interpreting as a SigningKey; creates a signature using the correct sigfields;
 puts the signature onto the stack. Raises ValueError for invalid key seed
-length. Runs the signature extension plugins beforehand.
+length. Runs the signature extension plugins beforehand. Resulting signature
+will have the sig_flag appended to it if a non-null sig_flag is specified.
 
 Aliases:
 - SIGN
@@ -756,8 +763,8 @@ Aliases:
 ## OP_SUBTRACT_POINTS - 80 - x50
 
 Read the next byte from the tape, interpreting as an unsigned int; pull that
-many values from the stack, interpreting them as ed25519 scalars; subtract them
-from the first one; put the result onto the stack.
+many values from the stack, interpreting them as ed25519 scalars; subtract the
+rest from the first one; put the result onto the stack.
 
 Aliases:
 - SUBTRACT_POINTS
@@ -776,7 +783,7 @@ Aliases:
 
 ## OP_MAKE_ADAPTER_SIG_PRIVATE - 82 - x52
 
-Takes three values, seed, t, and message m from the stack; derives prvkey x from
+Takes three values from the stack: seed, t, and message m; derives prvkey x from
 seed; derives pubkey X from x; derives private nonce r from seed and m; derives
 public nonce point R from r; derives public tweak point T from t; creates
 signature adapter sa; puts T, R, and sa onto stack; sets cache keys b't' to t if
@@ -877,17 +884,17 @@ Aliases:
 
 ## OP_TAPROOT - 91 - x5B
 
-Reads 32 bytes from the tape as the root; gets a copy of the top stack item
-(using stack.peek); if the item has length 32, it is an ed25519 public key,
-otherwise it is a signature; if it was a public key, then it is executing the
-committed script; if it is a signature, then it is executing the key-spend path.
-For key-spend, pull the sigflags from cache b'trsf' or 'taproot_sigflags', but
-replace with 0x00 if it does not disallow exclusion of at least one sigfield
-(i.e. has at least one null bit), then run `OP_CHECK_SIG`. For committed script
-execution, get the script and public key from the stack, concatenate, sha256,
-clamp to the ed25519 scalar field, derive a point, and add the point to the
-public key; if the result was the root, then put the script back on the stack
-and `OP_EVAL`, otherwise remove the script and put 0x00 (False) onto the stack.
+Reads 1 byte from the tape as allowable sigflags; pops the top item of the stack
+as the root; gets a copy of the next stack item (using stack.peek); if the item
+has length 32, it is an ed25519 public key, otherwise it is a signature; if it
+was a public key, then it is executing the committed script; if it is a
+signature, then it is executing the key-spend path. For committed script
+execution, get the public key and script from the stack, concatenate the
+pubkey||sha256(script), sha256, clamp to the ed25519 scalar field, derive a
+point, and add the point to the public key; if the result was the root, then put
+the script back on the stack and `OP_EVAL`, otherwise remove the script and put
+0x00 (False) onto the stack. For key-spend, run `OP_CHECK_SIG` using the
+allowable sigflags.
 https://lists.linuxfoundation.org/pipermail/bitcoin-dev/2018-January/015614.html
 
 Aliases:
@@ -976,7 +983,7 @@ or ValueError raised by assemble.
 
 Decompile the byte code into human-readable script.
 
-## `add_opcode_parsing_handlers(opname: str, compiler_handler: Callable, decompiler_handler: Callable): -> unseen_return_value`
+## `add_opcode_parsing_handlers(opname: str, compiler_handler: Callable, decompiler_handler: Callable): -> None`
 
 Adds the handlers for parsing a new OP. The opname should start with OP_. The
 compiler_handler should have this annotation: ( opname: str, symbols: list[str],
@@ -1020,11 +1027,11 @@ A leaf in a Merklized script tree.
 
 - hash: bytes
 - script: Script | None
-- parent: ScriptNode
+- parent: ScriptNode | None
 
 ### Methods
 
-#### `__init__(hash: bytes, script: Script | None = None, parent: ScriptNode = None):`
+#### `__init__(hash: bytes, script: Script | None = None, parent: ScriptNode | None = None):`
 
 #### `@classmethod from_script(script: Script) -> ScriptLeaf:`
 
@@ -1045,7 +1052,9 @@ Return the cryptographic commitment for the leaf.
 #### `unlocking_script() -> Script:`
 
 Calculate an unlocking script recursively, traveling up the parents. Returns a
-Script with the source and byte codes.
+Script with the source and byte codes. When executed, this will validate the
+LeafScript against the root ScriptNode commitment (within an `OP_MERKLEVAL`
+locking script), and then `OP_MERKLEVAL` will execute the underlying script.
 
 #### `pack() -> bytes:`
 
@@ -1063,7 +1072,7 @@ A node in a Merklized script tree.
 
 - left: ScriptLeaf | ScriptNode
 - right: ScriptLeaf | ScriptNode
-- parent: ScriptNode
+- parent: ScriptNode | None
 
 ### Methods
 
@@ -1077,8 +1086,8 @@ Calculate and return the local root between the two branches.
 
 #### `locking_script() -> Script:`
 
-Calculates the locking script for the node. Returns a tuple with the source and
-byte codes.
+Calculates the locking script for the node. Returns a Script with the source and
+byte codes in the form `OP_MERKLEVAL <root>`.
 
 #### `commitment() -> bytes:`
 
@@ -1099,7 +1108,15 @@ Deserialize a script tree from bytes.
 
 
 
-## `create_script_tree_prioritized(leaves: list[str | ScriptProtocol], tree: ScriptNode = None): -> ScriptNode`
+## `repl(cache: dict = {}, contracts: dict = {}, add_flags: dict = {}, plugins: dict = {}): -> None`
+
+Provides a REPL (Read Execute Print Loop). Lines of source code are read,
+compiled, and executed, and the runtime state is shared between executions. If a
+code block is opened, the Read functionality will continue accepting input until
+all opened code blocks have closed, and it will automatically indent the input
+line. To exit the loop, type "return", "exit", or "quit".
+
+## `make_script_tree_prioritized(leaves: list[str | ScriptProtocol], tree: ScriptNode | None = None): -> ScriptNode`
 
 Construct a script tree from the leaves using a ScriptLeaf for each leaf script,
 combining the last two into a ScriptNode and then recursively combining a
@@ -1107,72 +1124,96 @@ ScriptLeaf for the last of the remaining script leaves with the previously
 generated ScriptNode until all leaves have been included, priorizing the lower
 index leaf scripts with smaller unlocking script sizes.
 
-## `create_merklized_script_prioritized(leaves: list[str | ScriptProtocol]): -> tuple[Script, list[Script]]`
+## `make_merklized_script_prioritized(leaves: list[str | ScriptProtocol]): -> tuple[Script, list[Script]]`
 
 Produces a Merklized, branching script structure with one leaf and one node at
 every level except for the last node, which is balanced. Returns a tuple of root
 locking script and list of unlocking scripts. The tree is unbalanced; execution
 is optimized for earlier branches (lower index leaf scripts), and execution is
-linearly worse for each subsequent branch.
+linearly worse for each subsequent branch. In practice, the input scripts should
+be locking scripts, and then they should be used by concatenating the
+corresponding unlocking script and the unlocking script from this function.
+
+## `make_script_tree_balanced(leaves: list[str | ScriptProtocol]): -> ScriptNode`
+
+Create a balanced script tree from the leaves, filling with filler
+leaves/branches to make sure the tree is balanced. The filler leaves take the
+form of `push x{16 random bytes} return`, so they can never validate, and they
+will have unique hashes to avoid revealing the presence of empty leaves/branches
+during execution of actual leaf scripts. Used internally by the
+`make_merklized_script_balanced` function.
+
+## `make_merklized_script_balanced(leaves: list[str | ScriptProtocol]): -> tuple[Script, list[Script]]`
+
+Produces a Merklized, branching script with a balanced tree structure, filling
+with filler branches to make sure the tree is balanced (calls
+`make_script_tree_balanced` under the hood). Returns a tuple of root locking
+script and list of unlocking scripts corresponding to the input scripts. In
+practice, the input scripts should be locking scripts, and then they should be
+used by concatenating the corresponding unlocking script and the unlocking
+script from this function.
 
 ## `make_adapter_lock_pub(pubkey: bytes, tweak_point: bytes, sigflags: str = 00): -> Script`
 
 Make an adapter locking script that verifies a sig adapter, decrypts it, and
-then verifies the decrypted signature.
+then verifies the decrypted signature. DEPRECATED: use `make_adapter_locks_pub`
+instead.
 
 ## `make_adapter_lock_prv(pubkey: bytes, tweak: bytes, sigflags: str = 00): -> Script`
 
 Make an adapter locking script that verifies a sig adapter, decrypts it, and
-then verifies the decrypted signature.
+then verifies the decrypted signature. DEPRECATED: use `make_adapter_locks_prv`
+instead.
 
 ## `make_single_sig_lock(pubkey: bytes, sigflags: str = 00): -> Script`
 
-Make a locking script that requires a valid signature from a single key to
-unlock. Returns tapescript source code.
+Make a locking Script that requires a valid signature from a single key to
+unlock.
 
 ## `make_single_sig_lock2(pubkey: bytes, sigflags: str = 00): -> Script`
 
-Make a locking script that requires a valid signature from a single key to
-unlock. Returns tapescript source code. Saves 8 bytes in locking script at
-expense of an additional 33 bytes in the witness.
+Make a locking Script that commits to and requires a public key and then valid
+signature from the pubkey to unlock. Saves 8 bytes in locking script at expense
+of an additional 33 bytes in the witness.
 
 ## `make_single_sig_witness(prvkey: bytes, sigfields: dict[str, bytes], sigflags: str = 00): -> Script`
 
 Make an unlocking script that validates for a single sig locking script by
-signing the sigfields. Returns tapescript source code.
+signing the sigfields. Returns Script that pushes the signature onto the stack.
 
 ## `make_single_sig_witness2(prvkey: bytes, sigfields: dict[str, bytes], sigflags: str = 00): -> Script`
 
 Make an unlocking script that validates for a single sig locking script by
-signing the sigfields. Returns tapescript source code. 33 bytes larger witness
-than make_single_sig_witness to save 8 bytes in the locking script.
+signing the sigfields. Returns a Script that pushes the signature and pubkey
+onto the stack. 33 bytes larger witness than `make_single_sig_witness` to save 8
+bytes in the locking script.
 
 ## `make_multisig_lock(pubkeys: list[bytes], quorum_size: int, sigflags: str = 00): -> Script`
 
-Make a locking script that requires quorum_size valid signatures from unique
-keys within the pubkeys list. Returns tapescript source code. Can be unlocked by
-joining the results of quorum_size calls to make_single_sig_witness by different
-key holders.
+Make a locking Script that requires quorum_size valid signatures from unique
+keys within the pubkeys list. Can be unlocked by joining the results of
+quorum_size calls to `make_single_sig_witness` by different key holders.
 
 ## `make_adapter_locks_pub(pubkey: bytes, tweak_point: bytes, sigflags: str = 00): -> tuple[Script, Script]`
 
-Make adapter locking scripts using a public key and a tweak scalar. Returns 2
+Make adapter locking scripts using a public key and a tweak point. Returns 2
 Scripts: one that checks if a sig adapter is valid, and one that verifies the
 decrypted signature.
 
 ## `make_adapter_decrypt(tweak: bytes): -> Script`
 
-Make adapter decryption script.
+Make adapter decryption script from a tweak scalar.
 
 ## `decrypt_adapter(adapter_witness: bytes | ScriptProtocol, tweak: bytes): -> bytes`
 
-Decrypt an adapter signature, returning the decrypted signature.
+Decrypt an adapter signature with the given tweak scalar, returning the
+decrypted signature.
 
 ## `make_adapter_locks_prv(pubkey: bytes, tweak: bytes, sigflags: str = 00): -> tuple[Script, Script, Script]`
 
-Make adapter locking scripts using a public key and a tweak scalar. Returns the
-source for 3 tapescripts: one that checks if a sig adapter is valid, one that
-decrypts the signature, and one that verifies the decrypted signature.
+Make adapter locking scripts using a public key and a tweak scalar. Returns a
+tuple of 3 Scripts: one that checks if a sig adapter is valid, one that decrypts
+the signature, and one that verifies the decrypted signature.
 
 ## `make_adapter_witness(prvkey: bytes, tweak_point: bytes, sigfields: dict, sigflags: str = 00): -> Script`
 
@@ -1181,26 +1222,35 @@ tapescript src code.
 
 ## `make_delegate_key_lock(root_pubkey: bytes, sigflags: str = 00): -> Script`
 
-Takes a root_pubkey and returns the tapescript source for a locking script that
-is unlocked with a signature from the delegate key, the delegated public key,
-and a certificate from the root key committing to the delegate public key and
-validity time constraints.
+Takes a root_pubkey and returns a locking Script that is unlocked with a
+signature from the delegate key and a signed certificate from the root key
+authorizing the delegate key.
 
-## `make_delegate_key_cert_sig(root_skey: bytes, delegate_pubkey: bytes, begin_ts: int, end_ts: int): -> bytes`
+## `make_delegate_key_cert(root_skey: bytes, delegate_pubkey: bytes, begin_ts: int, end_ts: int, can_further_delegate: bool = True): -> bytes`
 
-Returns a signature for a key delegation cert.
+Returns a signed key delegation cert. By default, this cert will authorize the
+delegate_pubkey holder to create further delegate certs, allowing authorization
+by a chain of certs. To disable this behavior and create a terminal cert, pass
+`False` as the can_further_delegate argument.
 
-## `make_delegate_key_unlock(prvkey: bytes, pubkey: bytes, begin_ts: int, end_ts: int, cert_sig: bytes, sigfields: dict, sigflags: str = 00): -> Script`
+## `make_delegate_key_witness(prvkey: bytes, cert: bytes, sigfields: dict, sigflags: str = 00): -> Script`
 
-Returns an unlocking script including a signature from the delegate key as well
-as the delegation certificate.
+Returns an unlocking (witness) script including a signature from the delegate
+key as well as the delegation certificate.
+
+## `make_delegate_key_chain_witness(prvkey: bytes, certs: list[bytes], sigfields: dict, sigflags: str = 00): -> Script`
+
+Returns an unlocking (witness) script including a signature from the delegate
+key as well as the chain of delegation certificates ordered from the one
+authorizing this key down to the first cert authorized by the root.
 
 ## `make_htlc_sha256_lock(receiver_pubkey: bytes, preimage: bytes, refund_pubkey: bytes, timeout: int = 86400, sigflags: str = 00): -> Script`
 
 Returns an HTLC that can be unlocked either with the preimage and a signature
 matching receiver_pubkey or with a signature matching the refund_pubkey after
 the timeout has expired. Suitable only for systems with guaranteed causal
-ordering and non-repudiation of transactions.
+ordering and non-repudiation of transactions. Preimage should be at least 16
+random bytes but not more than 32.
 
 ## `make_htlc_shake256_lock(receiver_pubkey: bytes, preimage: bytes, refund_pubkey: bytes, hash_size: int = 20, timeout: int = 86400, sigflags: str = 00): -> Script`
 
@@ -1209,13 +1259,14 @@ matching receiver_pubkey or with a signature matching the refund_pubkey after
 the timeout has expired. Suitable only for systems with guaranteed causal
 ordering and non-repudiation of transactions. Using a hash_size of 20 saves 11
 bytes compared to the sha256 version with a 96 bit reduction in security
-(remaining 160 bits) for the hash lock.
+(remaining 160 bits) for the hash lock. Preimage should be at least 16 random
+bytes but not more than 32.
 
 ## `make_htlc_witness(prvkey: bytes, preimage: bytes, sigfields: dict, sigflags: str = 00): -> Script`
 
-Returns the tapescript source for a witness to unlock either the hash lock or
-the time lock path of an HTLC, depending upon whether or not the preimage
-matches.
+Returns a witness to unlock either the hash lock or the time lock path of an
+HTLC, depending upon whether or not the preimage matches. To use the time lock
+path, pass a preimage of 1 byte to save space in the witness.
 
 ## `make_htlc2_sha256_lock(receiver_pubkey: bytes, preimage: bytes, refund_pubkey: bytes, timeout: int = 86400, sigflags: str = 00): -> Script`
 
@@ -1247,35 +1298,68 @@ where witness data cannot be trimmed, the other version is more appropriate.
 
 ## `make_htlc2_witness(prvkey: bytes, preimage: bytes, sigfields: dict, sigflags: str = 00): -> Script`
 
-Returns the tapescript source for a witness to unlock either the hash lock or
-the time lock path of an HTLC, depending upon whether or not the preimage
-matches. This version is optimized for smaller locking script size (-18 bytes)
-at the expense of larger witnesses (+33 bytes) for larger overall txn size (+15
-bytes). Which to use will depend upon the intended use case: for public
-blockchains where all nodes must hold a UTXO set in memory and can trim witness
-data after consensus, the lock script size reduction is significant and useful;
-for other use cases, in particular systems where witness data cannot be trimmed,
-the other version is more appropriate.
+Returns a witness Script to unlock either the hash lock or the time lock path of
+an HTLC, depending upon whether or not the preimage matches. This version is
+optimized for smaller locking script size (-18 bytes) at the expense of larger
+witnesses (+33 bytes) for larger overall txn size (+15 bytes). Which to use will
+depend upon the intended use case: for public blockchains where all nodes must
+hold a UTXO set in memory and can trim witness data after consensus, the lock
+script size reduction is significant and useful; for other use cases, in
+particular systems where witness data cannot be trimmed or in which witness size
+should be minimized, the other version is more appropriate.
 
 ## `make_ptlc_lock(receiver_pubkey: bytes, refund_pubkey: bytes, tweak_point: bytes = None, timeout: int = 86400, sigflags: str = 00): -> Script`
 
-Returns the tapescript source for a Point Time Locked Contract that can be
-unlcoked with either a signature matching the receiver_pubkey or with a
-signature matching the refund_pubkey after the timeout has expired. Suitable
-only for systems with guaranteed causal ordering and non-repudiation of
-transactions. If a tweak_point is passed, use tweak_point+receiver_pubkey as the
-point lock.
+Returns a Point Time Locked Contract (PTLC) Script that can be unlocked with
+either a signature matching the receiver_pubkey or with a signature matching the
+refund_pubkey after the timeout has expired. Suitable only for systems with
+guaranteed causal ordering and non-repudiation of transactions. If a tweak_point
+is passed, use tweak_point+receiver_pubkey as the point lock.
 
 ## `make_ptlc_witness(prvkey: bytes, sigfields: dict, tweak_scalar: bytes = None, sigflags: str = 00): -> Script`
 
-Returns the tapescript source for a PTLC witness unlocking the main branch. If a
-tweak_scalar is passed, add tweak_scalar to x within signature generation to
-unlock the point corresponding to derive_point(tweak_scalar)+derive_point(x).
+Returns a PTLC witness unlocking the main branch. If a tweak_scalar is passed,
+add tweak_scalar to x within signature generation to unlock the point
+corresponding to `derive_point(tweak_scalar) + derive_point(x)`.
 
 ## `make_ptlc_refund_witness(prvkey: bytes, sigfields: dict, sigflags: str = 00): -> Script`
 
-Returns the tapescript source for a PTLC witness unlcoking the time locked
-refund branch.
+Returns a PTLC witness unlocking the time locked refund branch.
+
+## `make_taproot_lock(pubkey: bytes, script: Script = None, script_commitment: bytes = None, sigflags: str = 00): -> Script`
+
+Returns a Script for a taproot locking script that can either be unlocked with a
+signature that validates using the taproot root commitment as a public key or by
+supplying both the committed script and the committed public key to execute the
+committed script.
+
+## `make_taproot_witness_keyspend(prvkey: bytes, sigfields: dict, committed_script: Script = None, script_commitment: bytes = None, sigflags: str = 00): -> Script`
+
+Returns a Script witness for a taproot keyspend.
+
+## `make_taproot_witness_scriptspend(pubkey: bytes, committed_script: Script): -> Script`
+
+Returns a Script witness for a taproot scriptspend, i.e. a witness that causes
+the committed script to be executed.
+
+## `make_nonnative_taproot_lock(pubkey: bytes, script: Script = None, script_commitment: bytes = None, sigflags: str = 00): -> Script`
+
+Returns a locking Script for non-native taproot. This Script exists primarily to
+compare against the native taproot lock and the nonnative graftroot lock.
+
+## `make_graftap_lock(pubkey: bytes): -> Script`
+
+Make a taproot lock committing to the (internal) pubkey and a graftroot lock.
+
+## `make_graftap_witness_keyspend(prvkey: bytes, sigfields: dict, sigflags: str = 00): -> Script`
+
+Make a Script witness for a taproot keyspend, providing the committed graftroot
+lock hash and a signature.
+
+## `make_graftap_witness_scriptspend(prvkey: bytes, surrogate_script: Script): -> Script`
+
+Make a Script witness for a taproot scriptspend, providing the committed
+graftroot lock, the internal pubkey, and the graftroot surrogate witness script.
 
 ## `setup_amhl(seed: bytes, pubkeys: tuple[bytes] | list[bytes], sigflags: str = 00, refund_pubkeys: dict[bytes] = None, timeout: int = 86400): -> dict[bytes | str, bytes | tuple[Script | bytes, ...]]`
 
