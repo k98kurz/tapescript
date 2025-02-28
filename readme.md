@@ -706,6 +706,9 @@ The interpreter flags can be changed by changing the `functions.flags` dict.
 
 The ops can be updated via a plugin system.
 
+<details>
+<summary>Example</summary>
+
 ```py
 from tapescript import Stack, Tape, add_opcode, add_opcode_parsing_handlers
 
@@ -737,6 +740,7 @@ add_opcode_parsing_handlers(
     OP_SOME_NONSENSE_decompiler
 )
 ```
+</details>
 
 #### Adding an alias
 
@@ -744,6 +748,16 @@ If you want to use a new alias for an op code, you can create this alias using
 the `add_alias` function. Valid aliases are alpha-numeric and may contain
 underscores. This function will raise a `TypeError` for non-str args and a
 `ValueError` if the alias contains invalid chars or is already in use.
+
+<details>
+<summary>Example</summary>
+
+```py
+from tapescript import add_alias
+
+add_alias('arbitrary_alias', 'OP_CHECK_SIG_VERIFY')
+```
+</details>
 
 ### Plugins
 
@@ -876,7 +890,8 @@ checks on the data, and raises an error in case any check fails. This maintains
 the behavior of the original NOP such that any nodes that did not activate the
 soft fork will not have any errors parsing scripts using the new OP.
 
-Example soft fork:
+<details>
+<summary>Example</summary>
 
 ```python
 from tapescript import (
@@ -907,9 +922,13 @@ def OP_CHECK_ALL_EQUAL_VERIFY(tape: Tape, stack: Stack, cache: dict) -> None:
 aliases = ['CHECK_ALL_EQUAL_VERIFY', 'CAEV']
 add_soft_fork(255, 'OP_CHECK_ALL_EQUAL_VERIFY', OP_CHECK_ALL_EQUAL_VERIFY, aliases)
 ```
+</details>
 
 Scripts written with the new op will always execute successfully on nodes
-running the old version of the interpreter. Example script:
+running the old version of the interpreter.
+
+<details>
+<summary>Example</summary>
 
 ```python
 from tapescript import Script, run_auth_script
@@ -934,6 +953,7 @@ assert run_auth_script(unlock + lock)
 unlock_fail = Script.from_src('push x0123 push x0123 push x3210')
 assert not run_auth_script(unlock_fail + lock), 'soft fork not activated'
 ```
+</details>
 
 Additionally, conditional programming can be accomplished with soft fork ops by
 using `OP_TRY_EXCEPT`. The `EXCEPT` clause will never be executed by nodes that
@@ -946,6 +966,18 @@ replacing lower value NOPs. (For example, `OP_TRY_EXCEPT` was a hard fork that
 replaced `NOP61`.) To opt-in to hard fork compatibility in this package while
 implementing soft-forks for an application using Tapescript as a dependency,
 start by soft forking `NOP255` and count down with each additional soft fork.
+
+<details>
+<summary>Example tapescript source code</summary>
+
+```s
+TRY {
+    OP_CHECK_ALL_EQUAL_VERIFY d3 OP_TRUE
+} EXCEPT {
+    OP_FALSE
+}
+```
+</details>
 
 ### Testing
 
