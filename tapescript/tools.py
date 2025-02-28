@@ -37,6 +37,7 @@ from .functions import (
 from .interfaces import ScriptProtocol
 from dataclasses import dataclass, field
 from hashlib import sha256
+from nacl.signing import SigningKey, VerifyKey
 from sys import argv
 from time import time
 from typing import Callable
@@ -219,6 +220,18 @@ class ScriptNode:
         right = ScriptLeaf.unpack(right_data) if right_type == b'L' else ScriptNode.unpack(right_data)
         return cls(left, right)
 
+
+def _pubkey(pubkey: bytes|VerifyKey) -> bytes:
+    tert(type(pubkey) in (bytes, VerifyKey), 'pubkey must be bytes or VerifyKey')
+    pubkey = bytes(pubkey) if isinstance(pubkey, VerifyKey) else pubkey
+    vert(len(pubkey) == 32, 'pubkey must be the 32 byte pubkey')
+    return pubkey
+
+def _prvkey(prvkey: bytes|SigningKey) -> bytes:
+    tert(type(prvkey) in (bytes, SigningKey), 'prvkey must be bytes or SigningKey')
+    prvkey = bytes(prvkey) if isinstance(prvkey, SigningKey) else prvkey
+    vert(len(prvkey) == 32, 'prvkey must be the 32 byte prvkey')
+    return prvkey
 
 def make_script_tree_prioritized(
         leaves: list[str|ScriptProtocol], tree: ScriptNode|None = None
@@ -728,11 +741,14 @@ def make_scripthash_witness(script: Script) -> Script:
     return Script.from_src(f'push x{script.bytes.hex()}')
 
 def make_adapter_lock_pub(
-        pubkey: bytes, tweak_point: bytes, sigflags: str = '00') -> Script:
+        pubkey: bytes|VerifyKey, tweak_point: bytes, sigflags: str = '00'
+    ) -> Script:
     """Make an adapter locking script that verifies a sig adapter,
         decrypts it, and then verifies the decrypted signature.
         DEPRECATED: use `make_adapter_locks_pub` instead.
     """
+    pubkey = _pubkey(pubkey)
+
     return Script.from_src(f'''
         # required push by unlocking script: tweak scalar t #
         # required push by unlocking script: signature adapter sa #
@@ -767,18 +783,20 @@ def make_adapter_lock_prv(
     T = derive_point_from_scalar(t)
     return make_adapter_lock_pub(pubkey, T, sigflags)
 
-def make_single_sig_lock(pubkey: bytes, sigflags: str = '00') -> Script:
+def make_single_sig_lock(pubkey: bytes|VerifyKey, sigflags: str = '00') -> Script:
     """Make a locking Script that requires a valid signature from a
         single key to unlock.
     """
+    pubkey = _pubkey(pubkey)
     return Script.from_src(f'push x{pubkey.hex()} check_sig x{sigflags}')
 
-def make_single_sig_lock2(pubkey: bytes, sigflags: str = '00') -> Script:
+def make_single_sig_lock2(pubkey: bytes|VerifyKey, sigflags: str = '00') -> Script:
     """Make a locking Script that commits to and requires a public key
         and then valid signature from the pubkey to unlock. Saves 8
         bytes in locking script at expense of an additional 33 bytes in
         the witness.
     """
+    pubkey = _pubkey(pubkey)
     return Script.from_src(f'''
         dup shake256 d20
         push ~! {{ push x{pubkey.hex()} shake256 d20 }}
@@ -787,7 +805,7 @@ def make_single_sig_lock2(pubkey: bytes, sigflags: str = '00') -> Script:
     ''')
 
 def make_single_sig_witness(
-        prvkey: bytes, sigfields: dict[str, bytes], sigflags: str = '00',
+        prvkey: bytes|SigningKey, sigfields: dict[str, bytes], sigflags: str = '00',
         sign_script_prefix: str = ''
     ) -> Script:
     """Make an unlocking script that validates for a single sig locking
@@ -795,6 +813,7 @@ def make_single_sig_witness(
         signature onto the stack. Passing a `sign_script_prefix` will
         prefix the signing operation with the given script source.
     """
+    prvkey = _prvkey(prvkey)
     _, stack, _ = run_script(
         compile_script(f'{sign_script_prefix} push x{prvkey.hex()} sign x{sigflags}'),
         {**sigfields}
@@ -803,7 +822,7 @@ def make_single_sig_witness(
     return Script.from_src(f'push x{sig.hex()}')
 
 def make_single_sig_witness2(
-        prvkey: bytes, sigfields: dict[str, bytes], sigflags: str = '00',
+        prvkey: bytes|SigningKey, sigfields: dict[str, bytes], sigflags: str = '00',
         sign_script_prefix: str = ''
     ) -> Script:
     """Make an unlocking script that validates for a single sig locking
@@ -813,6 +832,7 @@ def make_single_sig_witness2(
         script. Passing a `sign_script_prefix` will prefix the signing
         operation with the given script source.
     """
+    prvkey = _prvkey(prvkey)
     _, stack, _ = run_script(
         compile_script(f'''
             {sign_script_prefix}
@@ -827,7 +847,8 @@ def make_single_sig_witness2(
     return Script.from_src(f'push x{sig.hex()} push x{pubkey.hex()}')
 
 def make_multisig_lock(
-        pubkeys: list[bytes], quorum_size: int, sigflags: str = '00') -> Script:
+        pubkeys: list[bytes|VerifyKey], quorum_size: int, sigflags: str = '00'
+    ) -> Script:
     """Make a locking Script that requires quorum_size valid signatures
         from unique keys within the pubkeys list. Can be unlocked by
         joining the results of quorum_size calls to
@@ -835,6 +856,7 @@ def make_multisig_lock(
         quorum_size argument must be less than or equal to the number of
         unique public keys.
     """
+    pubkeys = [_pubkey(pk) for pk in pubkeys]
     vert(quorum_size <= len(set(pubkeys)),
          'quorum_size must be <= number of unique pubkeys')
     src = ''
@@ -844,11 +866,13 @@ def make_multisig_lock(
     return Script.from_src(src)
 
 def make_adapter_locks_pub(
-        pubkey: bytes, tweak_point: bytes, sigflags: str = '00') -> tuple[Script, Script]:
+        pubkey: bytes|VerifyKey, tweak_point: bytes, sigflags: str = '00'
+    ) -> tuple[Script, Script]:
     """Make adapter locking scripts using a public key and a tweak
         point. Returns 2 Scripts: one that checks if a sig adapter is
         valid, and one that verifies the decrypted signature.
     """
+    pubkey = _pubkey(pubkey)
     script1 = Script.from_src(f'''
         # required push by unlocking script: signature adapter sa #
         # required push by unlocking script: nonce point R #
@@ -887,13 +911,14 @@ def decrypt_adapter(adapter_witness: bytes|ScriptProtocol, tweak: bytes) -> byte
     return RT + s
 
 def make_adapter_locks_prv(
-        pubkey: bytes, tweak: bytes, sigflags: str = '00'
+        pubkey: bytes|VerifyKey, tweak: bytes, sigflags: str = '00'
     ) -> tuple[Script, Script, Script]:
     """Make adapter locking scripts using a public key and a tweak
         scalar. Returns a tuple of 3 Scripts: one that checks if a sig
         adapter is valid, one that decrypts the signature, and one that
         verifies the decrypted signature.
     """
+    pubkey = _pubkey(pubkey)
     t = clamp_scalar(tweak)
     T = derive_point_from_scalar(t)
     script1, script3 = make_adapter_locks_pub(pubkey, T, sigflags)
@@ -901,7 +926,7 @@ def make_adapter_locks_prv(
     return (script1, script2, script3)
 
 def make_adapter_witness(
-        prvkey: bytes, tweak_point: bytes, sigfields: dict, sigflags: str = '00',
+        prvkey: bytes|SigningKey, tweak_point: bytes, sigfields: dict, sigflags: str = '00',
         sign_script_prefix: str = ''
     ) -> Script:
     """Make an adapter signature witness using a private key and a tweak
@@ -909,6 +934,8 @@ def make_adapter_witness(
         nonce point onto the stack. Passing a `sign_script_prefix` will
         prefix the signing operation with the given script source.
     """
+    prvkey = _prvkey(prvkey)
+
     assert 'sigfield1' in sigfields or 'sigfield2' in sigfields or \
         'sigfield3' in sigfields or 'sigfield4' in sigfields or \
         'sigfield5' in sigfields or 'sigfield6' in sigfields or \
@@ -933,11 +960,13 @@ def make_adapter_witness(
         push x{R.hex()}
     ''')
 
-def make_delegate_key_lock(root_pubkey: bytes, sigflags: str = '00') -> Script:
+def make_delegate_key_lock(root_pubkey: bytes|VerifyKey, sigflags: str = '00') -> Script:
     """Takes a root_pubkey and returns a locking Script that is unlocked
         with a signature from the delegate key and a signed certificate
         from the root key authorizing the delegate key.
     """
+    root_pubkey = _pubkey(root_pubkey)
+
     return Script.from_src(f'''
         # required push: signature from delegate key #
         # required push: cert of form: delegate public key + begin ts + end ts + can + sig #
@@ -957,7 +986,7 @@ def make_delegate_key_lock(root_pubkey: bytes, sigflags: str = '00') -> Script:
         @d check_sig x{sigflags}
     ''')
 
-def make_delegate_key_chain_lock(root_pubkey: bytes, sigflags: str = '00') -> Script:
+def make_delegate_key_chain_lock(root_pubkey: bytes|VerifyKey, sigflags: str = '00') -> Script:
     """Takes a root_pubkey and returns a locking Script that is unlocked
         with a signature from the delegate key, the delegated public key,
         and a certificate from the root key committing to the delegate
@@ -968,6 +997,7 @@ def make_delegate_key_chain_lock(root_pubkey: bytes, sigflags: str = '00') -> Sc
         tapescript runtime constraints are hit (either stack size or
         callstack limit).
     """
+    root_pubkey = _pubkey(root_pubkey)
     return Script.from_src(f'''
         def 0 {{
             # required push: signature from delegate key or additional cert #
@@ -995,8 +1025,8 @@ def make_delegate_key_chain_lock(root_pubkey: bytes, sigflags: str = '00') -> Sc
     ''')
 
 def make_delegate_key_cert(
-        root_skey: bytes, delegate_pubkey: bytes, begin_ts: int, end_ts: int,
-        can_further_delegate: bool = True
+        root_skey: bytes|SigningKey, delegate_pubkey: bytes|VerifyKey,
+        begin_ts: int, end_ts: int, can_further_delegate: bool = True
     ) -> bytes:
     """Returns a signed key delegation cert. By default, this cert will
         authorize the delegate_pubkey holder to create further delegate
@@ -1004,6 +1034,8 @@ def make_delegate_key_cert(
         this behavior and create a terminal cert, pass `False` as the
         can_further_delegate argument.
     """
+    root_skey = _prvkey(root_skey)
+    delegate_pubkey = _pubkey(delegate_pubkey)
     # cert form: delegate key + begin ts + end ts + sig + can #
     _, stack, _ = run_script(compile_script(f'''
         push x{delegate_pubkey.hex()}
@@ -1018,7 +1050,7 @@ def make_delegate_key_cert(
     return stack.get()
 
 def make_delegate_key_witness(
-        prvkey: bytes, cert: bytes, sigfields: dict,
+        delegate_prvkey: bytes|SigningKey, cert: bytes, sigfields: dict,
         sigflags: str = '00', sign_script_prefix: str = ''
     ) -> Script:
     """Returns an unlocking (witness) Script including a signature from
@@ -1026,8 +1058,9 @@ def make_delegate_key_witness(
         `sign_script_prefix` will prefix the signing operation with the
         given script source.
     """
+    delegate_prvkey = _prvkey(delegate_prvkey)
     _, stack, _ = run_script(
-        compile_script(f'{sign_script_prefix} push x{prvkey.hex()} sign x{sigflags}'),
+        compile_script(f'{sign_script_prefix} push x{delegate_prvkey.hex()} sign x{sigflags}'),
         sigfields
     )
     assert len(stack) == 1
@@ -1038,7 +1071,7 @@ def make_delegate_key_witness(
     ''')
 
 def make_delegate_key_chain_witness(
-        prvkey: bytes, certs: list[bytes], sigfields: dict,
+        delegate_prvkey: bytes|SigningKey, certs: list[bytes], sigfields: dict,
         sigflags: str = '00', sign_script_prefix: str = ''
     ) -> Script:
     """Returns an unlocking (witness) Script including a signature from
@@ -1047,8 +1080,9 @@ def make_delegate_key_chain_witness(
         authorized by the root. Passing a `sign_script_prefix` will prefix
         the signing operation with the given script source.
     """
+    delegate_prvkey = _prvkey(delegate_prvkey)
     _, stack, _ = run_script(
-        compile_script(f'{sign_script_prefix} push x{prvkey.hex()} sign x{sigflags}'),
+        compile_script(f'{sign_script_prefix} push x{delegate_prvkey.hex()} sign x{sigflags}'),
         sigfields
     )
     assert len(stack) == 1
@@ -1058,7 +1092,7 @@ def make_delegate_key_chain_witness(
         ' true\npush '.join([f'x{c.hex()}' for c in certs])
     )
 
-def make_graftroot_lock(pubkey: bytes, sigflags: str = '00') -> Script:
+def make_graftroot_lock(pubkey: bytes|VerifyKey, sigflags: str = '00') -> Script:
     """Creates a locking script which requires either a signature from
         the pubkey or a surrogate script signed by the pubkey. If the
         top item in the stack is `true`, the next will be parsed as
@@ -1066,6 +1100,7 @@ def make_graftroot_lock(pubkey: bytes, sigflags: str = '00') -> Script:
         then the surrogate script will be executed. If the top item in
         the stack is `false`, then `OP_CHECK_SIG` will be called.
     """
+    pubkey = _pubkey(pubkey)
     return Script.from_src(
         f'''
         @= k [ x{pubkey.hex()} ]
@@ -1080,18 +1115,20 @@ def make_graftroot_lock(pubkey: bytes, sigflags: str = '00') -> Script:
     )
 
 def make_graftroot_witness_keyspend(
-        prvkey: bytes, sigfields: dict[str, bytes], sigflags: str = '00',
+        prvkey: bytes|SigningKey, sigfields: dict[str, bytes], sigflags: str = '00',
         sign_script_prefix: str = ''
     ) -> Script:
     """Creates a graftroot witness via signature and not by surrogate
         script. Passing a `sign_script_prefix` will prefix the signing
         operation with the given script source.
     """
+    prvkey = _prvkey(prvkey)
     return make_single_sig_witness(prvkey, sigfields, sigflags, sign_script_prefix) + \
         Script.from_src('false')
 
-def make_graftroot_witness_surrogate(prvkey: bytes, script: str|Script) -> Script:
+def make_graftroot_witness_surrogate(prvkey: bytes|SigningKey, script: str|Script) -> Script:
     """Creates a graftroot witness consisting of a signed surrogate script."""
+    prvkey = _prvkey(prvkey)
     script = Script.from_src(script) if type(script) is str else script
     return Script.from_src(f'''
         push ~! {{
@@ -1103,7 +1140,7 @@ def make_graftroot_witness_surrogate(prvkey: bytes, script: str|Script) -> Scrip
     ''')
 
 def make_htlc_sha256_lock(
-        receiver_pubkey: bytes, preimage: bytes, refund_pubkey: bytes,
+        receiver_pubkey: bytes|VerifyKey, preimage: bytes, refund_pubkey: bytes|VerifyKey,
         timeout: int = 60*60*24, sigflags: str = '00'
     ) -> Script:
     """Returns an HTLC that can be unlocked either with the preimage and
@@ -1113,6 +1150,8 @@ def make_htlc_sha256_lock(
         non-repudiation of transactions. Preimage should be at least 16
         random bytes but not more than 32.
     """
+    receiver_pubkey = _pubkey(receiver_pubkey)
+    refund_pubkey = _pubkey(refund_pubkey)
     return Script.from_src(f'''
         sha256
         push x{sha256(preimage).digest().hex()}
@@ -1128,8 +1167,9 @@ def make_htlc_sha256_lock(
     ''')
 
 def make_htlc_shake256_lock(
-        receiver_pubkey: bytes, preimage: bytes, refund_pubkey: bytes,
-        hash_size: int = 20, timeout: int = 60*60*24, sigflags: str = '00'
+        receiver_pubkey: bytes|VerifyKey, preimage: bytes,
+        refund_pubkey: bytes|VerifyKey, hash_size: int = 20,
+        timeout: int = 60*60*24, sigflags: str = '00'
     ) -> Script:
     """Returns an HTLC that can be unlocked either with the preimage and
         a signature matching receiver_pubkey or with a signature
@@ -1140,6 +1180,8 @@ def make_htlc_shake256_lock(
         in security (remaining 160 bits) for the hash lock. Preimage
         should be at least 16 random bytes but not more than 32.
     """
+    receiver_pubkey = _pubkey(receiver_pubkey)
+    refund_pubkey = _pubkey(refund_pubkey)
     return Script.from_src(f'''
         shake256 d{hash_size}
         push ~! {{ push x{preimage.hex()} shake256 d{hash_size} }}
@@ -1155,15 +1197,16 @@ def make_htlc_shake256_lock(
     ''')
 
 def make_htlc_witness(
-        prvkey: bytes, preimage: bytes, sigfields: dict, sigflags: str = '00',
-        sign_script_prefix: str = ''
+        prvkey: bytes|SigningKey, preimage: bytes, sigfields: dict,
+        sigflags: str = '00', sign_script_prefix: str = ''
     ) -> Script:
     """Returns a witness to unlock either the hash lock or the time lock
         path of an HTLC, depending upon whether or not the preimage
-        matches. To use the time lock path, pass a preimage of 1 byte to
-        save space in the witness. Passing a `sign_script_prefix` will
-        prefix the signing operation with the given script source.
+        matches. To use the time lock/refund path, pass a preimage of 1
+        byte to save space in the witness. Passing a `sign_script_prefix`
+        will prefix the signing operation with the given script source.
     """
+    prvkey = _prvkey(prvkey)
     _, stack, _ = run_script(
         compile_script(f'{sign_script_prefix} push x{prvkey.hex()} sign x{sigflags}'),
         {**sigfields}
@@ -1175,8 +1218,10 @@ def make_htlc_witness(
     ''')
 
 def make_htlc2_sha256_lock(
-        receiver_pubkey: bytes, preimage: bytes, refund_pubkey: bytes,
-        timeout: int = 60*60*24, sigflags: str = '00') -> Script:
+        receiver_pubkey: bytes|VerifyKey, preimage: bytes,
+        refund_pubkey: bytes|VerifyKey, timeout: int = 60*60*24,
+        sigflags: str = '00'
+    ) -> Script:
     """Returns an HTLC that can be unlocked either with the preimage and
         a signature matching receiver_pubkey or with a signature
         matching the refund_pubkey after the timeout has expired.
@@ -1191,6 +1236,8 @@ def make_htlc2_sha256_lock(
         particular systems where witness data cannot be trimmed, the
         other version is more appropriate.
     """
+    receiver_pubkey = _pubkey(receiver_pubkey)
+    refund_pubkey = _pubkey(refund_pubkey)
     return Script.from_src(f'''
         sha256
         push x{sha256(preimage).digest().hex()}
@@ -1209,8 +1256,9 @@ def make_htlc2_sha256_lock(
     ''')
 
 def make_htlc2_shake256_lock(
-        receiver_pubkey: bytes, preimage: bytes, refund_pubkey: bytes,
-        hash_size: int = 20, timeout: int = 60*60*24, sigflags: str = '00'
+        receiver_pubkey: bytes|VerifyKey, preimage: bytes,
+        refund_pubkey: bytes|VerifyKey, hash_size: int = 20,
+        timeout: int = 60*60*24, sigflags: str = '00'
     ) -> Script:
     """Returns an HTLC that can be unlocked either with the preimage and
         a signature matching receiver_pubkey or with a signature
@@ -1228,6 +1276,8 @@ def make_htlc2_shake256_lock(
         use cases, in particular systems where witness data cannot be
         trimmed, the other version is more appropriate.
     """
+    receiver_pubkey = _pubkey(receiver_pubkey)
+    refund_pubkey = _pubkey(refund_pubkey)
     return Script.from_src(f'''
         shake256 d{hash_size}
         push ~! {{ push x{preimage.hex()} shake256 d{hash_size} }}
@@ -1246,8 +1296,8 @@ def make_htlc2_shake256_lock(
     ''')
 
 def make_htlc2_witness(
-        prvkey: bytes, preimage: bytes, sigfields: dict, sigflags: str = '00',
-        sign_script_prefix: str = ''
+        prvkey: bytes|SigningKey, preimage: bytes, sigfields: dict,
+        sigflags: str = '00', sign_script_prefix: str = ''
     ) -> Script:
     """Returns a witness Script to unlock either the hash lock or the
         time lock path of an HTLC, depending upon whether or not the
@@ -1263,6 +1313,7 @@ def make_htlc2_witness(
         Passing a `sign_script_prefix` will prefix the signing operation
         with the given script source.
     """
+    prvkey = _prvkey(prvkey)
     _, stack, _ = run_script(
         compile_script(f'''
             {sign_script_prefix}
@@ -1281,8 +1332,10 @@ def make_htlc2_witness(
     ''')
 
 def make_ptlc_lock(
-        receiver_pubkey: bytes, refund_pubkey: bytes, tweak_point: bytes = None,
-        timeout: int = 60*60*24, sigflags: str = '00') -> Script:
+        receiver_pubkey: bytes|VerifyKey, refund_pubkey: bytes|VerifyKey,
+        tweak_point: bytes = None, timeout: int = 60*60*24,
+        sigflags: str = '00'
+    ) -> Script:
     """Returns a Point Time Locked Contract (PTLC) Script that can be
         unlocked with either a signature matching the receiver_pubkey or
         with a signature matching the refund_pubkey after the timeout has
@@ -1290,8 +1343,12 @@ def make_ptlc_lock(
         and non-repudiation of transactions. If a tweak_point is passed,
         use tweak_point+receiver_pubkey as the point lock.
     """
+    receiver_pubkey = _pubkey(receiver_pubkey)
+    refund_pubkey = _pubkey(refund_pubkey)
+
     if type(tweak_point) is bytes:
         receiver_pubkey = aggregate_points([receiver_pubkey, tweak_point])
+
     return Script.from_src(f'''
         if {{
             push x{receiver_pubkey.hex()}
@@ -1304,7 +1361,7 @@ def make_ptlc_lock(
     ''')
 
 def make_ptlc_witness(
-        prvkey: bytes, sigfields: dict, tweak_scalar: bytes = None,
+        prvkey: bytes|SigningKey, sigfields: dict, tweak_scalar: bytes = None,
         sigflags: str = '00', sign_script_prefix: str = ''
     ) -> Script:
     """Returns a PTLC witness unlocking the main branch. If a
@@ -1314,6 +1371,8 @@ def make_ptlc_witness(
         `sign_script_prefix` will prefix the signing operation with the
         given script source.
     """
+    prvkey = _prvkey(prvkey)
+
     if tweak_scalar:
         # create signature manually
         _, stack, _ = run_script(
@@ -1328,18 +1387,19 @@ def make_ptlc_witness(
         + Script.from_src('true')
 
 def make_ptlc_refund_witness(
-        prvkey: bytes, sigfields: dict, sigflags: str = '00',
+        prvkey: bytes|SigningKey, sigfields: dict, sigflags: str = '00',
         sign_script_prefix: str = ''
     ) -> Script:
     """Returns a PTLC witness unlocking the time locked refund branch.
         Passing a `sign_script_prefix` will prefix the signing operation
         with the given script source.
     """
+    prvkey = _prvkey(prvkey)
     return make_single_sig_witness(prvkey, sigfields, sigflags, sign_script_prefix) \
         + Script.from_src('false')
 
 def make_taproot_lock(
-        pubkey: bytes, script: Script = None, script_commitment: bytes = None,
+        pubkey: bytes|VerifyKey, script: Script = None, script_commitment: bytes = None,
         sigflags: str = '00'
     ) -> Script:
     """Returns a Script for a taproot locking script that can either be
@@ -1348,6 +1408,7 @@ def make_taproot_lock(
         script and the committed public key to execute the committed
         script.
     """
+    pubkey = _pubkey(pubkey)
     tert(isinstance(script, Script) or type(script_commitment) is bytes,
          'must supply either committed_script or script_commitment')
     script_commitment = script_commitment or script.commitment()
@@ -1357,7 +1418,7 @@ def make_taproot_lock(
     return Script.from_src(f'push x{root.hex()} tr x{sigflags}')
 
 def make_taproot_witness_keyspend(
-        prvkey: bytes, sigfields: dict, committed_script: Script = None,
+        prvkey: bytes|SigningKey, sigfields: dict, committed_script: Script = None,
         script_commitment: bytes = None, sigflags: str = '00',
         sign_script_prefix: str = ''
     ) -> Script:
@@ -1365,8 +1426,7 @@ def make_taproot_witness_keyspend(
         `sign_script_prefix` will prefix the signing operation with the
         given script source.
     """
-    tert(type(prvkey) is bytes, 'prvkey must be the 32 byte prvkey seed')
-    vert(len(prvkey) == 32, 'prvkey must be the 32 byte prvkey seed')
+    prvkey = _prvkey(prvkey)
     tert(isinstance(sigfields, dict), 'must supply sigfields dict')
     tert(isinstance(committed_script, Script) or type(script_commitment) is bytes,
          'must supply either committed_script or script_commitment')
@@ -1387,23 +1447,23 @@ def make_taproot_witness_keyspend(
     return Script.from_src(f'push x{sig.hex()}')
 
 def make_taproot_witness_scriptspend(
-        pubkey: bytes, committed_script: Script) -> Script:
+        pubkey: bytes|VerifyKey, committed_script: Script) -> Script:
     """Returns a Script witness for a taproot scriptspend, i.e. a
         witness that causes the committed script to be executed.
     """
-    tert(type(pubkey) is bytes, 'pubkey must be the 32 byte committed pubkey')
-    vert(len(pubkey) == 32, 'pubkey must be the 32 byte committed pubkey')
+    pubkey = _pubkey(pubkey)
     tert(isinstance(committed_script, ScriptProtocol), 'committed_script must be ScriptProtocol')
     return Script.from_src(f'push x{committed_script.bytes.hex()} push x{pubkey.hex()}')
 
 def make_nonnative_taproot_lock(
-        pubkey: bytes, script: Script = None, script_commitment: bytes = None,
-        sigflags: str = '00'
+        pubkey: bytes|VerifyKey, script: Script = None,
+        script_commitment: bytes = None, sigflags: str = '00'
     ) -> Script:
     """Returns a locking Script for non-native taproot. This Script
         exists primarily to compare against the native taproot lock and
         the nonnative graftroot lock.
     """
+    pubkey = _pubkey(pubkey)
     tert(isinstance(script, Script) or type(script_commitment) is bytes,
          'must supply either committed_script or script_commitment')
     script_commitment = script_commitment or script.commitment()
@@ -1425,8 +1485,9 @@ def make_nonnative_taproot_lock(
         }}
     ''')
 
-def _make_graftap_committed_script(pubkey: bytes) -> Script:
+def _make_graftap_committed_script(pubkey: bytes|VerifyKey) -> Script:
     """Returns the tapescript source for a graftroot lock."""
+    pubkey = _pubkey(pubkey)
     return Script.from_src(f'''
         dup
         swap d1 d2
@@ -1434,14 +1495,15 @@ def _make_graftap_committed_script(pubkey: bytes) -> Script:
         eval
     ''')
 
-def make_graftap_lock(pubkey: bytes) -> Script:
+def make_graftap_lock(pubkey: bytes|VerifyKey) -> Script:
     """Make a taproot lock committing to the (internal) pubkey and a
         graftroot lock.
     """
+    pubkey = _pubkey(pubkey)
     return make_taproot_lock(pubkey, _make_graftap_committed_script(pubkey))
 
 def make_graftap_witness_keyspend(
-        prvkey: bytes, sigfields: dict, sigflags: str = '00',
+        prvkey: bytes|SigningKey, sigfields: dict, sigflags: str = '00',
         sign_script_prefix: str = ''
     ) -> Script:
     """Make a Script witness for a taproot keyspend, providing the
@@ -1449,6 +1511,7 @@ def make_graftap_witness_keyspend(
         `sign_script_prefix` will prefix the signing operation with the
         given script source.
     """
+    prvkey = _prvkey(prvkey)
     pubkey = derive_point_from_scalar(derive_key_from_seed(prvkey))
     return make_taproot_witness_keyspend(
         prvkey, sigfields, _make_graftap_committed_script(pubkey),
@@ -1456,12 +1519,13 @@ def make_graftap_witness_keyspend(
     )
 
 def make_graftap_witness_scriptspend(
-        prvkey: bytes, surrogate_script: Script
+        prvkey: bytes|SigningKey, surrogate_script: Script
     ) -> Script:
     """Make a Script witness for a taproot scriptspend, providing the
         committed graftroot lock, the internal pubkey, and the graftroot
         surrogate witness script.
     """
+    prvkey = _prvkey(prvkey)
     pubkey = derive_point_from_scalar(derive_key_from_seed(prvkey))
     return Script.from_src(f'''
         push ~! {{
@@ -1474,8 +1538,9 @@ def make_graftap_witness_scriptspend(
     )
 
 def setup_amhl(
-        seed: bytes, pubkeys: tuple[bytes]|list[bytes], sigflags: str = '00',
-        refund_pubkeys: dict[bytes] = None, timeout: int = 60*60*24
+        seed: bytes, pubkeys: list[bytes|VerifyKey], sigflags: str = '00',
+        refund_pubkeys: dict[bytes|VerifyKey, bytes] = None,
+        timeout: int = 60*60*24
     ) -> dict[bytes|str, bytes|tuple[Script|bytes, ...]]:
     """Sets up an annoymous multi-hop lock for a sorted list of pubkeys.
         Returns a dict mapping each public key to a tuple containing the
@@ -1489,9 +1554,8 @@ def setup_amhl(
         single sig lock (2nd value) will be replaced with a PTLC.
     """
     tert(type(seed) is bytes, 'seed must be bytes')
-    tert(type(pubkeys) in (tuple, list), 'pubkeys must be tuple[bytes]')
-    tert(all([type(pk) is bytes for pk in pubkeys]),
-         'pubkeys must be tuple[bytes]')
+    tert(type(pubkeys) in (tuple, list), 'pubkeys must be list or tuple of bytes|VerifyKey')
+    pubkeys = [_pubkey(pk) for pk in pubkeys]
     n = len(pubkeys)
     setup = AMHL.setup(n, seed)
     result = {}
