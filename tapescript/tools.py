@@ -792,7 +792,8 @@ def make_single_sig_witness(
     ) -> Script:
     """Make an unlocking script that validates for a single sig locking
         script by signing the sigfields. Returns Script that pushes the
-        signature onto the stack.
+        signature onto the stack. Passing a `sign_script_prefix` will
+        prefix the signing operation with the given script source.
     """
     _, stack, _ = run_script(
         compile_script(f'{sign_script_prefix} push x{prvkey.hex()} sign x{sigflags}'),
@@ -809,7 +810,8 @@ def make_single_sig_witness2(
         script by signing the sigfields. Returns a Script that pushes
         the signature and pubkey onto the stack. 33 bytes larger witness
         than `make_single_sig_witness` to save 8 bytes in the locking
-        script.
+        script. Passing a `sign_script_prefix` will prefix the signing
+        operation with the given script source.
     """
     _, stack, _ = run_script(
         compile_script(f'''
@@ -903,7 +905,9 @@ def make_adapter_witness(
         sign_script_prefix: str = ''
     ) -> Script:
     """Make an adapter signature witness using a private key and a tweak
-        point. Returns tapescript src code.
+        point. Returns a Script that pushes the adapter signature and
+        nonce point onto the stack. Passing a `sign_script_prefix` will
+        prefix the signing operation with the given script source.
     """
     assert 'sigfield1' in sigfields or 'sigfield2' in sigfields or \
         'sigfield3' in sigfields or 'sigfield4' in sigfields or \
@@ -1017,8 +1021,10 @@ def make_delegate_key_witness(
         prvkey: bytes, cert: bytes, sigfields: dict,
         sigflags: str = '00', sign_script_prefix: str = ''
     ) -> Script:
-    """Returns an unlocking (witness) script including a signature from
-        the delegate key as well as the delegation certificate.
+    """Returns an unlocking (witness) Script including a signature from
+        the delegate key as well as the delegation certificate. Passing a
+        `sign_script_prefix` will prefix the signing operation with the
+        given script source.
     """
     _, stack, _ = run_script(
         compile_script(f'{sign_script_prefix} push x{prvkey.hex()} sign x{sigflags}'),
@@ -1035,10 +1041,11 @@ def make_delegate_key_chain_witness(
         prvkey: bytes, certs: list[bytes], sigfields: dict,
         sigflags: str = '00', sign_script_prefix: str = ''
     ) -> Script:
-    """Returns an unlocking (witness) script including a signature from
+    """Returns an unlocking (witness) Script including a signature from
         the delegate key as well as the chain of delegation certificates
         ordered from the one authorizing this key down to the first cert
-        authorized by the root.
+        authorized by the root. Passing a `sign_script_prefix` will prefix
+        the signing operation with the given script source.
     """
     _, stack, _ = run_script(
         compile_script(f'{sign_script_prefix} push x{prvkey.hex()} sign x{sigflags}'),
@@ -1076,7 +1083,10 @@ def make_graftroot_witness_keyspend(
         prvkey: bytes, sigfields: dict[str, bytes], sigflags: str = '00',
         sign_script_prefix: str = ''
     ) -> Script:
-    """Creates a graftroot witness via signature and not by surrogate script."""
+    """Creates a graftroot witness via signature and not by surrogate
+        script. Passing a `sign_script_prefix` will prefix the signing
+        operation with the given script source.
+    """
     return make_single_sig_witness(prvkey, sigfields, sigflags, sign_script_prefix) + \
         Script.from_src('false')
 
@@ -1151,7 +1161,8 @@ def make_htlc_witness(
     """Returns a witness to unlock either the hash lock or the time lock
         path of an HTLC, depending upon whether or not the preimage
         matches. To use the time lock path, pass a preimage of 1 byte to
-        save space in the witness.
+        save space in the witness. Passing a `sign_script_prefix` will
+        prefix the signing operation with the given script source.
     """
     _, stack, _ = run_script(
         compile_script(f'{sign_script_prefix} push x{prvkey.hex()} sign x{sigflags}'),
@@ -1249,6 +1260,8 @@ def make_htlc2_witness(
         significant and useful; for other use cases, in particular
         systems where witness data cannot be trimmed or in which witness
         size should be minimized, the other version is more appropriate.
+        Passing a `sign_script_prefix` will prefix the signing operation
+        with the given script source.
     """
     _, stack, _ = run_script(
         compile_script(f'''
@@ -1297,7 +1310,9 @@ def make_ptlc_witness(
     """Returns a PTLC witness unlocking the main branch. If a
         tweak_scalar is passed, add tweak_scalar to x within signature
         generation to unlock the point corresponding to
-        `derive_point(tweak_scalar) + derive_point(x)`.
+        `derive_point(tweak_scalar) + derive_point(x)`. Passing a
+        `sign_script_prefix` will prefix the signing operation with the
+        given script source.
     """
     if tweak_scalar:
         # create signature manually
@@ -1309,16 +1324,19 @@ def make_ptlc_witness(
         x = aggregate_scalars([derive_key_from_seed(prvkey), tweak_scalar])
         sig = sign_with_scalar(x, m)
         return Script.from_src(f'push x{sig.hex()}{sigflags} true')
-    return Script.from_src(f'{make_single_sig_witness(prvkey, sigfields, sigflags).src} true')
+    return make_single_sig_witness(prvkey, sigfields, sigflags, sign_script_prefix) \
+        + Script.from_src('true')
 
 def make_ptlc_refund_witness(
         prvkey: bytes, sigfields: dict, sigflags: str = '00',
         sign_script_prefix: str = ''
     ) -> Script:
-    """Returns a PTLC witness unlocking the time locked refund branch."""
-    return Script.from_src(
-        f'{make_single_sig_witness(prvkey, sigfields, sigflags, sign_script_prefix).src} false'
-    )
+    """Returns a PTLC witness unlocking the time locked refund branch.
+        Passing a `sign_script_prefix` will prefix the signing operation
+        with the given script source.
+    """
+    return make_single_sig_witness(prvkey, sigfields, sigflags, sign_script_prefix) \
+        + Script.from_src('false')
 
 def make_taproot_lock(
         pubkey: bytes, script: Script = None, script_commitment: bytes = None,
@@ -1343,7 +1361,10 @@ def make_taproot_witness_keyspend(
         script_commitment: bytes = None, sigflags: str = '00',
         sign_script_prefix: str = ''
     ) -> Script:
-    """Returns a Script witness for a taproot keyspend."""
+    """Returns a Script witness for a taproot keyspend. Passing a
+        `sign_script_prefix` will prefix the signing operation with the
+        given script source.
+    """
     tert(type(prvkey) is bytes, 'prvkey must be the 32 byte prvkey seed')
     vert(len(prvkey) == 32, 'prvkey must be the 32 byte prvkey seed')
     tert(isinstance(sigfields, dict), 'must supply sigfields dict')
@@ -1424,7 +1445,9 @@ def make_graftap_witness_keyspend(
         sign_script_prefix: str = ''
     ) -> Script:
     """Make a Script witness for a taproot keyspend, providing the
-        committed graftroot lock hash and a signature.
+        committed graftroot lock hash and a signature. Passing a
+        `sign_script_prefix` will prefix the signing operation with the
+        given script source.
     """
     pubkey = derive_point_from_scalar(derive_key_from_seed(prvkey))
     return make_taproot_witness_keyspend(

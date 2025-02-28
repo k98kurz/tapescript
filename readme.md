@@ -55,7 +55,7 @@ or plugins.
 See the
 [langauge_spec.md](https://github.com/k98kurz/tapescript/blob/v0.7.0/language_spec.md)
 and [docs.md](https://github.com/k98kurz/tapescript/blob/v0.7.0/docs.md) files
-for syntax and operation specifics.
+for syntax, operation specifics, and thorough tool documentation.
 
 Once you have a script written, use the `compile_script(code: str) -> bytes`
 function to turn it into the byte code that the interpreter runs. Alternatvely,
@@ -238,8 +238,9 @@ unlocks = [
 #### Taproot scripts
 
 The basic Taproot concept is to take a sha256 hash of a script as a commitment,
-clamp it to the ed25519 scalar field, derive a point from it, and add that point
-to a public key to create the root commitment, which itself functions both as a
+concatenate it to a public key, sha256 hash that concatenated result, clamp it
+to the ed25519 scalar field, derive a point from it, and add that point to a
+public key to create the root commitment, which itself functions both as a
 commitment to the script and as a public key. Signatures can be made that
 validate against the root, or the committed script can be executed by supplying
 both the script and the original public key. The script execution path (aka
@@ -254,11 +255,12 @@ by adding the script commitment (clamped to the scalar field) to the scalar
 derived from the private key, then using that in place of the private key scalar.
 
 Tools are included for using taproot:
-- `make_taproot_lock`
-- `make_taproot_witness_keyspend`
-- `make_taproot_witness_scriptspend`
+- `make_taproot_lock` - 36 bytes
+- `make_taproot_witness_keyspend` - 66-67 bytes
+- `make_taproot_witness_scriptspend` - 35-36 bytes + committed script length
+- `make_nonnative_taproot_lock` - 72 bytes
 
-### Delegated access (Graftroot ish)
+### Delegated access and Graftroot
 
 The general concept behind the Graftroot proposal by Gregory Maxwell is that the
 holder(s) of a private key should be able to authorize another locking script to
@@ -283,11 +285,11 @@ seemed a bit too much.
 However, delegating access after the lock is set still makes sense, and for this
 purpose I have included some tooling around delegating access:
 
-- `make_delegate_key_lock`
-- `make_delegate_key_chain_lock`
-- `make_delegate_key_cert`
-- `make_delegate_key_unlock`
-- `make_delegate_key_chain_unlock`
+- `make_delegate_key_lock` - 98 bytes
+- `make_delegate_key_chain_lock` - 128 bytes
+- `make_delegate_key_cert` - 105 bytes
+- `make_delegate_key_witness` - 173 bytes
+- `make_delegate_key_chain_witness` - 66 bytes + 108 bytes per cert
 
 The idea is that the holder of a root private key will be able to generate a
 certificate authorizing an arbitrary public key for a set amount of time, and
@@ -306,9 +308,23 @@ to Graftroot:
 
 The former can be alleviated by using `OP_TAPROOT` and committing the delegate
 key/chain lock, adding <40 bytes of additional overhead to the delegate access
-execution path. The latter may be addressed in a future update after I have had
-time to think it through -- I may still implement an `OP_GRAFTROOT` or
-equivalent tooling in a future version.
+execution path.
+
+In the case that a pure graftroot is desirable, the following tools implement
+the original graftroot concept using pure tapescript:
+
+- `make_graftroot_lock` - 58 bytes
+- `make_graftroot_witness_keyspend` - 67 bytes
+- `make_graftroot_witness_surrogate` - 68-69 byte overhead + surrogate length
+
+I have also added tools for a graftroot within taproot construction, which
+commits to a script that checks a signature of a surrogate and then executes the
+surrogate script; keyspend path is then taproot, and executing a surrogate first
+takes the taproot scriptspend path before engaging the graftroot mechanism.
+
+- `make_graftap_lock` - 36 bytes
+- `make_graftap_witness_keyspend` - 66 bytes
+- `make_graftap_witness_scriptspend` - 145 byte overhead + surrogate length
 
 #### Hash Time Locked Contracts and Point Time Locked Contracts
 
@@ -414,9 +430,9 @@ In the case where a signature is expected to be validated, the message parts for
 the signature must be passed in via the `cache_vals` dict at keys `sigfield[1-8]`.
 In the case where `OP_CHECK_TRANSFER` or `OP_INVOKE` might be called, the
 contracts must be passed in via the `contracts` dict. See the
-[check_transfer](https://github.com/k98kurz/tapescript/blob/v0.5.0/language_spec.md#op_check_transfer)
+[check_transfer](https://github.com/k98kurz/tapescript/blob/v0.7.0/language_spec.md#op_check_transfer)
 and
-[invoke](https://github.com/k98kurz/tapescript/blob/v0.5.0/language_spec.md#op_invoke)
+[invoke](https://github.com/k98kurz/tapescript/blob/v0.7.0/language_spec.md#op_invoke)
 sections in the language_spec.md file for more informaiton about these two ops.
 
 #### Changing flags
@@ -554,9 +570,9 @@ item from the message body during signature checks.
 If a signature is passed to a signature checker that uses a disallowed sigflag,
 a `ScriptExecutionError` will be raised.
 
-These also apply to the `OP_CHECK_MULTI_SIG` and `OP_CHECK_MULTI_SIG_VERIFY`
-operations. See the language spec and docs files for more detailed information
-about how `CMS` and `CMSV` work.
+These also apply to the `OP_CHECK_MULTI_SIG`, `OP_CHECK_MULTI_SIG_VERIFY`,
+`OP_TAPROOT`, `OP_SIGN`, and `OP_GET_MESSAGE` operations. See the language spec
+and docs files for more detailed information about how these ops work.
 
 #### Signature Extension Plugins
 
@@ -695,10 +711,10 @@ python tests/test_e2e_eltoo.py
 python tests/test_e2e_extensions.py
 ```
 
-There are currently 255 tests and 107 test vectors used for validating the ops,
-compiler, decompiler, and script running functions. This includes 3 tests for a
-proof-of-concept implementation of the eltoo payment channel protocol, and e2e
-tests combining the anonymous multi-hop lock (AMHL) system with adapter
+There are currently 259 tests and 107 test vectors used for validating the ops,
+compiler, decompiler, and script running functions. This includes 3 e2e tests
+for a proof-of-concept implementation of the eltoo payment channel protocol, and
+e2e tests combining the anonymous multi-hop lock (AMHL) system with adapter
 signatures, as well as tests for the contract system, signature extension
 plugins, hard-forks, and the soft-fork system. There are an additional 7
 security tests, including a test proving the one-way homomorphic quality of

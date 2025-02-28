@@ -1176,17 +1176,20 @@ Make a locking Script that commits to and requires a public key and then valid
 signature from the pubkey to unlock. Saves 8 bytes in locking script at expense
 of an additional 33 bytes in the witness.
 
-## `make_single_sig_witness(prvkey: bytes, sigfields: dict[str, bytes], sigflags: str = 00): -> Script`
+## `make_single_sig_witness(prvkey: bytes, sigfields: dict[str, bytes], sigflags: str = 00, sign_script_prefix: str = ): -> Script`
 
 Make an unlocking script that validates for a single sig locking script by
 signing the sigfields. Returns Script that pushes the signature onto the stack.
+Passing a `sign_script_prefix` will prefix the signing operation with the given
+script source.
 
-## `make_single_sig_witness2(prvkey: bytes, sigfields: dict[str, bytes], sigflags: str = 00): -> Script`
+## `make_single_sig_witness2(prvkey: bytes, sigfields: dict[str, bytes], sigflags: str = 00, sign_script_prefix: str = ): -> Script`
 
 Make an unlocking script that validates for a single sig locking script by
 signing the sigfields. Returns a Script that pushes the signature and pubkey
 onto the stack. 33 bytes larger witness than `make_single_sig_witness` to save 8
-bytes in the locking script.
+bytes in the locking script. Passing a `sign_script_prefix` will prefix the
+signing operation with the given script source.
 
 ## `make_multisig_lock(pubkeys: list[bytes], quorum_size: int, sigflags: str = 00): -> Script`
 
@@ -1217,10 +1220,12 @@ Make adapter locking scripts using a public key and a tweak scalar. Returns a
 tuple of 3 Scripts: one that checks if a sig adapter is valid, one that decrypts
 the signature, and one that verifies the decrypted signature.
 
-## `make_adapter_witness(prvkey: bytes, tweak_point: bytes, sigfields: dict, sigflags: str = 00): -> Script`
+## `make_adapter_witness(prvkey: bytes, tweak_point: bytes, sigfields: dict, sigflags: str = 00, sign_script_prefix: str = ): -> Script`
 
 Make an adapter signature witness using a private key and a tweak point. Returns
-tapescript src code.
+a Script that pushes the adapter signature and nonce point onto the stack.
+Passing a `sign_script_prefix` will prefix the signing operation with the given
+script source.
 
 ## `make_delegate_key_lock(root_pubkey: bytes, sigflags: str = 00): -> Script`
 
@@ -1235,16 +1240,19 @@ delegate_pubkey holder to create further delegate certs, allowing authorization
 by a chain of certs. To disable this behavior and create a terminal cert, pass
 `False` as the can_further_delegate argument.
 
-## `make_delegate_key_witness(prvkey: bytes, cert: bytes, sigfields: dict, sigflags: str = 00): -> Script`
+## `make_delegate_key_witness(prvkey: bytes, cert: bytes, sigfields: dict, sigflags: str = 00, sign_script_prefix: str = ): -> Script`
 
-Returns an unlocking (witness) script including a signature from the delegate
-key as well as the delegation certificate.
+Returns an unlocking (witness) Script including a signature from the delegate
+key as well as the delegation certificate. Passing a `sign_script_prefix` will
+prefix the signing operation with the given script source.
 
-## `make_delegate_key_chain_witness(prvkey: bytes, certs: list[bytes], sigfields: dict, sigflags: str = 00): -> Script`
+## `make_delegate_key_chain_witness(prvkey: bytes, certs: list[bytes], sigfields: dict, sigflags: str = 00, sign_script_prefix: str = ): -> Script`
 
-Returns an unlocking (witness) script including a signature from the delegate
+Returns an unlocking (witness) Script including a signature from the delegate
 key as well as the chain of delegation certificates ordered from the one
-authorizing this key down to the first cert authorized by the root.
+authorizing this key down to the first cert authorized by the root. Passing a
+`sign_script_prefix` will prefix the signing operation with the given script
+source.
 
 ## `make_htlc_sha256_lock(receiver_pubkey: bytes, preimage: bytes, refund_pubkey: bytes, timeout: int = 86400, sigflags: str = 00): -> Script`
 
@@ -1264,11 +1272,13 @@ bytes compared to the sha256 version with a 96 bit reduction in security
 (remaining 160 bits) for the hash lock. Preimage should be at least 16 random
 bytes but not more than 32.
 
-## `make_htlc_witness(prvkey: bytes, preimage: bytes, sigfields: dict, sigflags: str = 00): -> Script`
+## `make_htlc_witness(prvkey: bytes, preimage: bytes, sigfields: dict, sigflags: str = 00, sign_script_prefix: str = ): -> Script`
 
 Returns a witness to unlock either the hash lock or the time lock path of an
 HTLC, depending upon whether or not the preimage matches. To use the time lock
-path, pass a preimage of 1 byte to save space in the witness.
+path, pass a preimage of 1 byte to save space in the witness. Passing a
+`sign_script_prefix` will prefix the signing operation with the given script
+source.
 
 ## `make_htlc2_sha256_lock(receiver_pubkey: bytes, preimage: bytes, refund_pubkey: bytes, timeout: int = 86400, sigflags: str = 00): -> Script`
 
@@ -1298,7 +1308,7 @@ in memory and can trim witness data after consensus, the lock script size
 reduction is significant and useful; for other use cases, in particular systems
 where witness data cannot be trimmed, the other version is more appropriate.
 
-## `make_htlc2_witness(prvkey: bytes, preimage: bytes, sigfields: dict, sigflags: str = 00): -> Script`
+## `make_htlc2_witness(prvkey: bytes, preimage: bytes, sigfields: dict, sigflags: str = 00, sign_script_prefix: str = ): -> Script`
 
 Returns a witness Script to unlock either the hash lock or the time lock path of
 an HTLC, depending upon whether or not the preimage matches. This version is
@@ -1308,7 +1318,9 @@ depend upon the intended use case: for public blockchains where all nodes must
 hold a UTXO set in memory and can trim witness data after consensus, the lock
 script size reduction is significant and useful; for other use cases, in
 particular systems where witness data cannot be trimmed or in which witness size
-should be minimized, the other version is more appropriate.
+should be minimized, the other version is more appropriate. Passing a
+`sign_script_prefix` will prefix the signing operation with the given script
+source.
 
 ## `make_ptlc_lock(receiver_pubkey: bytes, refund_pubkey: bytes, tweak_point: bytes = None, timeout: int = 86400, sigflags: str = 00): -> Script`
 
@@ -1318,15 +1330,19 @@ refund_pubkey after the timeout has expired. Suitable only for systems with
 guaranteed causal ordering and non-repudiation of transactions. If a tweak_point
 is passed, use tweak_point+receiver_pubkey as the point lock.
 
-## `make_ptlc_witness(prvkey: bytes, sigfields: dict, tweak_scalar: bytes = None, sigflags: str = 00): -> Script`
+## `make_ptlc_witness(prvkey: bytes, sigfields: dict, tweak_scalar: bytes = None, sigflags: str = 00, sign_script_prefix: str = ): -> Script`
 
 Returns a PTLC witness unlocking the main branch. If a tweak_scalar is passed,
 add tweak_scalar to x within signature generation to unlock the point
-corresponding to `derive_point(tweak_scalar) + derive_point(x)`.
+corresponding to `derive_point(tweak_scalar) + derive_point(x)`. Passing a
+`sign_script_prefix` will prefix the signing operation with the given script
+source.
 
-## `make_ptlc_refund_witness(prvkey: bytes, sigfields: dict, sigflags: str = 00): -> Script`
+## `make_ptlc_refund_witness(prvkey: bytes, sigfields: dict, sigflags: str = 00, sign_script_prefix: str = ): -> Script`
 
-Returns a PTLC witness unlocking the time locked refund branch.
+Returns a PTLC witness unlocking the time locked refund branch. Passing a
+`sign_script_prefix` will prefix the signing operation with the given script
+source.
 
 ## `make_taproot_lock(pubkey: bytes, script: Script = None, script_commitment: bytes = None, sigflags: str = 00): -> Script`
 
@@ -1335,9 +1351,10 @@ signature that validates using the taproot root commitment as a public key or by
 supplying both the committed script and the committed public key to execute the
 committed script.
 
-## `make_taproot_witness_keyspend(prvkey: bytes, sigfields: dict, committed_script: Script = None, script_commitment: bytes = None, sigflags: str = 00, get_msg_script_prefix: str = ): -> Script`
+## `make_taproot_witness_keyspend(prvkey: bytes, sigfields: dict, committed_script: Script = None, script_commitment: bytes = None, sigflags: str = 00, sign_script_prefix: str = ): -> Script`
 
-Returns a Script witness for a taproot keyspend.
+Returns a Script witness for a taproot keyspend. Passing a `sign_script_prefix`
+will prefix the signing operation with the given script source.
 
 ## `make_taproot_witness_scriptspend(pubkey: bytes, committed_script: Script): -> Script`
 
@@ -1353,10 +1370,11 @@ compare against the native taproot lock and the nonnative graftroot lock.
 
 Make a taproot lock committing to the (internal) pubkey and a graftroot lock.
 
-## `make_graftap_witness_keyspend(prvkey: bytes, sigfields: dict, sigflags: str = 00): -> Script`
+## `make_graftap_witness_keyspend(prvkey: bytes, sigfields: dict, sigflags: str = 00, sign_script_prefix: str = ): -> Script`
 
 Make a Script witness for a taproot keyspend, providing the committed graftroot
-lock hash and a signature.
+lock hash and a signature. Passing a `sign_script_prefix` will prefix the
+signing operation with the given script source.
 
 ## `make_graftap_witness_scriptspend(prvkey: bytes, surrogate_script: Script): -> Script`
 
