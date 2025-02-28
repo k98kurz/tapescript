@@ -439,9 +439,12 @@ def repl(
                 'Assembles and runs scripts. Type "exit", "quit", or "q" ' +\
                 'to exit; "show" to show the stack and cache; "~~ x<hex>" ' +\
                 'to decompile bytecode; "~ts" to update the cached ' +\
-                'timestamp to the current Unix epoch timestamp; or ' +\
+                'timestamp to the current Unix epoch timestamp; ' +\
+                '"~s[1-8]" to read the sigfield[1-8] and print out; ' +\
                 '"~s[1-8] x<hex>" or "~s[1-8] str str str..." to set the ' +\
-                'sigfield[1-8] to the given value.'
+                'sigfield[1-8] to the given value; "~d" to decode the top ' +\
+                'value as a signed int and print; "~f" to decode the top ' +\
+                'value as a float32 and print.'
             )
             continue
 
