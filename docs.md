@@ -926,7 +926,7 @@ Run the given auth script byte code. Returns True iff the stack has a single
 \xff value after script execution and no errors were raised; otherwise, returns
 False.
 
-## `add_opcode(code: int, name: str, function: Callable): -> None`
+## `add_opcode(code: int, name: str, function: Callable, aliases: list[str] = []): -> None`
 
 Adds an OP implementation with the code, name, and function. Raises TypeError
 for invalid arg types and ValueError for invalid code or name.
@@ -1398,7 +1398,7 @@ PTLC.
 Release the next lock using an adapter witness and a decrypted signature from
 right lock. Returns the tweak scalar used to decrypt the left adapter signature.
 
-## `add_soft_fork(code: int, name: str, op: Callable): -> None`
+## `add_soft_fork(code: int, name: str, op: Callable, aliases: list[str] = []): -> None`
 
 Adds a soft fork, adding the op to the interpreter and handlers for compiling
 and decompiling.

@@ -2017,7 +2017,7 @@ def remove_contract_interface(interface: type) -> None:
     if interface.__name__ in _contract_interfaces:
         del _contract_interfaces[interface.__name__]
 
-def add_opcode(code: int, name: str, function: Callable) -> None:
+def add_opcode(code: int, name: str, function: Callable, aliases: list[str] = []) -> None:
     """Adds an OP implementation with the code, name, and function.
         Raises TypeError for invalid arg types and ValueError for
         invalid code or name.
@@ -2037,6 +2037,9 @@ def add_opcode(code: int, name: str, function: Callable) -> None:
         nopname = nopcodes[code][0]
         del nopcodes[code]
         del nopcodes_inverse[nopname]
+
+    for alias in aliases:
+        opcode_aliases[alias] = name
 
 def add_alias(alias: str, op_name: str) -> None:
     """Adds an alias for an OP. Raises TypeError for non-str args and

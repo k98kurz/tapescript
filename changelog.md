@@ -18,6 +18,7 @@
   "callstack limit exceeded" instead of a Python "max recursion limit exceeded"
   error. This change makes it subject to the same callstack limit of everything
   else, and calls to it increase the callstack count.
+- Added option to include aliases in `add_opcode`
 
 ### Tools
 
@@ -69,6 +70,7 @@
   witness that signed without blanking any sigfields).
 - Added `make_nonnative_taproot_lock` that implements `OP_TAPROOT` as a demo of
   cryptographic ops and a hacky optimization trick. Script size is 72 bytes.
+- Added option to include aliases in `add_soft_fork`
 
 ## 0.6.2
 

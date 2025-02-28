@@ -669,7 +669,7 @@ def generate_docs() -> list[str]:
 
     return paragraphs
 
-def add_soft_fork(code: int, name: str, op: Callable) -> None:
+def add_soft_fork(code: int, name: str, op: Callable, aliases: list[str] = []) -> None:
     """Adds a soft fork, adding the op to the interpreter and handlers
         for compiling and decompiling.
     """
@@ -705,7 +705,7 @@ def add_soft_fork(code: int, name: str, op: Callable) -> None:
         val = tape.read(1)[0]
         return [f'{opname} d{val}']
 
-    add_opcode(code, name, op)
+    add_opcode(code, name, op, aliases)
     add_opcode_parsing_handlers(name, compiler_handler, decompiler_handler)
 
 def make_scripthash_lock(script: Script, hashsize: int = 26) -> Script:

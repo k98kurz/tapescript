@@ -622,6 +622,7 @@ from tapescript import (
     ScriptExecutionError,
     add_soft_fork,
     bytes_to_int,
+    Script, run_auth_script, run_script,
 )
 
 
@@ -634,38 +635,38 @@ def OP_CHECK_ALL_EQUAL_VERIFY(tape: Tape, stack: Stack, cache: dict) -> None:
     assert count >= 0
     items = []
     for i in range(count):
-        items.append(queue.get(False))
-
+        items.append(stack.get())
     compare = items.pop()
     while len(items):
         if items.pop() != compare:
             raise ScriptExecutionError('not all the same')
 
-
-add_soft_fork(255, 'OP_CHECK_ALL_EQUAL_VERIFY', OP_CHECK_ALL_EQUAL_VERIFY)
+aliases = ['CHECK_ALL_EQUAL_VERIFY', 'CAEV']
+add_soft_fork(255, 'OP_CHECK_ALL_EQUAL_VERIFY', OP_CHECK_ALL_EQUAL_VERIFY, aliases)
 ```
 
 Scripts written with the new op will always execute successfully on nodes
 running the old version of the interpreter. Example script:
 
-```s
-# locking script #
-OP_CHECK_ALL_EQUAL_VERIFY d3
-OP_TRUE
+```python
+# locking script
+lock = Script.from_src('OP_CHECK_ALL_EQUAL_VERIFY d3 OP_TRUE')
+# or to use aliases
+lock = Script.from_src('caev d3 true')
+assert lock.bytes.hex() == 'ff0301'
 
-# locking script as decompiled by old nodes #
-NOP255 d3
-OP_TRUE
+# locking script as decompiled by old nodes
+print(Script.from_bytes(bytes.fromhex('ff0301')).src)
+'''NOP255 d3
+OP_TRUE'''
 
 # unlocking script that validates on both versions #
-OP_PUSH x0123
-OP_PUSH x0123
-OP_PUSH x0123
+unlock = Script.from_src('push x0123 push x0123 push x0123')
+assert run_auth_script(unlock + lock)
 
 # unlocking script that fails validation on the new version #
-OP_PUSH x0123
-OP_PUSH x0123
-OP_PUSH x3210
+unlock_fail = Script.from_src('push x0123 push x0123 push x3210')
+assert not run_auth_script(unlock_fail + lock), 'soft fork not activated'
 ```
 
 Additionally, conditional programming can be accomplished with soft fork ops by
