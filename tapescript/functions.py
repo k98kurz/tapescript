@@ -2176,7 +2176,8 @@ def run_auth_script(script: bytes|ScriptProtocol, cache_vals: dict = {},
         tape, stack, cache = run_script(
             script, cache_vals, contracts, plugins=plugins,
             stack_max_items=stack_max_items,
-            stack_max_item_size=stack_max_item_size
+            stack_max_item_size=stack_max_item_size,
+            callstack_limit=callstack_limit
         )
         assert tape.has_terminated()
         assert len(stack) == 1
