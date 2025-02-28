@@ -63,7 +63,7 @@ from .tools import (
     make_delegate_key_lock,
     make_delegate_key_chain_lock,
     make_delegate_key_cert,
-    make_delegate_key_unlock,
+    make_delegate_key_witness,
     make_graftroot_lock,
     make_graftroot_witness_keyspend,
     make_graftroot_witness_surrogate,
@@ -88,9 +88,3 @@ from .tools import (
     setup_amhl,
     release_left_amhl_lock,
 )
-
-__version__ = '0.7.0'
-
-def version() -> str:
-    """Get the version of the tapescript library."""
-    return __version__

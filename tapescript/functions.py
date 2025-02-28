@@ -86,6 +86,13 @@ except ImportError:
         return urandom(count)
 
 
+__version__ = '0.7.0'
+
+def version() -> str:
+    """Get the version of the tapescript library."""
+    return __version__
+
+
 def bytes_to_int(number: bytes) -> int:
     """Convert from bytes to a signed int."""
     tert(type(number) is bytes, 'number must be bytes')
@@ -1449,10 +1456,10 @@ def OP_MAKE_ADAPTER_SIG_PUBLIC(tape: Tape, stack: Stack, cache: dict) -> None:
     m = stack.get()
     seed = stack.get()
     x = derive_key_from_seed(seed)
-    X = nacl.bindings.crypto_scalarmult_ed25519_base_noclamp(x) # G^x
+    X = derive_point_from_scalar(x) # G^x
     nonce = H_big(seed)[32:]
     r = clamp_scalar(H_small(H_big(nonce, m))) # H(nonce || m)
-    R = nacl.bindings.crypto_scalarmult_ed25519_base_noclamp(r) # G^r
+    R = derive_point_from_scalar(r) # G^r
     RT = aggregate_points((R, T)) # R + t
     ca = clamp_scalar(H_small(RT, X, m)) # H(R + T || X || m)
     sa = nacl.bindings.crypto_core_ed25519_scalar_add(
@@ -1470,7 +1477,7 @@ def OP_MAKE_ADAPTER_SIG_PUBLIC(tape: Tape, stack: Stack, cache: dict) -> None:
     stack.put(sa)
 
 def OP_MAKE_ADAPTER_SIG_PRIVATE(tape: Tape, stack: Stack, cache: dict) -> None:
-    """Takes three values, seed, t, and message m from the stack;
+    """Takes three values from the stack: seed, t, and message m;
         derives prvkey x from seed; derives pubkey X from x; derives
         private nonce r from seed and m; derives public nonce point R
         from r; derives public tweak point T from t; creates signature
@@ -1486,11 +1493,13 @@ def OP_MAKE_ADAPTER_SIG_PRIVATE(tape: Tape, stack: Stack, cache: dict) -> None:
     t = clamp_scalar(stack.get())
     m = stack.get()
     x = derive_key_from_seed(seed)
-    X = nacl.bindings.crypto_scalarmult_ed25519_base_noclamp(x) # G^x
-    T = nacl.bindings.crypto_scalarmult_ed25519_base_noclamp(t) # G^x
+    X = derive_point_from_scalar(x) # G^x
+    T = derive_point_from_scalar(t) # G^x
     nonce = H_big(seed)[32:]
+    # NB: https://github.com/k98kurz/tapescript/issues/18
+    # r = clamp_scalar(H_small(H_big(nonce, m))) # H(nonce || m)
     r = clamp_scalar(H_small(nonce, m))
-    R = nacl.bindings.crypto_scalarmult_ed25519_base_noclamp(r) # G^r
+    R = derive_point_from_scalar(r) # G^r
     c = clamp_scalar(H_small(R, X, m)) # clamp(H(R || X || m))
     tr = nacl.bindings.crypto_core_ed25519_scalar_add(t, r)
     sa = nacl.bindings.crypto_core_ed25519_scalar_add(

@@ -29,6 +29,7 @@ from .functions import (
     aggregate_points,
     aggregate_scalars,
     sign_with_scalar,
+    version,
     xor,
 )
 from .interfaces import ScriptProtocol
@@ -40,6 +41,7 @@ from typing import Callable
 import nacl.bindings
 import json
 import struct
+import sys
 
 
 @dataclass
@@ -405,16 +407,28 @@ def repl(
             continue
         if src in ("quit", "return", "exit", "q"):
             return
-        if src == '!ts':
+        if src == '~ts':
             cache["timestamp"] = int(time())
             print(cache["timestamp"])
+            continue
+        if src.split()[0][:2] == '~s' and len(src.split()) > 1:
+            src = src.split()
+            src2 = ' '.join(src[1:])
+            src = f'sigfield{src[0][2:]}'
+            if 'x' in src2[:2]:
+                cache[src] = bytes.fromhex(src2.split('x')[1])
+            elif len(src2):
+                cache[src] = src2.encode()
+            print(cache[src])
             continue
         if src in ("help", "?"):
             print(
                 'Assembles and runs scripts. Type "exit", "quit", or "q" ' +\
                 'to exit; "show" to show the stack and cache; "~~ x<hex>" ' +\
-                'to decompile bytecode; or "!ts" to update the cached ' +\
-                'timestamp to the current Unix epoch timestamp.'
+                'to decompile bytecode; "~ts" to update the cached ' +\
+                'timestamp to the current Unix epoch timestamp; or ' +\
+                '"~s[1-8] x<hex>" or "~s[1-8] str str str..." to set the ' +\
+                'sigfield[1-8] to the given value.'
             )
             continue
 
@@ -611,7 +625,8 @@ def generate_docs() -> list[str]:
     paragraphs.append(_format_function_doc(make_adapter_witness))
     paragraphs.append(_format_function_doc(make_delegate_key_lock))
     paragraphs.append(_format_function_doc(make_delegate_key_cert))
-    paragraphs.append(_format_function_doc(make_delegate_key_unlock))
+    paragraphs.append(_format_function_doc(make_delegate_key_witness))
+    paragraphs.append(_format_function_doc(make_delegate_key_chain_witness))
     paragraphs.append(_format_function_doc(make_htlc_sha256_lock))
     paragraphs.append(_format_function_doc(make_htlc_shake256_lock))
     paragraphs.append(_format_function_doc(make_htlc_witness))
@@ -648,6 +663,9 @@ def add_soft_fork(code: int, name: str, op: Callable) -> None:
             opname: str, symbols: list[str], symbols_to_advance: int,
             symbol_index: int
         ) -> tuple[int, tuple[bytes]]:
+        """Handler for compiling a soft-forked opcode, which will always
+            have the form `OP_SOMETHING d<8 count>` or `x<u8 count>`.
+        """
         symbols_to_advance += 1
         val = symbols[0]
         yert(val[0] in ('d', 'x'),
@@ -665,6 +683,9 @@ def add_soft_fork(code: int, name: str, op: Callable) -> None:
         return (symbols_to_advance, (val,))
 
     def decompiler_handler(opname: str, tape: Tape) -> list[str]:
+        """Handler for compiling a soft-forked opcode, which will always
+            have the form `OP_SOMETHING d<8 count>`.
+        """
         val = tape.read(1)[0]
         return [f'{opname} d{val}']
 
@@ -694,6 +715,7 @@ def make_adapter_lock_pub(
         pubkey: bytes, tweak_point: bytes, sigflags: str = '00') -> Script:
     """Make an adapter locking script that verifies a sig adapter,
         decrypts it, and then verifies the decrypted signature.
+        DEPRECATED: use `make_adapter_locks_pub` instead.
     """
     return Script.from_src(f'''
         # required push by unlocking script: tweak scalar t #
@@ -723,20 +745,21 @@ def make_adapter_lock_prv(
         pubkey: bytes, tweak: bytes, sigflags: str = '00') -> Script:
     """Make an adapter locking script that verifies a sig adapter,
         decrypts it, and then verifies the decrypted signature.
+        DEPRECATED: use `make_adapter_locks_prv` instead.
     """
     t = clamp_scalar(tweak)
     T = derive_point_from_scalar(t)
     return make_adapter_lock_pub(pubkey, T, sigflags)
 
 def make_single_sig_lock(pubkey: bytes, sigflags: str = '00') -> Script:
-    """Make a locking script that requires a valid signature from a
-        single key to unlock. Returns tapescript source code.
+    """Make a locking Script that requires a valid signature from a
+        single key to unlock.
     """
     return Script.from_src(f'push x{pubkey.hex()} check_sig x{sigflags}')
 
 def make_single_sig_lock2(pubkey: bytes, sigflags: str = '00') -> Script:
-    """Make a locking script that requires a valid signature from a
-        single key to unlock. Returns tapescript source code. Saves 8
+    """Make a locking Script that commits to and requires a public key
+        and then valid signature from the pubkey to unlock. Saves 8
         bytes in locking script at expense of an additional 33 bytes in
         the witness.
     """
@@ -750,7 +773,8 @@ def make_single_sig_lock2(pubkey: bytes, sigflags: str = '00') -> Script:
 def make_single_sig_witness(
         prvkey: bytes, sigfields: dict[str, bytes], sigflags: str = '00') -> Script:
     """Make an unlocking script that validates for a single sig locking
-        script by signing the sigfields. Returns tapescript source code.
+        script by signing the sigfields. Returns Script that pushes the
+        signature onto the stack.
     """
     _, stack, _ = run_script(
         compile_script(f'push x{prvkey.hex()} sign x{sigflags}'),
@@ -762,9 +786,10 @@ def make_single_sig_witness(
 def make_single_sig_witness2(
         prvkey: bytes, sigfields: dict[str, bytes], sigflags: str = '00') -> Script:
     """Make an unlocking script that validates for a single sig locking
-        script by signing the sigfields. Returns tapescript source code.
-        33 bytes larger witness than make_single_sig_witness to save 8
-        bytes in the locking script.
+        script by signing the sigfields. Returns a Script that pushes
+        the signature and pubkey onto the stack. 33 bytes larger witness
+        than `make_single_sig_witness` to save 8 bytes in the locking
+        script.
     """
     _, stack, _ = run_script(
         compile_script(f'''
@@ -780,11 +805,10 @@ def make_single_sig_witness2(
 
 def make_multisig_lock(
         pubkeys: list[bytes], quorum_size: int, sigflags: str = '00') -> Script:
-    """Make a locking script that requires quorum_size valid signatures
-        from unique keys within the pubkeys list. Returns tapescript
-        source code. Can be unlocked by joining the results of
-        quorum_size calls to make_single_sig_witness by different key
-        holders.
+    """Make a locking Script that requires quorum_size valid signatures
+        from unique keys within the pubkeys list. Can be unlocked by
+        joining the results of quorum_size calls to
+        `make_single_sig_witness` by different key holders.
     """
     src = ''
     for pk in pubkeys:
@@ -795,7 +819,7 @@ def make_multisig_lock(
 def make_adapter_locks_pub(
         pubkey: bytes, tweak_point: bytes, sigflags: str = '00') -> tuple[Script, Script]:
     """Make adapter locking scripts using a public key and a tweak
-        scalar. Returns 2 Scripts: one that checks if a sig adapter is
+        point. Returns 2 Scripts: one that checks if a sig adapter is
         valid, and one that verifies the decrypted signature.
     """
     script1 = Script.from_src(f'''
@@ -813,7 +837,7 @@ def make_adapter_locks_pub(
     return (script1, script2)
 
 def make_adapter_decrypt(tweak: bytes) -> Script:
-    """Make adapter decryption script."""
+    """Make adapter decryption script from a tweak scalar."""
     t = clamp_scalar(tweak)
     return Script.from_src(f'''
         push x{t.hex()}
@@ -821,7 +845,9 @@ def make_adapter_decrypt(tweak: bytes) -> Script:
     ''')
 
 def decrypt_adapter(adapter_witness: bytes|ScriptProtocol, tweak: bytes) -> bytes:
-    """Decrypt an adapter signature, returning the decrypted signature."""
+    """Decrypt an adapter signature with the given tweak scalar,
+        returning the decrypted signature.
+    """
     tert(type(adapter_witness) is bytes or isinstance(adapter_witness, ScriptProtocol),
          'adapter_witness must be bytes or ScriptProtocol')
     adapter_witness = bytes(adapter_witness)
@@ -834,11 +860,12 @@ def decrypt_adapter(adapter_witness: bytes|ScriptProtocol, tweak: bytes) -> byte
     return RT + s
 
 def make_adapter_locks_prv(
-        pubkey: bytes, tweak: bytes, sigflags: str = '00') -> tuple[Script, Script, Script]:
+        pubkey: bytes, tweak: bytes, sigflags: str = '00'
+    ) -> tuple[Script, Script, Script]:
     """Make adapter locking scripts using a public key and a tweak
-        scalar. Returns the source for 3 tapescripts: one that checks if
-        a sig adapter is valid, one that decrypts the signature, and one
-        that verifies the decrypted signature.
+        scalar. Returns a tuple of 3 Scripts: one that checks if a sig
+        adapter is valid, one that decrypts the signature, and one that
+        verifies the decrypted signature.
     """
     t = clamp_scalar(tweak)
     T = derive_point_from_scalar(t)
@@ -847,8 +874,8 @@ def make_adapter_locks_prv(
     return (script1, script2, script3)
 
 def make_adapter_witness(
-        prvkey: bytes, tweak_point: bytes, sigfields: dict,
-        sigflags: str = '00') -> Script:
+        prvkey: bytes, tweak_point: bytes, sigfields: dict, sigflags: str = '00'
+    ) -> Script:
     """Make an adapter signature witness using a private key and a tweak
         point. Returns tapescript src code.
     """
@@ -876,11 +903,9 @@ def make_adapter_witness(
     ''')
 
 def make_delegate_key_lock(root_pubkey: bytes, sigflags: str = '00') -> Script:
-    """Takes a root_pubkey and returns the tapescript source for a
-        locking script that is unlocked with a signature from the
-        delegate key, the delegated public key, and a certificate from
-        the root key committing to the delegate public key and validity
-        time constraints.
+    """Takes a root_pubkey and returns a locking Script that is unlocked
+        with a signature from the delegate key and a signed certificate
+        from the root key authorizing the delegate key.
     """
     return Script.from_src(f'''
         # required push: signature from delegate key #
@@ -902,15 +927,15 @@ def make_delegate_key_lock(root_pubkey: bytes, sigflags: str = '00') -> Script:
     ''')
 
 def make_delegate_key_chain_lock(root_pubkey: bytes, sigflags: str = '00') -> Script:
-    """Takes a root_pubkey and returns the tapescript source for a
-        locking script that is unlocked with a signature from the
-        delegate key, the delegated public key, and a certificate from
-        the root key committing to the delegate public key and validity
-        time constraints. This delegate key can be used to recursively
-        authorize another public key and cert if they are added to the
-        stack, otherwise it will expect to sign the sigfields. The
-        delegate key cert chain can extend until tapescript runtime
-        constraints are hit (either stack size or callstack limit).
+    """Takes a root_pubkey and returns a locking Script that is unlocked
+        with a signature from the delegate key, the delegated public key,
+        and a certificate from the root key committing to the delegate
+        public key and validity time constraints. This delegate key can
+        be used to recursively authorize another public key and cert if
+        they are added to the stack, otherwise it will expect to sign
+        the sigfields. The delegate key cert chain can extend until
+        tapescript runtime constraints are hit (either stack size or
+        callstack limit).
     """
     return Script.from_src(f'''
         def 0 {{
@@ -961,12 +986,12 @@ def make_delegate_key_cert(
     assert len(stack) == 1
     return stack.get()
 
-def make_delegate_key_unlock(
+def make_delegate_key_witness(
         prvkey: bytes, cert: bytes, sigfields: dict,
         sigflags: str = '00'
     ) -> Script:
-    """Returns an unlocking script including a signature from the
-        delegate key as well as the delegation certificate.
+    """Returns an unlocking (witness) script including a signature from
+        the delegate key as well as the delegation certificate.
     """
     _, stack, _ = run_script(
         compile_script(f'push x{prvkey.hex()} sign x{sigflags}'),
@@ -979,12 +1004,12 @@ def make_delegate_key_unlock(
         push x{cert.hex()}
     ''')
 
-def make_delegate_key_chain_unlock(
+def make_delegate_key_chain_witness(
         prvkey: bytes, certs: list[bytes], sigfields: dict,
         sigflags: str = '00'
     ) -> Script:
-    """Returns an unlocking script including a signature from the
-        delegate key as well as the chain of delegation certificates
+    """Returns an unlocking (witness) script including a signature from
+        the delegate key as well as the chain of delegation certificates
         ordered from the one authorizing this key down to the first cert
         authorized by the root.
     """
@@ -1001,9 +1026,11 @@ def make_delegate_key_chain_unlock(
 
 def make_graftroot_lock(pubkey: bytes, sigflags: str = '00') -> Script:
     """Creates a locking script which requires either a signature from
-        the pubkey or a surrogate script signed by the pubkey. If a
-        signed surrogate is provided in the unlocking script, the
-        signature will be verified, and then the script will be executed.
+        the pubkey or a surrogate script signed by the pubkey. If the
+        top item in the stack is `true`, the next will be parsed as
+        a signed surrogate script; the signature will be verified; and
+        then the surrogate script will be executed. If the top item in
+        the stack is `false`, then `OP_CHECK_SIG` will be called.
     """
     return Script.from_src(
         f'''
@@ -1039,12 +1066,14 @@ def make_graftroot_witness_surrogate(prvkey: bytes, script: str|Script) -> Scrip
 
 def make_htlc_sha256_lock(
         receiver_pubkey: bytes, preimage: bytes, refund_pubkey: bytes,
-        timeout: int = 60*60*24, sigflags: str = '00') -> Script:
+        timeout: int = 60*60*24, sigflags: str = '00'
+    ) -> Script:
     """Returns an HTLC that can be unlocked either with the preimage and
         a signature matching receiver_pubkey or with a signature
         matching the refund_pubkey after the timeout has expired.
         Suitable only for systems with guaranteed causal ordering and
-        non-repudiation of transactions.
+        non-repudiation of transactions. Preimage should be at least 16
+        random bytes but not more than 32.
     """
     return Script.from_src(f'''
         sha256
@@ -1062,14 +1091,16 @@ def make_htlc_sha256_lock(
 
 def make_htlc_shake256_lock(
         receiver_pubkey: bytes, preimage: bytes, refund_pubkey: bytes,
-        hash_size: int = 20, timeout: int = 60*60*24, sigflags: str = '00') -> Script:
+        hash_size: int = 20, timeout: int = 60*60*24, sigflags: str = '00'
+    ) -> Script:
     """Returns an HTLC that can be unlocked either with the preimage and
         a signature matching receiver_pubkey or with a signature
         matching the refund_pubkey after the timeout has expired.
         Suitable only for systems with guaranteed causal ordering and
         non-repudiation of transactions. Using a hash_size of 20 saves
         11 bytes compared to the sha256 version with a 96 bit reduction
-        in security (remaining 160 bits) for the hash lock.
+        in security (remaining 160 bits) for the hash lock. Preimage
+        should be at least 16 random bytes but not more than 32.
     """
     return Script.from_src(f'''
         shake256 d{hash_size}
@@ -1088,9 +1119,10 @@ def make_htlc_shake256_lock(
 def make_htlc_witness(
         prvkey: bytes, preimage: bytes, sigfields: dict, sigflags: str = '00'
     ) -> Script:
-    """Returns the tapescript source for a witness to unlock either the
-        hash lock or the time lock path of an HTLC, depending upon
-        whether or not the preimage matches.
+    """Returns a witness to unlock either the hash lock or the time lock
+        path of an HTLC, depending upon whether or not the preimage
+        matches. To use the time lock path, pass a preimage of 1 byte to
+        save space in the witness.
     """
     _, stack, _ = run_script(
         compile_script(f'push x{prvkey.hex()} sign x{sigflags}'),
@@ -1176,17 +1208,17 @@ def make_htlc2_shake256_lock(
 def make_htlc2_witness(
         prvkey: bytes, preimage: bytes, sigfields: dict, sigflags: str = '00'
     ) -> Script:
-    """Returns the tapescript source for a witness to unlock either the
-        hash lock or the time lock path of an HTLC, depending upon
-        whether or not the preimage matches. This version is optimized
-        for smaller locking script size (-18 bytes) at the expense of
-        larger witnesses (+33 bytes) for larger overall txn size (+15
-        bytes). Which to use will depend upon the intended use case: for
-        public blockchains where all nodes must hold a UTXO set in
-        memory and can trim witness data after consensus, the lock
-        script size reduction is significant and useful; for other use
-        cases, in particular systems where witness data cannot be
-        trimmed, the other version is more appropriate.
+    """Returns a witness Script to unlock either the hash lock or the
+        time lock path of an HTLC, depending upon whether or not the
+        preimage matches. This version is optimized for smaller locking
+        script size (-18 bytes) at the expense of larger witnesses (+33
+        bytes) for larger overall txn size (+15 bytes). Which to use
+        will depend upon the intended use case: for public blockchains
+        where all nodes must hold a UTXO set in memory and can trim
+        witness data after consensus, the lock script size reduction is
+        significant and useful; for other use cases, in particular
+        systems where witness data cannot be trimmed or in which witness
+        size should be minimized, the other version is more appropriate.
     """
     _, stack, _ = run_script(
         compile_script(f'''
@@ -1207,13 +1239,12 @@ def make_htlc2_witness(
 def make_ptlc_lock(
         receiver_pubkey: bytes, refund_pubkey: bytes, tweak_point: bytes = None,
         timeout: int = 60*60*24, sigflags: str = '00') -> Script:
-    """Returns the tapescript source for a Point Time Locked Contract
-        that can be unlcoked with either a signature matching the
-        receiver_pubkey or with a signature matching the refund_pubkey
-        after the timeout has expired. Suitable only for systems with
-        guaranteed causal ordering and non-repudiation of transactions.
-        If a tweak_point is passed, use tweak_point+receiver_pubkey as
-        the point lock.
+    """Returns a Point Time Locked Contract (PTLC) Script that can be
+        unlocked with either a signature matching the receiver_pubkey or
+        with a signature matching the refund_pubkey after the timeout has
+        expired. Suitable only for systems with guaranteed causal ordering
+        and non-repudiation of transactions. If a tweak_point is passed,
+        use tweak_point+receiver_pubkey as the point lock.
     """
     if type(tweak_point) is bytes:
         receiver_pubkey = aggregate_points([receiver_pubkey, tweak_point])
@@ -1231,11 +1262,11 @@ def make_ptlc_lock(
 def make_ptlc_witness(
         prvkey: bytes, sigfields: dict, tweak_scalar: bytes = None,
         sigflags: str = '00') -> Script:
-    '''Returns the tapescript source for a PTLC witness unlocking the
-        main branch. If a tweak_scalar is passed, add tweak_scalar to x
-        within signature generation to unlock the point corresponding to
-        derive_point(tweak_scalar)+derive_point(x).
-    '''
+    """Returns a PTLC witness unlocking the main branch. If a
+        tweak_scalar is passed, add tweak_scalar to x within signature
+        generation to unlock the point corresponding to
+        `derive_point(tweak_scalar) + derive_point(x)`.
+    """
     if tweak_scalar:
         # create signature manually
         _, stack, _ = run_script(compile_script(f'get_message x{sigflags}'), {**sigfields})
@@ -1247,20 +1278,18 @@ def make_ptlc_witness(
 
 def make_ptlc_refund_witness(
         prvkey: bytes, sigfields: dict, sigflags: str = '00') -> Script:
-    '''Returns the tapescript source for a PTLC witness unlocking the
-        time locked refund branch.
-    '''
+    """Returns a PTLC witness unlocking the time locked refund branch."""
     return Script.from_src(f'{make_single_sig_witness(prvkey, sigfields, sigflags).src} false')
 
 def make_taproot_lock(
         pubkey: bytes, script: Script = None, script_commitment: bytes = None,
         sigflags: str = '00'
     ) -> Script:
-    """Returns a tapescript Script for a taproot locking script that can
-        either be unlocked with a signature that validates using the
-        taproot root commitment as a public key or by supplying both the
-        committed script and the committed public key to execute the
-        committed script.
+    """Returns a Script for a taproot locking script that can either be
+        unlocked with a signature that validates using the taproot root
+        commitment as a public key or by supplying both the committed
+        script and the committed public key to execute the committed
+        script.
     """
     tert(isinstance(script, Script) or type(script_commitment) is bytes,
          'must supply either committed_script or script_commitment')
@@ -1273,7 +1302,7 @@ def make_taproot_lock(
 def make_taproot_witness_keyspend(
         prvkey: bytes, sigfields: dict, committed_script: Script = None,
         script_commitment: bytes = None, sigflags: str = '00') -> Script:
-    """Returns a tapescript Script witness for a taproot keyspend."""
+    """Returns a Script witness for a taproot keyspend."""
     tert(type(prvkey) is bytes, 'prvkey must be the 32 byte prvkey seed')
     vert(len(prvkey) == 32, 'prvkey must be the 32 byte prvkey seed')
     tert(isinstance(sigfields, dict), 'must supply sigfields dict')
@@ -1295,8 +1324,8 @@ def make_taproot_witness_keyspend(
 
 def make_taproot_witness_scriptspend(
         pubkey: bytes, committed_script: Script) -> Script:
-    """Returns a tapescript Script witness for a taproot scriptspend,
-        i.e. a witness that causes the committed script to be executed.
+    """Returns a Script witness for a taproot scriptspend, i.e. a
+        witness that causes the committed script to be executed.
     """
     tert(type(pubkey) is bytes, 'pubkey must be the 32 byte committed pubkey')
     vert(len(pubkey) == 32, 'pubkey must be the 32 byte committed pubkey')
@@ -1307,10 +1336,9 @@ def make_nonnative_taproot_lock(
         pubkey: bytes, script: Script = None, script_commitment: bytes = None,
         sigflags: str = '00'
     ) -> Script:
-    """Locking script for non-native taproot. The main benefit of this
-        script is that it allows constraining sigflags directly. This
-        will be removed after OP_TAPROOT implementation is changed as
-        planned for v0.7.0
+    """Returns a locking Script for non-native taproot. This Script
+        exists primarily to compare against the native taproot lock and
+        the nonnative graftroot lock.
     """
     tert(isinstance(script, Script) or type(script_commitment) is bytes,
          'must supply either committed_script or script_commitment')
@@ -1343,14 +1371,16 @@ def _make_graftap_committed_script(pubkey: bytes) -> Script:
     ''')
 
 def make_graftap_lock(pubkey: bytes) -> Script:
-    """Make a Taproot lock committing to a graftroot lock."""
+    """Make a taproot lock committing to the (internal) pubkey and a
+        graftroot lock.
+    """
     return make_taproot_lock(pubkey, _make_graftap_committed_script(pubkey))
 
 def make_graftap_witness_keyspend(
         prvkey: bytes, sigfields: dict, sigflags: str = '00'
     ) -> Script:
-    """Make a tapescript Script witness for a taproot keyspend,
-        providing the committed graftroot lock hash and a signature.
+    """Make a Script witness for a taproot keyspend, providing the
+        committed graftroot lock hash and a signature.
     """
     pubkey = derive_point_from_scalar(derive_key_from_seed(prvkey))
     return make_taproot_witness_keyspend(
@@ -1361,9 +1391,9 @@ def make_graftap_witness_keyspend(
 def make_graftap_witness_scriptspend(
         prvkey: bytes, surrogate_script: Script
     ) -> Script:
-    """Make a tapescript Script witness for a taproot scriptspend,
-        providing the committed graftroot lock, the internal pubkey, and
-        the graftroot surrogate witness script.
+    """Make a Script witness for a taproot scriptspend, providing the
+        committed graftroot lock, the internal pubkey, and the graftroot
+        surrogate witness script.
     """
     pubkey = derive_point_from_scalar(derive_key_from_seed(prvkey))
     return Script.from_src(f'''
@@ -1441,10 +1471,15 @@ def cli_help() -> str:
         '\trun bin_file [cache_file] -- runs tapescript bytecode and prints the '
         'resulting cache and stack',
         '\tauth bin_file [cache_file] -- runs tapescript bytecode as auth script'
-        ' and prints true if it was successful or false otherwise\n',
+        ' and prints true if it was successful or false otherwise',
+        '\tversion -- print current tapescript version',
+        '',
         'The optional cache_file parameter must be a json file with the '
         'following format:',
-        '{', '\t"type:name": [type, value]', '}\n',
+        '{',
+            '\t"type:name": [type, value]',
+        '}',
+        '',
         'The type must be one of "string", "str", "number", "bytes". All bytes '
         'values must be hexadecimal strings. For example:',
         '{', '\t"number:78": ["bytes", "d13f398b5bacf525"]', '}'
@@ -1498,6 +1533,8 @@ def run_cli() -> None:
     """
     method = argv[1] if len(argv) > 1 else 'repl'
     match method:
+        case 'version' | '--version':
+            print(version())
         case 'help' | '--help' | '?' | '-?' | '-h':
             print(cli_help())
         case 'i' | 'repl':
