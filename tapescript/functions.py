@@ -923,6 +923,7 @@ def OP_EVAL(tape: Tape, stack: Stack, cache: dict) -> None:
         all loaded contracts.
     """
     sert('disallow_OP_EVAL' not in tape.flags, 'OP_EVAL disallowed')
+    sert(tape.callstack_count < tape.callstack_limit, 'callstack limit exceeded')
     script = stack.get()
     vert(len(script) > 0, 'OP_EVAL encountered empty script')
 

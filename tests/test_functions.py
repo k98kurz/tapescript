@@ -1402,6 +1402,14 @@ class TestFunctions(unittest.TestCase):
             functions.OP_EVAL(self.tape, self.stack, self.cache)
         assert str(e.exception) == 'OP_EVAL encountered empty script'
 
+    def  test_OP_EVAL_raises_ScriptExecutionError_for_callstack_limit_if_recursive(self):
+        code = bytes.fromhex('0a01612d')
+        self.cache[b'\x61'] = code
+        self.stack.put(code)
+        with self.assertRaises(errors.ScriptExecutionError) as e:
+            functions.OP_EVAL(self.tape, self.stack, self.cache)
+        assert 'callstack limit' in str(e.exception)
+
     def test_OP_MERKLEVAL_single_branch(self):
         committed_branch_a = b'\x02A'
         committed_branch_b = b'\x02B'
