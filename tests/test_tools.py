@@ -893,9 +893,12 @@ class TestTools(unittest.TestCase):
         )
         assert unlock1.src == f'push x{sig.hex()}', \
             f'\nexpected push x{sig.hex()}\nobserved {unlock1.src}'
+        assert len(unlock1.bytes) == 66, len(unlock1.bytes)
 
         unlock2 = tools.make_taproot_witness_scriptspend(X, script)
         assert unlock2.src == f'push x{script.bytes.hex()} push x{X.hex()}'
+        assert len(unlock2.bytes) == 35 + len(script.bytes), \
+            (len(unlock2.bytes), len(script.bytes))
 
         assert functions.run_auth_script(unlock1 + lock, sigfields)
         assert functions.run_auth_script(unlock2 + lock, sigfields)

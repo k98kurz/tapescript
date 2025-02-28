@@ -824,8 +824,12 @@ def make_multisig_lock(
     """Make a locking Script that requires quorum_size valid signatures
         from unique keys within the pubkeys list. Can be unlocked by
         joining the results of quorum_size calls to
-        `make_single_sig_witness` by different key holders.
+        `make_single_sig_witness` by different key holders. The
+        quorum_size argument must be less than or equal to the number of
+        unique public keys.
     """
+    vert(quorum_size <= len(set(pubkeys)),
+         'quorum_size must be <= number of unique pubkeys')
     src = ''
     for pk in pubkeys:
         src += f'push x{pk.hex()}\n'
@@ -1317,7 +1321,9 @@ def make_taproot_lock(
 
 def make_taproot_witness_keyspend(
         prvkey: bytes, sigfields: dict, committed_script: Script = None,
-        script_commitment: bytes = None, sigflags: str = '00') -> Script:
+        script_commitment: bytes = None, sigflags: str = '00',
+        get_msg_script_prefix: str = ''
+    ) -> Script:
     """Returns a Script witness for a taproot keyspend."""
     tert(type(prvkey) is bytes, 'prvkey must be the 32 byte prvkey seed')
     vert(len(prvkey) == 32, 'prvkey must be the 32 byte prvkey seed')
@@ -1330,7 +1336,9 @@ def make_taproot_witness_keyspend(
     x = derive_key_from_seed(prvkey)
     X = derive_point_from_scalar(x)
     t = clamp_scalar(sha256(X + script_commitment).digest())
-    _, stack, _ = run_script(Script.from_src(f'msg x{sigflags}'), sigfields)
+    _, stack, _ = run_script(
+        Script.from_src(f'{get_msg_script_prefix} msg x{sigflags}'), sigfields
+    )
     message = stack.get()
     sig = sign_with_scalar(aggregate_scalars((x, t)), message)
 

@@ -138,7 +138,8 @@ commitment and a public key are combined into a single root commitment which
 allows for two execution branches: checking a signature against the root
 commitment (which is a valid public key) and executing the committed script
 after proving that the committed script and public key combine to form the root.
-The locking script is `OP_TAPROOT <root commitment>`.
+The locking script is `push <root commitment> taproot <allowable sigflags>`,
+which is 36 bytes.
 
 The key-spend unlocking script takes the following form: `PUSH <sig>`, where the
 `sig` is a signature created with the private key corresponding to the committed
@@ -281,7 +282,9 @@ The syntax is simple: `@= name [ values ]` or `@= name int` to set and `@name`
 to copy the values onto the stack. The first setting syntax pushes values onto
 the stack and then puts them from the stack into the cache. The second setting
 syntax simply pulls values from the stack. Variables cannot be used for on-tape
-arguments to ops, e.g. `OP_MERKLEVAL @root` will not work.
+arguments to ops, e.g. `OP_MERKLEVAL @root` will not work. To see the number of
+items held in a cache location, you can use `rcz s"name"` or `@#name`; this will
+put the number of items onto the stack as an encoded signed int.
 
 ### Comptime
 
@@ -606,12 +609,13 @@ stack, otherwise puts 0x00 onto the stack; runs the signature extension plugins
 beforehand if `tape.flags[10]` is set, which is default behavior.
 - `[...] OP_CHECK_TEMPLATE_VERIFY sigflags` - runs `OP_CHECK_TEMPLATE sigflags`
 then `OP_VERIFY`
-- `[...] OP_TAPROOT root` - if the top item in the stack is a public key, verify
-the supplied script (2nd item from stack top) and the public key combine into
-the root using sha256 and ed25519, then execute the supplied script if they do
-or remove the script from the stack and put 0x00 onto the stack if they do not;
-else verify the top item is a signature that validates against the root as the
-public key, and put 0xFF onto stack if it is or 0x00 onto the stack otherwise
+- `[...] PUSH root OP_TAPROOT sigflags` - if the 2nd item in the stack is a
+public key, verify the supplied script (3rd item from stack top) and the public
+key combine into the root using sha256 and ed25519, then execute the supplied
+script if they do or remove the script from the stack and put 0x00 onto the
+stack if they do not; else verify the 2nd item is a signature that validates
+against the root (top item) as the public key, and put 0xFF onto stack if it is
+or 0x00 onto the stack otherwise
 - `NOP count` - removes `count` values from the stack; dummy ops useful for soft
 fork updates
 

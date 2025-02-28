@@ -1192,7 +1192,9 @@ bytes in the locking script.
 
 Make a locking Script that requires quorum_size valid signatures from unique
 keys within the pubkeys list. Can be unlocked by joining the results of
-quorum_size calls to `make_single_sig_witness` by different key holders.
+quorum_size calls to `make_single_sig_witness` by different key holders. The
+quorum_size argument must be less than or equal to the number of unique public
+keys.
 
 ## `make_adapter_locks_pub(pubkey: bytes, tweak_point: bytes, sigflags: str = 00): -> tuple[Script, Script]`
 
@@ -1333,7 +1335,7 @@ signature that validates using the taproot root commitment as a public key or by
 supplying both the committed script and the committed public key to execute the
 committed script.
 
-## `make_taproot_witness_keyspend(prvkey: bytes, sigfields: dict, committed_script: Script = None, script_commitment: bytes = None, sigflags: str = 00): -> Script`
+## `make_taproot_witness_keyspend(prvkey: bytes, sigfields: dict, committed_script: Script = None, script_commitment: bytes = None, sigflags: str = 00, get_msg_script_prefix: str = ): -> Script`
 
 Returns a Script witness for a taproot keyspend.
 

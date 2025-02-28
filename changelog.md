@@ -47,9 +47,9 @@
     125 bytes to 98), including the updated parsing
   - Updated `make_delegate_key_unlock`:
     - Renamed to `make_delegate_key_witness`
-    - New cert format saved 5 bytes overall
-  - Added `make_delegate_key_chain_lock`
-  - Added `make_delegate_key_chain_witness`
+    - New cert format saved 5 bytes overall (down to 173 bytes)
+  - Added `make_delegate_key_chain_lock` - 128 bytes
+  - Added `make_delegate_key_chain_witness` - 66 bytes + 108 bytes per cert
 - Added new tools for using balanced Merklized script trees:
   - `create_script_tree_balanced`
   - `create_merklized_script_balanced`
