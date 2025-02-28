@@ -2047,13 +2047,14 @@ class TestFunctions(unittest.TestCase):
         assert self.stack.get() == b'\x00'
 
     def test_OP_MAKE_ADAPTER_SIG_and_OP_VALIDATE_ADAPTER_SIG_e2e(self):
-        seed = token_bytes(32)
-        T = functions.derive_point_from_scalar(
-            functions.derive_key_from_seed(token_bytes(32))
-        )
-        X = bytes(SigningKey(seed).verify_key)
+        # set up public adapater sig
+        seed1 = token_bytes(32)
+        seed2 = token_bytes(32)
+        X = bytes(SigningKey(seed1).verify_key)
+        t = functions.derive_key_from_seed(seed2)
+        T = functions.derive_point_from_scalar(t)
         m = b'hello world'
-        self.stack.put(seed)
+        self.stack.put(seed1)
         self.stack.put(m)
         self.stack.put(T)
         functions.OP_MAKE_ADAPTER_SIG_PUBLIC(self.tape, self.stack, self.cache)
@@ -2080,6 +2081,29 @@ class TestFunctions(unittest.TestCase):
         functions.OP_CHECK_ADAPTER_SIG(self.tape, self.stack, self.cache)
         assert len(self.stack) == 1
         assert self.stack.get() == b'\x00'
+
+        # set up private adapter sig
+        self.stack.put(m)
+        self.stack.put(t)
+        self.stack.put(seed1)
+        functions.set_tape_flags(self.tape)
+        functions.OP_MAKE_ADAPTER_SIG_PRIVATE(self.tape, self.stack, self.cache)
+        assert len(self.stack) == 3
+        sa = self.stack.get()
+        R = self.stack.get()
+        T2 = self.stack.get()
+        assert T2 == T, f'{T2.hex()} != {T.hex()}'
+
+        # # positive case
+        # self.stack.put(sa)
+        # self.stack.put(R)
+        # self.stack.put(m)
+        # self.stack.put(T)
+        # self.stack.put(X)
+        # functions.OP_CHECK_ADAPTER_SIG(self.tape, self.stack, self.cache)
+        # assert len(self.stack) == 1
+        # result = self.stack.get()
+        # assert result == b'\xff', result
 
     def test_OP_MAKE_ADAPTER_SIG_and_OP_DECRYPT_ADAPTER_SIG_e2e(self):
         seed1 = token_bytes(32)
