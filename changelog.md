@@ -1,18 +1,41 @@
 ## 0.7.0
 
+### Compiler
+
 - Added `@#name` syntactic sugar for `OP_READ_CACHE_SIZE s"name"`
-- Added decompilation feature to repl (type `~~` followed by the hexadecimal
-byte codes of a script to see the disassembled script)
-- Can now pass a `cache_file` path to the repl invocation, and it will load it
-- Repl now automatically sets the "timestamp" cache value to the Unix epoch
-  timestamp at the time the repl is invoked
 - Added more aliases:
   - `EQ` for `OP_EQUAL`
   - `EQV` for `OP_EQUAL_VERIFY`
   - `CS` for `OP_CHECK_SIG`
+
+### VM
+
+- Changed `OP_TAPROOT` to take the root from the stack instead of from the tape;
+  it also now takes an allowable_sigflag param from the tape instead of from
+  cache key`b'trsf'`. Locking script syntax now consistent with `OP_CHECK_SIG`:
+  `push x<root> taproot x<allowable_sigflags>`.
+- Fixed `OP_EVAL`: it will now cause a `ScriptExecutionError` with message
+  "callstack limit exceeded" instead of a Python "max recursion limit exceeded"
+  error. This change makes it subject to the same callstack limit of everything
+  else, and calls to it increase the callstack count.
+
+### Tools
+
+- REPL:
+  - Added decompilation feature to repl (type `~~` followed by the hexadecimal
+    byte codes of a script to see the disassembled script)
+  - Can now pass a `cache_file` path to the repl invocation, and it will load it
+  - Repl now automatically sets the "timestamp" cache value to the Unix epoch
+    timestamp at the time the repl is invoked
+  - Added macro:
+    - `~ts` to set the timestamp in the cache to current Unix epoch ts.
+    - `~~` followed by the hexadecimal byte codes of a script to disassemble it
+    - `~d` to decode the top stack item into a signed int and print it
+    - `~f` to decode the top stack item into a float and print it
+    - `~s[1-8] value` to set a sigfield to the value; if the value has "x" in
+      the first 2 chars, it will be interpreter as hexadecimal; otherwise, it
+      will be interpreted as a string
 - Updated tooling for delegate keys:
-  - Added `make_delegate_key_chain_lock`
-  - Added `make_delegate_key_chain_unlock`
   - Updated `make_delegate_key_cert`:
     - Optimized the system by concatenating timestamps into the cert, saving 6
       bytes in the unlocking script and enabline cert chains
@@ -22,10 +45,29 @@ byte codes of a script to see the disassembled script)
   - Updated `make_delegate_key_lock` parsing to account for new cert format
   - Optimized `make_delegate_key_lock`, saving 27 bytes compared to 0.6.2 (from
     125 bytes to 98), including the updated parsing
-  - Updated `make_delegate_key_unlock`: new cert format saved 5 bytes overall
+  - Updated `make_delegate_key_unlock`:
+    - Renamed to `make_delegate_key_witness`
+    - New cert format saved 5 bytes overall
+  - Added `make_delegate_key_chain_lock`
+  - Added `make_delegate_key_chain_witness`
 - Added new tools for using balanced Merklized script trees:
   - `create_script_tree_balanced`
   - `create_merklized_script_balanced`
+- Added new tools for graftroot:
+  - `make_graftroot_lock` - 58 bytes
+  - `make_graftroot_witness_keyspend` - 67 bytes
+  - `make_graftroot_witness_surrogate` - 68-69 byte overhead
+- Added new tools for graftroot within taproot ("graftap")
+  - `make_graftap_lock` - 36 bytes
+  - `make_graftap_witness_keyspend` - 66 bytes
+  - `make_graftap_witness_scriptspend` - 145 byte overhead
+- Updated `make_taproot_lock` tool to reflect new `OP_TAPROOT` syntax; locking
+  scripts are now 36 bytes long.
+- Updated `make_taproot_witness_keyspend` to remove pushing sigflags to cache
+  `b'trsf'`, saving 9 bytes in such witnesses (now just 67 bytes; 66 bytes for
+  witness that signed without blanking any sigfields).
+- Added `make_nonnative_taproot_lock` that implements `OP_TAPROOT` as a demo of
+  cryptographic ops and a hacky optimization trick. Script size is 72 bytes.
 
 ## 0.6.2
 
