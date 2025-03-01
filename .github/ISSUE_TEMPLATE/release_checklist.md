@@ -1,5 +1,5 @@
 ---
-name: Task
+name: Release Checklist
 about: Create a new release checklist. For maintainer use only.
 title: 'Release Checklist: v0.0.0'
 labels: task
