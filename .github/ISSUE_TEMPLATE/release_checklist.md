@@ -26,3 +26,5 @@ Once all other issues are complete, prepare to release the next version.
   - `functions.py`
   - `pyproject.toml`
   - `readme.md` links
+- [ ] Push tag and make release on GitHub
+- [ ] Update PyPI
