@@ -1,4 +1,4 @@
-from .errors import yert, vert, SyntaxError
+from .errors import yert, vert, tert, SyntaxError
 from .classes import Tape
 from .functions import (
     bytes_to_int,
@@ -1057,7 +1057,7 @@ def assemble(symbols: list[str], macros: dict = {}) -> bytes:
 
 def decompile_script(script: bytes, indent: int = 0) -> list[str]:
     """Decompile the byte code into human-readable script."""
-    vert(type(script) is bytes, 'input script must be bytes')
+    tert(type(script) is bytes, 'input script must be bytes')
     tape = Tape(script)
     code_lines = []
 
