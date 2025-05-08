@@ -18,6 +18,7 @@ from .functions import (
     run_script,
     run_tape,
     run_auth_script,
+    run_auth_scripts,
     add_opcode,
     add_contract,
     remove_contract,
@@ -619,6 +620,7 @@ def generate_docs() -> list[str]:
     paragraphs.append(_format_function_doc(run_script))
     paragraphs.append(_format_function_doc(run_tape))
     paragraphs.append(_format_function_doc(run_auth_script))
+    paragraphs.append(_format_function_doc(run_auth_scripts))
     paragraphs.append(_format_function_doc(add_opcode))
     paragraphs.append(_format_function_doc(add_contract))
     paragraphs.append(_format_function_doc(remove_contract))
@@ -1714,4 +1716,4 @@ def run_cli() -> None:
                 script = f.read()
             if len(argv) > 3:
                 cache = _parse_cache_json(argv[3])
-            print('true' if run_auth_script(script, cache) else 'false')
+            print('true' if run_auth_scripts([script], cache) else 'false')

@@ -198,37 +198,37 @@ class TestSigExt(unittest.TestCase):
 
         # auth tests using the VM-wide plugin management functions
         functions.reset_signature_extensions()
-        assert functions.run_auth_script(sigwit1 + siglock1, sigfields)
-        assert not functions.run_auth_script(sigwit2 + siglock2, sigfields)
-        assert functions.run_auth_script(multiwit1 + multilock1, sigfields)
-        assert not functions.run_auth_script(multiwit2 + multilock2, sigfields)
-        assert functions.run_auth_script(trwit1 + trlock1, sigfields)
-        assert not functions.run_auth_script(trwit2 + trlock2, sigfields)
+        assert functions.run_auth_scripts([sigwit1, siglock1], sigfields)
+        assert not functions.run_auth_scripts([sigwit2, siglock2], sigfields)
+        assert functions.run_auth_scripts([multiwit1, multilock1], sigfields)
+        assert not functions.run_auth_scripts([multiwit2, multilock2], sigfields)
+        assert functions.run_auth_scripts([trwit1, trlock1], sigfields)
+        assert not functions.run_auth_scripts([trwit2, trlock2], sigfields)
 
         functions.add_signature_extension(hash_sigfields)
-        assert functions.run_auth_script(sigwit1 + siglock1, sigfields)
-        assert functions.run_auth_script(sigwit2 + siglock2, sigfields)
-        assert functions.run_auth_script(multiwit1 + multilock1, sigfields)
-        assert functions.run_auth_script(multiwit2 + multilock2, sigfields)
-        assert functions.run_auth_script(trwit1 + trlock1, sigfields)
-        assert functions.run_auth_script(trwit2 + trlock2, sigfields)
+        assert functions.run_auth_scripts([sigwit1, siglock1], sigfields)
+        assert functions.run_auth_scripts([sigwit2, siglock2], sigfields)
+        assert functions.run_auth_scripts([multiwit1, multilock1], sigfields)
+        assert functions.run_auth_scripts([multiwit2, multilock2], sigfields)
+        assert functions.run_auth_scripts([trwit1, trlock1], sigfields)
+        assert functions.run_auth_scripts([trwit2, trlock2], sigfields)
 
         # auth tests using plugin injection
         functions.reset_signature_extensions()
-        assert functions.run_auth_script(sigwit1 + siglock1, sigfields)
-        assert not functions.run_auth_script(sigwit2 + siglock2, sigfields)
-        assert functions.run_auth_script(multiwit1 + multilock1, sigfields)
-        assert not functions.run_auth_script(multiwit2 + multilock2, sigfields)
-        assert functions.run_auth_script(trwit1 + trlock1, sigfields)
-        assert not functions.run_auth_script(trwit2 + trlock2, sigfields)
+        assert functions.run_auth_scripts([sigwit1, siglock1], sigfields)
+        assert not functions.run_auth_scripts([sigwit2, siglock2], sigfields)
+        assert functions.run_auth_scripts([multiwit1, multilock1], sigfields)
+        assert not functions.run_auth_scripts([multiwit2, multilock2], sigfields)
+        assert functions.run_auth_scripts([trwit1, trlock1], sigfields)
+        assert not functions.run_auth_scripts([trwit2, trlock2], sigfields)
 
         plugins = {'signature_extensions': [hash_sigfields]}
-        assert functions.run_auth_script(sigwit1 + siglock1, sigfields, plugins=plugins)
-        assert functions.run_auth_script(sigwit2 + siglock2, sigfields, plugins=plugins)
-        assert functions.run_auth_script(multiwit1 + multilock1, sigfields, plugins=plugins)
-        assert functions.run_auth_script(multiwit2 + multilock2, sigfields, plugins=plugins)
-        assert functions.run_auth_script(trwit1 + trlock1, sigfields, plugins=plugins)
-        assert functions.run_auth_script(trwit2 + trlock2, sigfields, plugins=plugins)
+        assert functions.run_auth_scripts([sigwit1, siglock1], sigfields, plugins=plugins)
+        assert functions.run_auth_scripts([sigwit2, siglock2], sigfields, plugins=plugins)
+        assert functions.run_auth_scripts([multiwit1, multilock1], sigfields, plugins=plugins)
+        assert functions.run_auth_scripts([multiwit2, multilock2], sigfields, plugins=plugins)
+        assert functions.run_auth_scripts([trwit1, trlock1], sigfields, plugins=plugins)
+        assert functions.run_auth_scripts([trwit2, trlock2], sigfields, plugins=plugins)
 
 
 class ConstraintCodes(Enum):
@@ -310,8 +310,8 @@ class TestCTExt(unittest.TestCase):
         ishelloworld = lambda tape, stack, cache: [stack.get(), stack.get()][1] == b'hello world'
         script = tools.Script.from_src('push x0102 check_template x01')
         functions.add_plugin('check_template', ishelloworld)
-        assert functions.run_auth_script(script,{ 'sigfield1': b'hello world' })
-        assert not functions.run_auth_script(script,{ 'sigfield1': b'hello world1' })
+        assert functions.run_auth_scripts([script],{ 'sigfield1': b'hello world' })
+        assert not functions.run_auth_scripts([script],{ 'sigfield1': b'hello world1' })
 
     def test_check_template_ext_e2e_constraints(self):
         '''Serialize inputs into sigfield1 and outputs into sigfield2.

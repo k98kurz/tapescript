@@ -125,15 +125,15 @@ class TestTools(unittest.TestCase):
 
         lock = tree.locking_script()
         assert type(lock) is tools.Script
-        assert functions.run_auth_script(unlock.bytes + lock.bytes)
+        assert functions.run_auth_scripts([unlock.bytes, lock.bytes])
 
         unlock = tree.left.left.unlocking_script()
         assert type(unlock) is tools.Script
 
         lock = tree.locking_script()
         assert type(lock) is tools.Script
-        assert functions.run_auth_script(
-            tools.Script.from_src('push s"secret"') + unlock + lock
+        assert functions.run_auth_scripts(
+            [tools.Script.from_src('push s"secret"'), unlock, lock]
         )
 
         packed = tree.pack()
@@ -263,16 +263,16 @@ class TestTools(unittest.TestCase):
 
         # prove a good leaf validates
         unlock = tree.left.left.left.unlocking_script()
-        assert functions.run_auth_script(unlock + lock)
+        assert functions.run_auth_scripts([unlock, lock])
 
         # prove the filler leaf does not validate
         unlock = tree.right.right.right.unlocking_script()
-        assert not functions.run_auth_script(unlock + lock)
+        assert not functions.run_auth_scripts([unlock, lock])
         # even if we inject an OP_TRUE
         hax = tools.Script.from_src('true')
-        assert not functions.run_auth_script(hax + unlock + lock)
-        assert not functions.run_auth_script(unlock + hax + lock)
-        assert not functions.run_auth_script(unlock + lock + hax)
+        assert not functions.run_auth_scripts([hax, unlock, lock])
+        assert not functions.run_auth_scripts([unlock, hax, lock])
+        assert not functions.run_auth_scripts([unlock, lock, hax])
 
     def test_make_merklized_script_balanced_4_leaves_e2e(self):
         scripts = [f'push d{i} pop0 true' for i in range(4)]
@@ -281,7 +281,7 @@ class TestTools(unittest.TestCase):
         assert lock.src.split()[0] == 'OP_MERKLEVAL'
 
         for unlock in unlocks:
-            assert functions.run_auth_script(unlock + lock)
+            assert functions.run_auth_scripts([unlock, lock])
 
     def test_make_merklized_script_balanced_7_leaves_e2e(self):
         scripts = [f'push d{i} pop0 true' for i in range(7)]
@@ -290,7 +290,7 @@ class TestTools(unittest.TestCase):
         assert lock.src.split()[0] == 'OP_MERKLEVAL'
 
         for unlock in unlocks:
-            assert functions.run_auth_script(unlock + lock)
+            assert functions.run_auth_scripts([unlock, lock])
 
     def test_add_soft_fork_e2e(self):
         locking_script_old_src = 'NOP255 d3 OP_TRUE'
@@ -318,8 +318,8 @@ class TestTools(unittest.TestCase):
         bad_unlocking_script = parsing.compile_script(bad_unlocking_script_src)
 
         # before soft fork activation
-        assert functions.run_auth_script(good_unlocking_script + locking_script_old)
-        assert functions.run_auth_script(bad_unlocking_script + locking_script_old)
+        assert functions.run_auth_scripts([good_unlocking_script, locking_script_old])
+        assert functions.run_auth_scripts([bad_unlocking_script, locking_script_old])
 
         # soft fork activation
         tools.add_soft_fork(255, 'OP_CHECK_ALL_EQUAL_VERIFY', OP_CHECK_ALL_EQUAL_VERIFY)
@@ -327,8 +327,8 @@ class TestTools(unittest.TestCase):
         # after soft fork activation
         locking_script_new = parsing.compile_script(locking_script_new_src)
         assert locking_script_new == locking_script_old
-        assert functions.run_auth_script(good_unlocking_script + locking_script_new)
-        assert not functions.run_auth_script(bad_unlocking_script + locking_script_new)
+        assert functions.run_auth_scripts([good_unlocking_script, locking_script_new])
+        assert not functions.run_auth_scripts([bad_unlocking_script, locking_script_new])
 
     def test_add_soft_fork_merklized_script_e2e(self):
         locking_script_old_src = 'NOP255 d3 OP_TRUE'
@@ -367,9 +367,9 @@ class TestTools(unittest.TestCase):
 
         for i in range(20):
             branch = good_unlocking_scripts[i] + good_locking_script + locking_script_old
-            assert functions.run_auth_script(branch)
+            assert functions.run_auth_scripts([branch])
             branch = bad_unlocking_scripts[i] + bad_locking_script + locking_script_old
-            assert functions.run_auth_script(branch)
+            assert functions.run_auth_scripts([branch])
 
         # soft fork activation
         tools.add_soft_fork(255, 'OP_CHECK_ALL_EQUAL_VERIFY', OP_CHECK_ALL_EQUAL_VERIFY)
@@ -391,9 +391,9 @@ class TestTools(unittest.TestCase):
 
         for i in range(20):
             branch = good_unlocking_scripts[i] + good_locking_script + locking_script_old
-            assert functions.run_auth_script(branch)
+            assert functions.run_auth_scripts([branch])
             branch = bad_unlocking_scripts[i] + bad_locking_script + locking_script_old
-            assert not functions.run_auth_script(branch)
+            assert not functions.run_auth_scripts([branch])
 
     def test_make_scripthash_lock_and_make_scripthash_witness_e2e(self):
         committed_script = tools.Script.from_src('true')
@@ -401,7 +401,7 @@ class TestTools(unittest.TestCase):
         assert isinstance(lock, functions.ScriptProtocol)
         witness = tools.make_scripthash_witness(committed_script)
         assert isinstance(witness, functions.ScriptProtocol)
-        assert functions.run_auth_script(witness + lock)
+        assert functions.run_auth_scripts([witness, lock])
 
     def test_make_adapter_locks_prv_and_make_adapter_witness_e2e(self):
         # setup lock and decrypt scripts
@@ -438,8 +438,8 @@ class TestTools(unittest.TestCase):
         assert len(sa) == 32
 
         # verify adapter witness with adapter verification script
-        assert functions.run_auth_script(
-            witness + verify_adapter_lock,
+        assert functions.run_auth_scripts(
+            [witness, verify_adapter_lock],
             sigfields
         )
 
@@ -456,16 +456,17 @@ class TestTools(unittest.TestCase):
         assert tools.decrypt_adapter(witness, tweak) == RT + s
 
         # check the signature with the check_sig auth script
-        assert functions.run_auth_script(
-            parsing.compile_script(f'push x{(RT+s).hex()}') + check_sig_lock,
+        assert functions.run_auth_scripts(
+            [parsing.compile_script(f'push x{(RT+s).hex()}'), check_sig_lock],
             sigfields
         )
 
         # decrypt and check sig in one shot
-        assert functions.run_auth_script(
-            witness + decrypt_adapter_script + parsing.compile_script('concat') +
-            check_sig_lock,
-            sigfields
+        assert functions.run_auth_scripts([
+                witness, decrypt_adapter_script,
+                parsing.compile_script('concat'),
+                check_sig_lock
+            ], sigfields
         )
 
     def test_make_adapter_lock_prv_and_make_adapter_witness_e2e(self):
@@ -502,8 +503,8 @@ class TestTools(unittest.TestCase):
         assert t == tweak
 
         # run combined auth script
-        assert functions.run_auth_script(
-            witness + lock,
+        assert functions.run_auth_scripts(
+            [witness, lock],
             {**sigfields}
         )
 
@@ -529,20 +530,20 @@ class TestTools(unittest.TestCase):
         adapter_witness2 = tools.make_adapter_witness(bytes(self.prvkeyB), TT, sigfields).bytes
 
         # verify adapters
-        assert functions.run_auth_script(adapter_witness1 + verify_adapter_1, sigfields)
-        assert functions.run_auth_script(adapter_witness2 + verify_adapter_2, sigfields)
+        assert functions.run_auth_scripts([adapter_witness1, verify_adapter_1], sigfields)
+        assert functions.run_auth_scripts([adapter_witness2, verify_adapter_2], sigfields)
 
         # decrypt signatures
         sig1 = tools.decrypt_adapter(adapter_witness1, tt)
         sig2 = tools.decrypt_adapter(adapter_witness2, tt)
 
         # verify signatures
-        assert functions.run_auth_script(
-            parsing.compile_script(f'push x{sig1.hex()}') + verify_signature_1,
+        assert functions.run_auth_scripts(
+            [parsing.compile_script(f'push x{sig1.hex()}'), verify_signature_1],
             sigfields
         )
-        assert functions.run_auth_script(
-            parsing.compile_script(f'push x{sig2.hex()}') + verify_signature_2,
+        assert functions.run_auth_scripts(
+            [parsing.compile_script(f'push x{sig2.hex()}'), verify_signature_2],
             sigfields
         )
 
@@ -555,7 +556,7 @@ class TestTools(unittest.TestCase):
         unlock = tools.make_single_sig_witness(bytes(self.prvkeyA), {**sigfields}).bytes
 
         # run e2e
-        assert functions.run_auth_script(unlock + lock, {**sigfields})
+        assert functions.run_auth_scripts([unlock, lock], {**sigfields})
 
     def test_make_single_sig_lock2_and_make_single_sig_witness2_e2e(self):
         # make lock
@@ -566,7 +567,7 @@ class TestTools(unittest.TestCase):
         unlock = tools.make_single_sig_witness2(bytes(self.prvkeyA), {**sigfields})
 
         # run e2e
-        assert functions.run_auth_script(unlock.bytes + lock.bytes, {**sigfields})
+        assert functions.run_auth_scripts([unlock.bytes, lock.bytes], {**sigfields})
 
     def test_make_multi_sig_lock_and_make_single_sig_witness_e2e(self):
         # make lock
@@ -581,7 +582,7 @@ class TestTools(unittest.TestCase):
         unlock = unlock1.bytes + unlock2.bytes
 
         # run e2e
-        assert functions.run_auth_script(unlock + lock.bytes, {**sigfields})
+        assert functions.run_auth_scripts([unlock, lock.bytes], {**sigfields})
 
     def test_make_delegate_key_lock_e2e(self):
         lock = tools.make_delegate_key_lock(bytes(self.pubkeyA))
@@ -603,7 +604,7 @@ class TestTools(unittest.TestCase):
         assert len(unlock.bytes) == 173, len(unlock.bytes)
 
         # run e2e
-        assert functions.run_auth_script(unlock + lock, cache), (unlock + lock).src
+        assert functions.run_auth_scripts([unlock, lock], cache), (unlock + lock).src
 
     def test_make_delegate_key_chain_lock_e2e(self):
         lock = tools.make_delegate_key_chain_lock(bytes(self.pubkeyA))
@@ -625,7 +626,7 @@ class TestTools(unittest.TestCase):
         assert len(unlock.bytes) == 174, (len(unlock.bytes), unlock.src)
 
         # run e2e 1 cert
-        assert functions.run_auth_script(unlock + lock, cache), (unlock+lock).src
+        assert functions.run_auth_scripts([unlock, lock], cache), (unlock+lock).src
 
         cert2 = tools.make_delegate_key_cert(
             bytes(self.prvkeyB), bytes(self.pubkeyC), begin_ts, end_ts
@@ -639,7 +640,7 @@ class TestTools(unittest.TestCase):
         assert len(unlock.bytes) == 282, (len(unlock.bytes), unlock.src)
 
         # run e2e 2 certs chained
-        assert functions.run_auth_script(unlock.bytes + lock.bytes, cache)
+        assert functions.run_auth_scripts([unlock.bytes, lock.bytes], cache)
 
     def test_make_graftroot_lock_e2e(self):
         sigfields = {'sigfield1': b'hello world'}
@@ -650,7 +651,7 @@ class TestTools(unittest.TestCase):
         assert len(unlock.bytes) == 67, len(unlock.bytes)
 
         # run e2e
-        assert functions.run_auth_script(unlock + lock, sigfields), \
+        assert functions.run_auth_scripts([unlock, lock], sigfields), \
             (unlock + lock).src
 
         script = tools.Script.from_src('true')
@@ -661,7 +662,7 @@ class TestTools(unittest.TestCase):
             (len(unlock2.bytes), len(surrogate.bytes))
 
         # run e2e
-        assert functions.run_auth_script(unlock1 + unlock2 + lock, sigfields)
+        assert functions.run_auth_scripts([unlock1, unlock2, lock], sigfields)
 
         # additional length check
         surrogate = tools.Script.from_src('true')
@@ -691,14 +692,14 @@ class TestTools(unittest.TestCase):
         )
 
         # test that the refund will not work yet
-        assert not functions.run_auth_script(refund_unlock.bytes + lock.bytes, sigfields)
+        assert not functions.run_auth_scripts([refund_unlock.bytes, lock.bytes], sigfields)
 
         # test that the main path works
-        assert functions.run_auth_script(hash_unlock.bytes + lock.bytes, sigfields)
+        assert functions.run_auth_scripts([hash_unlock.bytes, lock.bytes], sigfields)
 
         # test that the refund will work if the timestamp is past the timeout
-        assert functions.run_auth_script(
-            refund_unlock.bytes + lock.bytes,
+        assert functions.run_auth_scripts(
+            [refund_unlock.bytes, lock.bytes],
             {**sigfields, 'timestamp': int(time()) + timeout + 1}
         )
 
@@ -726,14 +727,14 @@ class TestTools(unittest.TestCase):
         )
 
         # test that the refund will not work yet
-        assert not functions.run_auth_script(refund_unlock.bytes + lock.bytes, sigfields)
+        assert not functions.run_auth_scripts([refund_unlock.bytes, lock.bytes], sigfields)
 
         # test that the main path works
-        assert functions.run_auth_script(hash_unlock.bytes + lock.bytes, sigfields)
+        assert functions.run_auth_scripts([hash_unlock.bytes, lock.bytes], sigfields)
 
         # test that the refund will work if the timestamp is past the timeout
-        assert functions.run_auth_script(
-            refund_unlock.bytes + lock.bytes,
+        assert functions.run_auth_scripts(
+            [refund_unlock.bytes, lock.bytes],
             {**sigfields, 'timestamp': int(time()) + timeout + 1}
         )
 
@@ -759,14 +760,14 @@ class TestTools(unittest.TestCase):
         )
 
         # test that the refund will not work yet
-        assert not functions.run_auth_script(refund_unlock.bytes + lock.bytes, sigfields)
+        assert not functions.run_auth_scripts([refund_unlock.bytes, lock.bytes], sigfields)
 
         # test that the main path works
-        assert functions.run_auth_script(hash_unlock.bytes + lock.bytes, sigfields)
+        assert functions.run_auth_scripts([hash_unlock.bytes, lock.bytes], sigfields)
 
         # test that the refund will work if the timestamp is past the timeout
-        assert functions.run_auth_script(
-            refund_unlock.bytes + lock.bytes,
+        assert functions.run_auth_scripts(
+            [refund_unlock.bytes, lock.bytes],
             {**sigfields, 'timestamp': int(time()) + timeout + 1}
         )
 
@@ -794,14 +795,14 @@ class TestTools(unittest.TestCase):
         )
 
         # test that the refund will not work yet
-        assert not functions.run_auth_script(refund_unlock.bytes + lock.bytes, sigfields)
+        assert not functions.run_auth_scripts([refund_unlock.bytes, lock.bytes], sigfields)
 
         # test that the main path works
-        assert functions.run_auth_script(hash_unlock.bytes + lock.bytes, sigfields)
+        assert functions.run_auth_scripts([hash_unlock.bytes, lock.bytes], sigfields)
 
         # test that the refund will work if the timestamp is past the timeout
-        assert functions.run_auth_script(
-            refund_unlock.bytes + lock.bytes,
+        assert functions.run_auth_scripts(
+            [refund_unlock.bytes, lock.bytes],
             {**sigfields, 'timestamp': int(time()) + timeout + 1}
         )
 
@@ -824,14 +825,14 @@ class TestTools(unittest.TestCase):
         )
 
         # test that the refund will not work yet
-        assert not functions.run_auth_script(refund_unlock.bytes + lock.bytes, sigfields)
+        assert not functions.run_auth_scripts([refund_unlock.bytes, lock.bytes], sigfields)
 
         # test that the main path works
-        assert functions.run_auth_script(unlock.bytes + lock.bytes, sigfields)
+        assert functions.run_auth_scripts([unlock.bytes, lock.bytes], sigfields)
 
         # test that the refund will work if the timestamp is past the timeout
-        assert functions.run_auth_script(
-            refund_unlock.bytes + lock.bytes,
+        assert functions.run_auth_scripts(
+            [refund_unlock.bytes, lock.bytes],
             {**sigfields, 'timestamp': int(time()) + timeout + 1}
         )
 
@@ -858,14 +859,14 @@ class TestTools(unittest.TestCase):
         )
 
         # test that the refund will not work yet
-        assert not functions.run_auth_script(refund_unlock.bytes + lock.bytes, sigfields)
+        assert not functions.run_auth_scripts([refund_unlock.bytes, lock.bytes], sigfields)
 
         # test that the main path works
-        assert functions.run_auth_script(unlock.bytes + lock.bytes, sigfields)
+        assert functions.run_auth_scripts([unlock.bytes, lock.bytes], sigfields)
 
         # test that the refund will work if the timestamp is past the timeout
-        assert functions.run_auth_script(
-            refund_unlock.bytes + lock.bytes,
+        assert functions.run_auth_scripts(
+            [refund_unlock.bytes, lock.bytes],
             {**sigfields, 'timestamp': int(time()) + timeout + 1}
         )
 
@@ -900,8 +901,8 @@ class TestTools(unittest.TestCase):
         assert len(unlock2.bytes) == 35 + len(script.bytes), \
             (len(unlock2.bytes), len(script.bytes))
 
-        assert functions.run_auth_script(unlock1 + lock, sigfields)
-        assert functions.run_auth_script(unlock2 + lock, sigfields)
+        assert functions.run_auth_scripts([unlock1, lock], sigfields)
+        assert functions.run_auth_scripts([unlock2, lock], sigfields)
 
         sig = functions.sign_with_scalar(
             functions.aggregate_scalars((x, t)),
@@ -916,7 +917,7 @@ class TestTools(unittest.TestCase):
         )
         assert unlock1.src == f'push x{sig.hex()}01', \
             f'\nexpected push x{sig.hex()}01\nobserved {unlock1.src}'
-        assert functions.run_auth_script(unlock1 + lock, sigfields)
+        assert functions.run_auth_scripts([unlock1, lock], sigfields)
 
     def test_make_nonnative_taproot_lock_e2e(self):
         sigfields = {'sigfield1': b'hello ', 'sigfield2': b'world'}
@@ -933,8 +934,8 @@ class TestTools(unittest.TestCase):
 
         unlock2 = tools.make_taproot_witness_scriptspend(bytes(self.pubkeyA), script)
 
-        assert functions.run_auth_script(unlock1 + lock, sigfields)
-        assert functions.run_auth_script(unlock2 + lock, sigfields), \
+        assert functions.run_auth_scripts([unlock1, lock], sigfields)
+        assert functions.run_auth_scripts([unlock2, lock], sigfields), \
             (unlock2 + lock).src
 
         unlock1 = tools.make_taproot_witness_keyspend(
@@ -942,7 +943,7 @@ class TestTools(unittest.TestCase):
             sigfields,
             script
         )
-        assert functions.run_auth_script(unlock1 + lock, sigfields)
+        assert functions.run_auth_scripts([unlock1, lock], sigfields)
 
     def test_make_graftap_lock_and_witnesses_e2e(self):
         sigfields = {'sigfield1': b'hello world'}
@@ -953,7 +954,7 @@ class TestTools(unittest.TestCase):
         assert len(unlock.bytes) == 66, len(unlock.bytes)
 
         # run e2e
-        assert functions.run_auth_script(unlock + lock, sigfields)
+        assert functions.run_auth_scripts([unlock, lock], sigfields)
 
         script = tools.Script.from_src('true')
         surrogate = tools.make_scripthash_lock(script)
@@ -965,7 +966,7 @@ class TestTools(unittest.TestCase):
             (len(unlock2.bytes), len(surrogate.bytes))
 
         # run e2e
-        assert functions.run_auth_script(unlock1 + unlock2 + lock, sigfields), \
+        assert functions.run_auth_scripts([unlock1, unlock2, lock], sigfields), \
             (unlock1 + unlock2 + lock).src
 
         # another length check
@@ -1027,8 +1028,8 @@ class TestTools(unittest.TestCase):
 
         # validate adapter witnesses
         for i in range(len(adapter_witnesses)):
-            assert functions.run_auth_script(
-                adapter_witnesses[i].bytes + amhl[pubkeys[i]][0].bytes,
+            assert functions.run_auth_scripts(
+                [adapter_witnesses[i].bytes, amhl[pubkeys[i]][0].bytes],
                 sigfields[i]
             )
 
@@ -1079,8 +1080,8 @@ class TestTools(unittest.TestCase):
         # will be able to unlock the payment from B
         sigC = tools.decrypt_adapter(Dave['inbound_txn']['adapter_witness'], Dave['scalar'])
         Dave['inbound_txn']['witness'] = parsing.compile_script(f'push x{sigC.hex()}')
-        assert functions.run_auth_script(
-            Dave['inbound_txn']['witness'] + Dave['inbound_txn']['locking_script'],
+        assert functions.run_auth_scripts(
+            [Dave['inbound_txn']['witness'], Dave['inbound_txn']['locking_script']],
             Dave['inbound_txn']['sigfields']
         )
 
@@ -1090,8 +1091,8 @@ class TestTools(unittest.TestCase):
         )
         sigB = tools.decrypt_adapter(Carla['inbound_txn']['adapter_witness'], r)
         Carla['inbound_txn']['witness'] = parsing.compile_script(f'push x{sigB.hex()}')
-        assert functions.run_auth_script(
-            Carla['inbound_txn']['witness'] + Carla['inbound_txn']['locking_script'],
+        assert functions.run_auth_scripts(
+            [Carla['inbound_txn']['witness'], Carla['inbound_txn']['locking_script']],
             Carla['inbound_txn']['sigfields']
         )
 
@@ -1101,8 +1102,8 @@ class TestTools(unittest.TestCase):
         )
         sigA = tools.decrypt_adapter(Bob['inbound_txn']['adapter_witness'], r)
         Bob['inbound_txn']['witness'] = parsing.compile_script(f'push x{sigA.hex()}')
-        assert functions.run_auth_script(
-            Bob['inbound_txn']['witness'] + Bob['inbound_txn']['locking_script'],
+        assert functions.run_auth_scripts(
+            [Bob['inbound_txn']['witness'], Bob['inbound_txn']['locking_script']],
             Bob['inbound_txn']['sigfields']
         )
 
@@ -1143,8 +1144,8 @@ class TestTools(unittest.TestCase):
 
         # validate adapter witnesses
         for i in range(len(adapter_witnesses)):
-            assert functions.run_auth_script(
-                adapter_witnesses[i].bytes + amhl[pubkeys[i]][0].bytes,
+            assert functions.run_auth_scripts(
+                [adapter_witnesses[i].bytes, amhl[pubkeys[i]][0].bytes],
                 sigfields[i]
             )
 
@@ -1201,8 +1202,8 @@ class TestTools(unittest.TestCase):
         # will be able to unlock the payment from B
         sigC = tools.decrypt_adapter(Dave['inbound_txn']['adapter_witness'], Dave['scalar'])
         Dave['inbound_txn']['witness'] = parsing.compile_script(f'push x{sigC.hex()} true')
-        assert functions.run_auth_script(
-            Dave['inbound_txn']['witness'] + Dave['inbound_txn']['locking_script'],
+        assert functions.run_auth_scripts(
+            [Dave['inbound_txn']['witness'], Dave['inbound_txn']['locking_script']],
             Dave['inbound_txn']['sigfields']
         )
 
@@ -1212,8 +1213,8 @@ class TestTools(unittest.TestCase):
         )
         sigB = tools.decrypt_adapter(Carla['inbound_txn']['adapter_witness'], r)
         Carla['inbound_txn']['witness'] = parsing.compile_script(f'push x{sigB.hex()} true')
-        assert functions.run_auth_script(
-            Carla['inbound_txn']['witness'] + Carla['inbound_txn']['locking_script'],
+        assert functions.run_auth_scripts(
+            [Carla['inbound_txn']['witness'], Carla['inbound_txn']['locking_script']],
             Carla['inbound_txn']['sigfields']
         )
 
@@ -1223,8 +1224,8 @@ class TestTools(unittest.TestCase):
         )
         sigA = tools.decrypt_adapter(Bob['inbound_txn']['adapter_witness'], r)
         Bob['inbound_txn']['witness'] = parsing.compile_script(f'push x{sigA.hex()} true')
-        assert functions.run_auth_script(
-            Bob['inbound_txn']['witness'] + Bob['inbound_txn']['locking_script'],
+        assert functions.run_auth_scripts(
+            [Bob['inbound_txn']['witness'], Bob['inbound_txn']['locking_script']],
             Bob['inbound_txn']['sigfields']
         )
 
@@ -1232,8 +1233,8 @@ class TestTools(unittest.TestCase):
         refund_witness = tools.make_ptlc_refund_witness(
             Alice['prvkey'], refund_sigfields[0]
         )
-        assert functions.run_auth_script(
-            refund_witness.bytes + Alice['outbound_txn']['locking_script'],
+        assert functions.run_auth_scripts(
+            [refund_witness.bytes, Alice['outbound_txn']['locking_script']],
             {**refund_sigfields[0], 'timestamp': int(time())+11}
         )
 

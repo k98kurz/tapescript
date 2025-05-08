@@ -2295,11 +2295,11 @@ class TestFunctions(unittest.TestCase):
         assert isinstance(result[2], dict)
         assert result[0].has_terminated()
 
-    def test_run_auth_script_returns_True_only_if_stack_has_single_True_value(self):
-        assert functions.run_auth_script(b'\x00') == False
-        assert functions.run_auth_script(b'\x00\x20') == False
-        assert functions.run_auth_script(b'\x01') == True
-        assert functions.run_auth_script(b'\x01\x01') == False
+    def test_run_auth_scripts_returns_True_only_if_stack_has_single_True_value(self):
+        assert functions.run_auth_scripts([b'\x00']) == False
+        assert functions.run_auth_scripts([b'\x00\x20']) == False
+        assert functions.run_auth_scripts([b'\x01']) == True
+        assert functions.run_auth_scripts([b'\x01\x01']) == False
 
     def test_OP_RETURN_exits_local_context_and_returns_to_outer_context(self):
         # return from def before adding int false to stack
@@ -2550,7 +2550,7 @@ class TestFunctions(unittest.TestCase):
         with open('tests/vectors/cds_unlocking_script1.hex', 'r') as f:
             hexdata = ''.join(f.read().split())
             unlocking_script1 = bytes.fromhex(hexdata)
-        result = functions.run_auth_script(unlocking_script1 + locking_script, cache_vals, {
+        result = functions.run_auth_scripts([unlocking_script1, locking_script], cache_vals, {
             contract_id: contract
         })
         assert result
@@ -2561,7 +2561,7 @@ class TestFunctions(unittest.TestCase):
         with open('tests/vectors/cds_unlocking_script2.hex', 'r') as f:
             hexdata = ''.join(f.read().split())
             unlocking_script2 = bytes.fromhex(hexdata)
-        result = functions.run_auth_script(unlocking_script2 + locking_script, cache_vals, {
+        result = functions.run_auth_scripts([unlocking_script2, locking_script], cache_vals, {
             contract_id: contract
         })
         assert result
@@ -2572,7 +2572,7 @@ class TestFunctions(unittest.TestCase):
         with open('tests/vectors/cds_unlocking_script3.hex', 'r') as f:
             hexdata = ''.join(f.read().split())
             unlocking_script3 = bytes.fromhex(hexdata)
-        result = functions.run_auth_script(unlocking_script3 + locking_script, cache_vals, {
+        result = functions.run_auth_scripts([unlocking_script3, locking_script], cache_vals, {
             contract_id: contract
         })
         assert result

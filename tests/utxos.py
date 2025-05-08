@@ -158,8 +158,8 @@ def validate_txn(txn: Txn) -> bool:
         for i in range(len(entry.inputs)):
             input = entry.inputs[i]
             witness = entry.witnesses[i]
-            if not functions.run_auth_script(
-                witness + input.lock,
+            if not functions.run_auth_scripts(
+                [witness, input.lock],
                 {
                     **cache_values[entry.id()],
                     'input_ts': input_ts,

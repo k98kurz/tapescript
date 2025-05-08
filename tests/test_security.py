@@ -67,11 +67,11 @@ class TestSecurityAssumptions(unittest.TestCase):
             tools.make_taproot_witness_scriptspend(pubkey, intended_script)
 
         # prove normal functioning
-        assert functions.run_auth_script(
-            taproot_unlock_keyspend + taproot_lock, sigfields
+        assert functions.run_auth_scripts(
+            [taproot_unlock_keyspend, taproot_lock], sigfields
         )
-        assert functions.run_auth_script(
-            taproot_unlock_scriptspend + taproot_lock, sigfields
+        assert functions.run_auth_scripts(
+            [taproot_unlock_scriptspend, taproot_lock], sigfields
         )
 
         # derive point from malicious script
@@ -85,7 +85,7 @@ class TestSecurityAssumptions(unittest.TestCase):
         malicious_unlock = tools.make_taproot_witness_scriptspend(
             script_point_inverse, malicious_script
         )
-        assert not functions.run_auth_script(malicious_unlock + taproot_lock)
+        assert not functions.run_auth_scripts([malicious_unlock, taproot_lock])
 
     # problem cases to avoid
     def test_prove_all_mirror_trees_validate_each_other(self):
@@ -107,7 +107,7 @@ class TestSecurityAssumptions(unittest.TestCase):
             tools.ScriptLeaf.from_src('push s"I hacked it" pop0 true'),
         )
         unlock = tree2.right.unlocking_script()
-        assert functions.run_auth_script(unlock.bytes + lock.bytes)
+        assert functions.run_auth_scripts([unlock.bytes, lock.bytes])
 
         # prove that an asymmetrical tree will not validate for the same root
         tree3 = tools.ScriptNode(
@@ -115,7 +115,7 @@ class TestSecurityAssumptions(unittest.TestCase):
             tools.ScriptLeaf.from_src('push s"different innit" pop0 true'),
         )
         unlock = tree3.right.unlocking_script()
-        assert not functions.run_auth_script(unlock.bytes + lock.bytes)
+        assert not functions.run_auth_scripts([unlock.bytes, lock.bytes])
 
         # prove that any arbitrary symmetrical tree will validate for the same root
         for i in range(100):
@@ -125,7 +125,7 @@ class TestSecurityAssumptions(unittest.TestCase):
                 tools.ScriptLeaf.from_src(f'push x{t.hex()} pop0 true'),
             )
             unlock = tree2.right.unlocking_script()
-            assert functions.run_auth_script(unlock.bytes + lock.bytes)
+            assert functions.run_auth_scripts([unlock.bytes, lock.bytes])
 
     # patched DoS attack vectors
     def test_memory_exhaustion_DoS_attacks_result_in_ScriptExecutionError(self):
@@ -177,6 +177,13 @@ class TestSecurityAssumptions(unittest.TestCase):
         with self.assertRaises(errors.ScriptExecutionError) as e:
             functions.run_script(script)
         assert "limit exceeded" in str(e.exception)
+
+    # various patches
+    def test_run_auth_scripts_sequential_scripts_not_vulnerable_to_concatenation_attack(self):
+        lock = tools.Script.from_src('false').bytes
+        unlock = tools.Script.from_src('true def 0 { false }').bytes[:-1]
+        assert functions.run_auth_scripts([unlock + lock])
+        assert not functions.run_auth_scripts([unlock, lock])
 
 
 if __name__ == '__main__':
