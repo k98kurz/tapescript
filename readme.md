@@ -63,8 +63,8 @@ there is a `Script` class that can be initialized with either the source code or
 the byte code with `Script.from_src` and `Script.from_bytes`, respectively, and
 it will automatically compile source code to byte code or decompile byte code to
 source code; `Script` instances can also be added together with a simple +, e.g.
-`script = unlocking_script + locking_script`. The script running functions can
-accept either a `Script` object or the byte code.
+`script = part1 + part2`. The script running functions can accept either
+`Script` object(s) or the byte code.
 
 Note that each `OP_` function has an alias that excludes the `OP_` prefix; e.g.
 `OP_PUSH d1` can also be written `PUSH d1`. Op names are not case-sensitive, and
@@ -209,10 +209,10 @@ the input leaf scripts. In the above example, each branch expects a signature
 from the given public key. To use as an auth script, the locking script would be
 compiled and used as the locking condition. A signature would be prepended to
 the unlocking script with an `OP_PUSH x<hex signature> `, and this would then be
-compiled to become the unlocking bytes. Then concatenate the locking script to
-the unlocking script (i.e. script = unlock + lock) and run through the
-`run_auth_script` function, which will return a `True` if it executed
-successfully and `False` otherwise.
+compiled to become the unlocking bytes. Then run the `run_auth_scripts` function
+on the unlocking script, the locking script, and the sigfields (i.e.
+`run_auth_scripts([unlock, lock], {**sigfields})`), which will return a `True`
+if they executed successfully and `False` otherwise.
 
 Tools are included for making merklized scripts:
 - `ScriptLeaf` and `ScriptNode` classes
@@ -778,7 +778,7 @@ The basic functions for interacting with the plugin system are the following:
 - `reset_plugins(scope: str) -> None`
 
 Additionally, plugins can be supplied in a dict format to `run_script` or
-`run_auth_script`, but this will overwrite any plugins previously added for any
+`run_auth_scripts`, but this will overwrite any plugins previously added for any
 scope included in the injected `plugins` argument.
 
 #### Signature Extensions
@@ -831,7 +831,7 @@ Each contract will be checked against each interface when added (it must
 implement at least one) and again at runtime when an op that uses a contract is
 executed. All contracts added via the `add_contract` function will be included
 in the runtime environment of scripts run thereafter. Additionally, contracts
-can be passed into the `run_script` and `run_auth_script` functions, and these
+can be passed into the `run_script` and `run_auth_scripts` functions, and these
 will override any contracts in the global runtime environment in case of a
 contract_id conflict. The contract_id should be a cryptographic hash of the
 contract's source code; it is called a contract rather than a module because the
@@ -868,7 +868,7 @@ plugins can be managed with the following functions:
 - `reset_signature_extensions()`
 
 Additionally, plugins can be injected when calling `run_script` or
-`run_auth_script` the same way as contracts. The underlying plugin system uses
+`run_auth_scripts` the same way as contracts. The underlying plugin system uses
 string scopes, and the signature extension plugins have the scope of
 "signature_extensions". For example:
 
