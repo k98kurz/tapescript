@@ -87,7 +87,7 @@ except ImportError:
         return urandom(count)
 
 
-__version__ = '0.7.0'
+__version__ = '0.7.1'
 
 def version() -> str:
     """Get the version of the tapescript library."""

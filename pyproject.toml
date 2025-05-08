@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "tapescript"
-version = "0.7.0"
+version = "0.7.1"
 authors = [
   { name="k98kurz", email="k98kurz@gmail.com" },
 ]
@@ -25,6 +25,7 @@ classifiers = [
 
 [project.urls]
 "Homepage" = "https://github.com/k98kurz/tapescript"
+"Repository" = "https://github.com/k98kurz/tapescript"
 "Bug Tracker" = "https://github.com/k98kurz/tapescript/issues"
 
 [project.scripts]
