@@ -13,7 +13,7 @@ applications and integration into libraries.
 
 Open issues can be tracked [here](https://github.com/k98kurz/tapescript/issues).
 Historical changes can be found in the
-[changelog](https://github.com/k98kurz/tapescript/blob/main/CHANGELOG.md).
+[changelog](https://github.com/k98kurz/tapescript/blob/master/changelog.md).
 
 ## Usage
 
@@ -296,8 +296,9 @@ removes the script and places `x00` (`False`) onto the stack. The signature path
 public key.
 
 Signatures are created using the original private key and the script commitment
-by adding the script commitment (clamped to the scalar field) to the scalar
-derived from the private key, then using that in place of the private key scalar.
+by adding the sha256 of the script commitment catenated to the internal pubkey
+(clamped to the scalar field) to the scalar derived from the private key, then
+using that in place of the private key scalar.
 
 Tools are included for using taproot:
 - `make_taproot_lock` - 36 bytes
@@ -614,7 +615,7 @@ assert run_auth_scripts([refund_witness, lock], get_refund_cache())
 
 #### Adapter Signatures and Anonymous Multi-Hop Locks
 
-Ed25519 fulfills the homomorphic one-way criteria: given 2 scalars, `x1` and
+Ed25519 fulfills the homomorphic one-way criterion: given 2 scalars, `x1` and
 `x2`, and 2 points, `X1=x1*G` and `X2=x2*G`, a third point, `X3`, can be
 constructed either by adding `X1` and `X2` or by first adding `x1` and `x2`
 before multiplying by the base/generator point; i.e. `X1+X2 = (x1+x2)*G`.
@@ -683,21 +684,22 @@ tested in specific applications.
 Run a script by compiling the source to byte code or creating a `Script` object
 and run with either
 `run_script(script: bytes|Script, cache_vals: dict = {}, contracts: dict = {})`
-or `run_auth_scripts(scripts: list[bytes|Script], cache_vals: dict = {}, contracts: dict = {})`.
+or
+`run_auth_scripts(scripts: list[bytes|Script], cache_vals: dict = {}, contracts: dict = {})`.
 The `run_script` function returns `tuple` of length 3 containing a `Tape`, a
-`LifoQueue`, and the final state of the `cache` dict. The `run_auth_scripts`
+`Stack`, and the final state of the `cache` dict. The `run_auth_scripts`
 instead returns a bool that is `True` if the scripts ran without error and
-resulted in a single `0x01` value on the stack; otherwise it returns `False`.
+resulted in a single `0xff` value on the stack; otherwise it returns `False`.
 
 The recommended way to use this system is to pass a list containing the
 unlocking/witness script and the locking script as separate scripts to the
 `run_auth_scripts` function, e.g. `run_auth_scripts([witness, lock])`. This
-ensures that the locking scripts runs last and enforces its constraints, and any
+ensures that the locking script runs last and enforces its constraints, and any
 failure to satisfy the constraints or attempts to bypass them will result in the
 function returning `False`.
 
 In the case where a signature is expected to be validated, the message parts for
-the signature must be passed in via the `cache_vals` dict at keys `sigfield[1-8]`.
+the signature must be passed in via the `cache_vals` dict at keys "sigfield[1-8]".
 In the case where `OP_CHECK_TRANSFER` or `OP_INVOKE` might be called, the
 contracts must be passed in via the `contracts` dict. See the
 [check_transfer](https://github.com/k98kurz/tapescript/blob/v0.7.1/language_spec.md#op_check_transfer)
