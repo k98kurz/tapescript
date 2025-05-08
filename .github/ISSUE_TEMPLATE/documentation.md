@@ -13,6 +13,9 @@ assignees: k98kurz
 
 ## Documentation Files and Sections
 
+<!-- List the files and sections of the documentation that you are reporting an issue with. -->
+<!-- Below are examples. Overwrite as needed. -->
+
 - readme.md: "Usage"
 - dox.md: "Classes > Script"
 
