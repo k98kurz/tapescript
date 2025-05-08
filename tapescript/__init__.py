@@ -4,6 +4,7 @@ from .functions import (
     run_script,
     run_tape,
     run_auth_script,
+    run_auth_scripts,
     add_opcode,
     add_alias,
     add_contract,
