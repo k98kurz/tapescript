@@ -635,7 +635,7 @@ proofs must be in corresponding order on the stack.
 
 For this to work, the contract must be loaded into the tape's `contracts` dict
 at the bytes `contract_id` dict key. This can be done by passing a contracts dict
-into `run_script` or `run_auth_script`. If the contract should be loaded for all
+into `run_script` or `run_auth_scripts`. If the contract should be loaded for all
 script executions, instead it can be added with `add_contract(contract_id, contract)`.
 The contract must be an instance of a class implementing the `CanCheckTransfer`
 interface with following functions:
