@@ -8,6 +8,7 @@ from nacl.exceptions import BadSignatureError
 from nacl.signing import SigningKey, VerifyKey
 from time import time
 from typing import Any, Callable, _ProtocolMeta
+from warnings import warn
 import nacl.bindings
 import struct
 
@@ -2165,25 +2166,67 @@ def run_script(script: bytes|ScriptProtocol, cache_vals: dict = {},
     run_tape(tape, stack, cache, additional_flags=additional_flags)
     return (tape, stack, cache)
 
-def run_auth_script(script: bytes|ScriptProtocol, cache_vals: dict = {},
+def run_auth_scripts(scripts: list[bytes|ScriptProtocol], cache_vals: dict = {},
                     contracts: dict = {}, plugins: dict = {},
                     stack_max_items: int = 1024, stack_max_item_size: int = 1024,
                     callstack_limit: int = 128) -> bool:
-    """Run the given auth script byte code. Returns True iff the stack
-        has a single \\xff value after script execution and no errors were
-        raised; otherwise, returns False.
+    """Run the given auth scripts in order. Returns True iff the stack
+        has a single \\xff value after all scripts have executed and no
+        errors were raised; otherwise, returns False. Each script is
+        executed with the same stack and cache; definitions are copied
+        between tapes; and the `callstack_limit` is enforced across the
+        total execution via a cumulative `callstack_count`. When using
+        locking and unlocking scripts, the locking script must be the
+        last item in the scripts list so it is executed last and thus
+        properly enforced.
     """
+    tert(type(scripts) in (list, tuple), 'scripts must be list[bytes|ScriptProtocol]')
+    vert(len(scripts), 'scripts must contain at least 1 script')
+    tert(all([type(s) is bytes or isinstance(s, ScriptProtocol) for s in scripts]),
+         'scripts must be list[bytes|ScriptProtocol]')
+
     try:
+        # run the first script and reuse some of its return values
         tape, stack, cache = run_script(
-            script, cache_vals, contracts, plugins=plugins,
+            scripts[0], cache_vals, contracts, plugins=plugins,
             stack_max_items=stack_max_items,
             stack_max_item_size=stack_max_item_size,
             callstack_limit=callstack_limit
         )
         assert tape.has_terminated()
+        contracts = tape.contracts
+        plugins = tape.plugins
+
+        # execute each additional script
+        scripts = scripts[1:]
+        for s in scripts:
+            tape = Tape(
+                s if type(s) is bytes else s.bytes,
+                callstack_limit=tape.callstack_limit,
+                callstack_count=tape.callstack_count
+            )
+            tape.contracts = contracts
+            tape.plugins = plugins
+            run_tape(tape, stack, cache)
+            assert tape.has_terminated()
+
         assert len(stack) == 1
         item = stack.get()
         assert item == b'\xff'
         return True
     except BaseException as e:
         return False
+
+def run_auth_script(script: bytes|ScriptProtocol, cache_vals: dict = {},
+                    contracts: dict = {}, plugins: dict = {},
+                    stack_max_items: int = 1024, stack_max_item_size: int = 1024,
+                    callstack_limit: int = 128) -> bool:
+    """Deprecated. Functionality will be maintained until the 0.8.0
+        release. See documentation for details on how to use the
+        replacement function run_auth_scripts.
+    """
+    warn("Deprecated. Use run_auth_scripts instead.", DeprecationWarning)
+    return run_auth_scripts(
+        [script], cache_vals, contracts, plugins, stack_max_items,
+        stack_max_item_size, callstack_limit
+    )
