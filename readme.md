@@ -34,7 +34,7 @@ pip install tapescript=={version}
 As of version 0.4.0, a simple CLI has been included with the following features:
 - `repl [cache_file]` -- activates a REPL (Read Execute Print Loop; default if
 CLI is executed without arguments added in 0.6.0; cache_file processing added in
-0.7.0)
+0.7.1)
 - `compile src_file bin_file` -- compiles the human-readable source into bytecode
 - `decompile bin_file` -- decompiles bytecode to human-readable source
 - `run bin_file [cache_file]` -- runs Tapescript bytecode and prints the cache
@@ -53,8 +53,8 @@ or plugins.
 ### Write, compile, decompile
 
 See the
-[langauge_spec.md](https://github.com/k98kurz/tapescript/blob/v0.7.0/language_spec.md)
-and [docs.md](https://github.com/k98kurz/tapescript/blob/v0.7.0/docs.md) files
+[langauge_spec.md](https://github.com/k98kurz/tapescript/blob/v0.7.1/language_spec.md)
+and [docs.md](https://github.com/k98kurz/tapescript/blob/v0.7.1/docs.md) files
 for syntax, operation specifics, and thorough tool documentation.
 
 Once you have a script written, use the `compile_script(code: str) -> bytes`
@@ -171,7 +171,7 @@ from tapescript import (
     make_merklized_script_balanced,
     make_single_sig_lock,
     make_single_sig_witness,
-    run_auth_script,
+    run_auth_scripts,
 )
 from os import urandom
 from nacl.signing import SigningKey
@@ -193,8 +193,8 @@ locking_script, unlocking_scripts = make_merklized_script_balanced(branches)
 # run a script
 sigfields = {'sigfield1': urandom(64)}
 witness = make_single_sig_witness(seeds[0], sigfields)
-assert run_auth_script(
-    witness + unlocking_scripts[0] + locking_script,
+assert run_auth_scripts(
+    [witness, unlocking_scripts[0], locking_script],
     cache_vals={'sigfield1': sigfields['sigfield1']}
 )
 ```
@@ -236,7 +236,7 @@ arbitrary script tree structures.
 <summary>Example</summary>
 
 ```python
-from tapescript import ScriptLeaf, ScriptNode, Script, run_auth_script
+from tapescript import ScriptLeaf, ScriptNode, Script, run_auth_scripts
 
 # get some scripts from somewhere
 sources = [
@@ -271,11 +271,11 @@ unlocks = [
 ]
 
 # run each script
-assert run_auth_script(Script.from_src('push d1 dup') + unlocks[0] + lock)
-assert run_auth_script(Script.from_src('true dup') + unlocks[1] + lock)
-assert run_auth_script(Script.from_src('true false') + unlocks[2] + lock)
-assert run_auth_script(Script.from_src('true false') + unlocks[3] + lock)
-assert run_auth_script(Script.from_src('false') + unlocks[4] + lock)
+assert run_auth_scripts([Script.from_src('push d1 dup'), unlocks[0], lock])
+assert run_auth_scripts([Script.from_src('true dup'), unlocks[1], lock])
+assert run_auth_scripts([Script.from_src('true false'), unlocks[2], lock])
+assert run_auth_scripts([Script.from_src('true false'), unlocks[3], lock])
+assert run_auth_scripts([Script.from_src('false'), unlocks[4], lock])
 ```
 
 </details>
@@ -315,7 +315,7 @@ from tapescript import (
     make_taproot_witness_scriptspend,
     make_nonnative_taproot_lock,
     Script,
-    run_auth_script,
+    run_auth_scripts,
 )
 from nacl.signing import SigningKey
 from os import urandom
@@ -335,10 +335,10 @@ witness_scriptspend = Script.from_src('push d1 dup') + make_taproot_witness_scri
 nonnative_lock = make_nonnative_taproot_lock(sk.verify_key, committed_script)
 
 # run the script
-assert run_auth_script(witness_keyspend + lock, sigfields)
-assert run_auth_script(witness_scriptspend + lock, sigfields)
-assert run_auth_script(witness_keyspend + nonnative_lock, sigfields)
-assert run_auth_script(witness_scriptspend + nonnative_lock, sigfields)
+assert run_auth_scripts([witness_keyspend, lock], sigfields)
+assert run_auth_scripts([witness_scriptspend, lock], sigfields)
+assert run_auth_scripts([witness_keyspend, nonnative_lock], sigfields)
+assert run_auth_scripts([witness_scriptspend, nonnative_lock], sigfields)
 ```
 
 </details>
@@ -384,7 +384,7 @@ from tapescript import (
     make_delegate_key_witness,
     make_delegate_key_chain_lock,
     make_delegate_key_chain_witness,
-    run_auth_script,
+    run_auth_scripts,
 )
 from nacl.signing import SigningKey
 from os import urandom
@@ -402,8 +402,8 @@ witness = make_delegate_key_witness(delegate_prvkey, cert, sigfields)
 chain_lock = make_delegate_key_chain_lock(root_prvkey.verify_key)
 chain_witness = make_delegate_key_chain_witness(delegate_prvkey, [cert], sigfields)
 
-assert run_auth_script(witness + lock, sigfields)
-assert run_auth_script(chain_witness + chain_lock, sigfields)
+assert run_auth_scripts([witness, lock], sigfields)
+assert run_auth_scripts([chain_witness, chain_lock], sigfields)
 ```
 </details>
 
@@ -441,7 +441,7 @@ from tapescript import (
     make_graftroot_lock,
     make_graftroot_witness_keyspend,
     make_graftroot_witness_surrogate,
-    run_auth_script,
+    run_auth_scripts,
     Script,
 )
 from nacl.signing import SigningKey
@@ -456,8 +456,8 @@ surrogate_witness = Script.from_src('push d1 dup') + make_graftroot_witness_surr
     prvkey, surrogate
 )
 
-assert run_auth_script(witness + lock, sigfields)
-assert run_auth_script(surrogate_witness + lock, sigfields)
+assert run_auth_scripts([witness, lock], sigfields)
+assert run_auth_scripts([surrogate_witness, lock], sigfields)
 ```
 </details>
 
@@ -478,7 +478,7 @@ from tapescript import (
     make_graftap_lock,
     make_graftap_witness_keyspend,
     make_graftap_witness_scriptspend,
-    run_auth_script,
+    run_auth_scripts,
     Script,
 )
 from nacl.signing import SigningKey
@@ -493,8 +493,8 @@ witness_scriptspend = Script.from_src('push d1 dup') + make_graftap_witness_scri
     prvkey, surrogate
 )
 
-assert run_auth_script(witness_keyspend + lock, sigfields)
-assert run_auth_script(witness_scriptspend + lock, sigfields)
+assert run_auth_scripts([witness_keyspend, lock], sigfields)
+assert run_auth_scripts([witness_scriptspend, lock], sigfields)
 ```
 </details>
 
@@ -535,7 +535,7 @@ from tapescript import (
     make_ptlc_lock,
     make_ptlc_witness,
     make_ptlc_refund_witness,
-    run_auth_script,
+    run_auth_scripts,
     clamp_scalar,
     derive_point_from_scalar,
     Script,
@@ -560,44 +560,44 @@ preimage = b'super secret: ' + urandom(16)
 lock = make_htlc_sha256_lock(receiver_pubkey, preimage, refund_pubkey, timeout=timeout)
 # receiver gets the preimage
 receiver_witness = make_htlc_witness(receiver_prvkey, preimage, sigfields)
-assert run_auth_script(receiver_witness + lock, sigfields)
+assert run_auth_scripts([receiver_witness, lock], sigfields)
 # sender is refunded in the future
 refund_witness = make_htlc_witness(sender_prvkey, b'1', sigfields)
-assert run_auth_script(refund_witness + lock, get_refund_cache())
+assert run_auth_scripts([refund_witness, lock], get_refund_cache())
 
 # HTLC-SHAKE256
 lock = make_htlc_shake256_lock(receiver_pubkey, preimage, refund_pubkey, timeout=timeout)
 # receiver gets the preimage
 receiver_witness = make_htlc_witness(receiver_prvkey, preimage, sigfields)
-assert run_auth_script(receiver_witness + lock, sigfields)
+assert run_auth_scripts([receiver_witness, lock], sigfields)
 # sender is refunded in the future
-assert run_auth_script(refund_witness + lock, get_refund_cache())
+assert run_auth_scripts([refund_witness, lock], get_refund_cache())
 
 # HTLC2-SHA256
 lock = make_htlc2_sha256_lock(receiver_pubkey, preimage, refund_pubkey, timeout=timeout)
 # receiver gets the preimage
 receiver_witness = make_htlc2_witness(receiver_prvkey, preimage, sigfields)
-assert run_auth_script(receiver_witness + lock, sigfields)
+assert run_auth_scripts([receiver_witness, lock], sigfields)
 # sender is refunded in the future
 refund_witness = make_htlc2_witness(sender_prvkey, b'1', sigfields)
-assert run_auth_script(refund_witness + lock, get_refund_cache())
+assert run_auth_scripts([refund_witness, lock], get_refund_cache())
 
 # HTLC2-SHAKE256
 lock = make_htlc2_shake256_lock(receiver_pubkey, preimage, refund_pubkey, timeout=timeout)
 # receiver gets the preimage
 receiver_witness = make_htlc2_witness(receiver_prvkey, preimage, sigfields)
-assert run_auth_script(receiver_witness + lock, sigfields)
+assert run_auth_scripts([receiver_witness, lock], sigfields)
 # sender is refunded in the future
-assert run_auth_script(refund_witness + lock, get_refund_cache())
+assert run_auth_scripts([refund_witness, lock], get_refund_cache())
 
 # PTLC without tweak
 lock = make_ptlc_lock(receiver_pubkey, refund_pubkey, timeout=timeout)
 # receiver gets the preimage
 witness = make_ptlc_witness(receiver_prvkey, sigfields)
-assert run_auth_script(witness + lock, sigfields)
+assert run_auth_scripts([witness, lock], sigfields)
 # sender is refunded in the future
 refund_witness = make_ptlc_refund_witness(sender_prvkey, sigfields)
-assert run_auth_script(refund_witness + lock, get_refund_cache())
+assert run_auth_scripts([refund_witness, lock], get_refund_cache())
 
 # PTLC with tweak
 scalar = clamp_scalar(urandom(32))
@@ -605,10 +605,10 @@ point = derive_point_from_scalar(scalar)
 lock = make_ptlc_lock(receiver_pubkey, refund_pubkey, tweak_point=point, timeout=timeout)
 # receiver gets the preimage
 witness = make_ptlc_witness(receiver_prvkey, sigfields, tweak_scalar=scalar)
-assert run_auth_script(witness + lock, sigfields)
+assert run_auth_scripts([witness, lock], sigfields)
 # sender is refunded in the future
 refund_witness = make_ptlc_refund_witness(sender_prvkey, sigfields)
-assert run_auth_script(refund_witness + lock, get_refund_cache())
+assert run_auth_scripts([refund_witness, lock], get_refund_cache())
 ```
 </details>
 
@@ -683,19 +683,26 @@ tested in specific applications.
 Run a script by compiling the source to byte code or creating a `Script` object
 and run with either
 `run_script(script: bytes|Script, cache_vals: dict = {}, contracts: dict = {})`
-or `run_auth_script(script: bytes|Script, cache_vals: dict = {}, contracts: dict = {})`.
+or `run_auth_scripts(scripts: list[bytes|Script], cache_vals: dict = {}, contracts: dict = {})`.
 The `run_script` function returns `tuple` of length 3 containing a `Tape`, a
-`LifoQueue`, and the final state of the `cache` dict. The `run_auth_script`
-instead returns a bool that is `True` if the script ran without error and
+`LifoQueue`, and the final state of the `cache` dict. The `run_auth_scripts`
+instead returns a bool that is `True` if the scripts ran without error and
 resulted in a single `0x01` value on the stack; otherwise it returns `False`.
+
+The recommended way to use this system is to pass a list containing the
+unlocking/witness script and the locking script as separate scripts to the
+`run_auth_scripts` function, e.g. `run_auth_scripts([witness, lock])`. This
+ensures that the locking scripts runs last and enforces its constraints, and any
+failure to satisfy the constraints or attempts to bypass them will result in the
+function returning `False`.
 
 In the case where a signature is expected to be validated, the message parts for
 the signature must be passed in via the `cache_vals` dict at keys `sigfield[1-8]`.
 In the case where `OP_CHECK_TRANSFER` or `OP_INVOKE` might be called, the
 contracts must be passed in via the `contracts` dict. See the
-[check_transfer](https://github.com/k98kurz/tapescript/blob/v0.7.0/language_spec.md#op_check_transfer)
+[check_transfer](https://github.com/k98kurz/tapescript/blob/v0.7.1/language_spec.md#op_check_transfer)
 and
-[invoke](https://github.com/k98kurz/tapescript/blob/v0.7.0/language_spec.md#op_invoke)
+[invoke](https://github.com/k98kurz/tapescript/blob/v0.7.1/language_spec.md#op_invoke)
 sections in the language_spec.md file for more informaiton about these two ops.
 
 #### Changing flags
@@ -900,7 +907,6 @@ from tapescript import (
     ScriptExecutionError,
     add_soft_fork,
     bytes_to_int,
-    Script, run_auth_script, run_script,
 )
 
 
@@ -931,7 +937,7 @@ running the old version of the interpreter.
 <summary>Example</summary>
 
 ```python
-from tapescript import Script, run_auth_script
+from tapescript import Script, run_auth_scripts
 
 # locking script
 lock = Script.from_src('OP_CHECK_ALL_EQUAL_VERIFY d3 OP_TRUE')
@@ -947,11 +953,11 @@ OP_TRUE'''
 
 # unlocking script that validates on both versions #
 unlock = Script.from_src('push x0123 push x0123 push x0123')
-assert run_auth_script(unlock + lock)
+assert run_auth_scripts([unlock, lock])
 
 # unlocking script that fails validation on the new version #
 unlock_fail = Script.from_src('push x0123 push x0123 push x3210')
-assert not run_auth_script(unlock_fail + lock), 'soft fork not activated'
+assert not run_auth_scripts([unlock_fail, lock]), 'soft fork not activated'
 ```
 </details>
 
@@ -1010,12 +1016,12 @@ python tests/test_e2e_eltoo.py
 python tests/test_e2e_extensions.py
 ```
 
-There are currently 259 tests and 107 test vectors used for validating the ops,
+There are currently 260 tests and 107 test vectors used for validating the ops,
 compiler, decompiler, and script running functions. This includes 3 e2e tests
 for a proof-of-concept implementation of the eltoo payment channel protocol, and
 e2e tests combining the anonymous multi-hop lock (AMHL) system with adapter
 signatures, as well as tests for the contract system, signature extension
-plugins, hard-forks, and the soft-fork system. There are an additional 7
+plugins, hard-forks, and the soft-fork system. There are an additional 8
 security tests, including a test proving the one-way homomorphic quality of
 ed25519 and a test proving that all symmetric script trees share the same root.
 

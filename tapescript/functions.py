@@ -2223,7 +2223,7 @@ def run_auth_script(script: bytes|ScriptProtocol, cache_vals: dict = {},
                     callstack_limit: int = 128) -> bool:
     """Deprecated. Functionality will be maintained until the 0.8.0
         release. See documentation for details on how to use the
-        replacement function run_auth_scripts.
+        replacement function `run_auth_scripts`.
     """
     warn("Deprecated. Use run_auth_scripts instead.", DeprecationWarning)
     return run_auth_scripts(

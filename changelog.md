@@ -1,3 +1,13 @@
+## 0.7.1
+
+### VM
+
+- Added new `run_auth_scripts` function to run scripts sequentially in the same
+  runtime environment.
+- Added deprecation warning to `run_auth_script`.
+- Updated package to replace calls to `run_auth_script` with calls to `run_auth_scripts`
+- Similarly updated documentation to replace calls to the deprecated function
+
 ## 0.7.0
 
 ### Compiler

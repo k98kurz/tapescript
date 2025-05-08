@@ -923,9 +923,19 @@ Run the given tape using the stack and cache.
 
 ## `run_auth_script(script: bytes | ScriptProtocol, cache_vals: dict = {}, contracts: dict = {}, plugins: dict = {}, stack_max_items: int = 1024, stack_max_item_size: int = 1024, callstack_limit: int = 128): -> bool`
 
-Run the given auth script byte code. Returns True iff the stack has a single
-\xff value after script execution and no errors were raised; otherwise, returns
-False.
+Deprecated. Functionality will be maintained until the 0.8.0 release. See
+documentation for details on how to use the replacement function
+`run_auth_scripts`.
+
+## `run_auth_scripts(scripts: list[bytes | ScriptProtocol], cache_vals: dict = {}, contracts: dict = {}, plugins: dict = {}, stack_max_items: int = 1024, stack_max_item_size: int = 1024, callstack_limit: int = 128): -> bool`
+
+Run the given auth scripts in order. Returns True iff the stack has a single
+\xff value after all scripts have executed and no errors were raised; otherwise,
+returns False. Each script is executed with the same stack and cache;
+definitions are copied between tapes; and the `callstack_limit` is enforced
+across the total execution via a cumulative `callstack_count`. When using
+locking and unlocking scripts, the locking script must be the last item in the
+scripts list so it is executed last and thus properly enforced.
 
 ## `add_opcode(code: int, name: str, function: Callable, aliases: list[str] = []): -> None`
 
