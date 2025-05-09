@@ -2203,7 +2203,8 @@ def run_auth_scripts(scripts: list[bytes|ScriptProtocol], cache_vals: dict = {},
             tape = Tape(
                 s if type(s) is bytes else s.bytes,
                 callstack_limit=tape.callstack_limit,
-                callstack_count=tape.callstack_count
+                callstack_count=tape.callstack_count,
+                definitions=tape.definitions,
             )
             tape.contracts = contracts
             tape.plugins = plugins
