@@ -1451,7 +1451,7 @@ functions.flags[69] = 420
 Integer flags 0-255 can be set or unset by `OP_SET_FLAG` and `OP_UNSET_FLAG`.
 Flag keys must have type int or str, and flag values must have type int or bool.
 
-The script running functions, `run_tape`, `run_script`, and `run_auth_script`
+The script running functions, `run_tape`, `run_script`, and `run_auth_scripts`
 set all flags with keys contained in `functions.flags_to_set` before running the
 script; other flags must be enabled with `OP_SET_FLAG`.
 
