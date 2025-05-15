@@ -1,5 +1,5 @@
 from context import classes, errors, functions, parsing, tools
-from hashlib import sha256
+from hashlib import sha256, shake_256
 from nacl.signing import SigningKey, VerifyKey
 from random import randint
 from time import time
@@ -703,6 +703,39 @@ class TestTools(unittest.TestCase):
             {**sigfields, 'timestamp': int(time()) + timeout + 1}
         )
 
+    def test_make_htlc_sha256_lock_with_digest_e2e(self):
+        preimage = token_bytes(16)
+        sigfields = {'sigfield1': b'hello world'}
+        # NB: ts_threshold is 60, preventing timestamps >60s into future from verifying
+        timeout = 30
+        lock = tools.make_htlc_sha256_lock(
+            receiver_pubkey=bytes(self.pubkeyB),
+            digest=sha256(preimage).digest(),
+            refund_pubkey=bytes(self.pubkeyA),
+            timeout=timeout
+        )
+
+        hash_unlock = tools.make_htlc_witness(
+            prvkey=bytes(self.prvkeyB),
+            preimage=preimage,
+            sigfields=sigfields
+        )
+        refund_unlock = tools.make_htlc_witness(
+            bytes(self.prvkeyA), b'refund', sigfields
+        )
+
+        # test that the refund will not work yet
+        assert not functions.run_auth_scripts([refund_unlock.bytes, lock.bytes], sigfields)
+
+        # test that the main path works
+        assert functions.run_auth_scripts([hash_unlock.bytes, lock.bytes], sigfields)
+
+        # test that the refund will work if the timestamp is past the timeout
+        assert functions.run_auth_scripts(
+            [refund_unlock.bytes, lock.bytes],
+            {**sigfields, 'timestamp': int(time()) + timeout + 1}
+        )
+
     def test_make_htlc_shake256_lock_e2e(self):
         preimage = token_bytes(16)
         sigfields = {'sigfield1': b'hello world'}
@@ -712,6 +745,42 @@ class TestTools(unittest.TestCase):
         lock = tools.make_htlc_shake256_lock(
             receiver_pubkey=bytes(self.pubkeyB),
             preimage=preimage,
+            refund_pubkey=bytes(self.pubkeyA),
+            timeout=timeout,
+            hash_size=hash_size
+        )
+
+        hash_unlock = tools.make_htlc_witness(
+            prvkey=bytes(self.prvkeyB),
+            preimage=preimage,
+            sigfields=sigfields
+        )
+        refund_unlock = tools.make_htlc_witness(
+            bytes(self.prvkeyA), b'refund', sigfields
+        )
+
+        # test that the refund will not work yet
+        assert not functions.run_auth_scripts([refund_unlock.bytes, lock.bytes], sigfields)
+
+        # test that the main path works
+        assert functions.run_auth_scripts([hash_unlock.bytes, lock.bytes], sigfields)
+
+        # test that the refund will work if the timestamp is past the timeout
+        assert functions.run_auth_scripts(
+            [refund_unlock.bytes, lock.bytes],
+            {**sigfields, 'timestamp': int(time()) + timeout + 1}
+        )
+
+    def test_make_htlc_shake256_lock_with_digest_e2e(self):
+        preimage = token_bytes(16)
+        sigfields = {'sigfield1': b'hello world'}
+        # NB: ts_threshold is 60, preventing timestamps >60s into future from verifying
+        timeout = 30
+        hash_size = randint(16, 40)
+        digest = shake_256(preimage).digest(hash_size)
+        lock = tools.make_htlc_shake256_lock(
+            receiver_pubkey=bytes(self.pubkeyB),
+            digest=digest,
             refund_pubkey=bytes(self.pubkeyA),
             timeout=timeout,
             hash_size=hash_size
@@ -771,6 +840,40 @@ class TestTools(unittest.TestCase):
             {**sigfields, 'timestamp': int(time()) + timeout + 1}
         )
 
+    def test_make_htlc2_sha256_lock_with_digest_e2e(self):
+        preimage = token_bytes(16)
+        digest = sha256(preimage).digest()
+        sigfields = {'sigfield1': b'hello world'}
+        # NB: ts_threshold is 60, preventing timestamps >60s into future from verifying
+        timeout = 30
+        lock = tools.make_htlc2_sha256_lock(
+            receiver_pubkey=bytes(self.pubkeyB),
+            digest=digest,
+            refund_pubkey=bytes(self.pubkeyA),
+            timeout=timeout
+        )
+
+        hash_unlock = tools.make_htlc2_witness(
+            prvkey=bytes(self.prvkeyB),
+            preimage=preimage,
+            sigfields=sigfields
+        )
+        refund_unlock = tools.make_htlc2_witness(
+            bytes(self.prvkeyA), b'refund', sigfields
+        )
+
+        # test that the refund will not work yet
+        assert not functions.run_auth_scripts([refund_unlock.bytes, lock.bytes], sigfields)
+
+        # test that the main path works
+        assert functions.run_auth_scripts([hash_unlock.bytes, lock.bytes], sigfields)
+
+        # test that the refund will work if the timestamp is past the timeout
+        assert functions.run_auth_scripts(
+            [refund_unlock.bytes, lock.bytes],
+            {**sigfields, 'timestamp': int(time()) + timeout + 1}
+        )
+
     def test_make_htlc2_shake256_lock_e2e(self):
         preimage = token_bytes(16)
         sigfields = {'sigfield1': b'hello world'}
@@ -780,6 +883,42 @@ class TestTools(unittest.TestCase):
         lock = tools.make_htlc2_shake256_lock(
             receiver_pubkey=bytes(self.pubkeyB),
             preimage=preimage,
+            refund_pubkey=bytes(self.pubkeyA),
+            timeout=timeout,
+            hash_size=hash_size
+        )
+
+        hash_unlock = tools.make_htlc2_witness(
+            prvkey=bytes(self.prvkeyB),
+            preimage=preimage,
+            sigfields=sigfields
+        )
+        refund_unlock = tools.make_htlc2_witness(
+            bytes(self.prvkeyA), b'refund', sigfields
+        )
+
+        # test that the refund will not work yet
+        assert not functions.run_auth_scripts([refund_unlock.bytes, lock.bytes], sigfields)
+
+        # test that the main path works
+        assert functions.run_auth_scripts([hash_unlock.bytes, lock.bytes], sigfields)
+
+        # test that the refund will work if the timestamp is past the timeout
+        assert functions.run_auth_scripts(
+            [refund_unlock.bytes, lock.bytes],
+            {**sigfields, 'timestamp': int(time()) + timeout + 1}
+        )
+
+    def test_make_htlc2_shake256_lock_with_digest_e2e(self):
+        preimage = token_bytes(16)
+        sigfields = {'sigfield1': b'hello world'}
+        # NB: ts_threshold is 60, preventing timestamps >60s into future from verifying
+        timeout = 30
+        hash_size = randint(16, 40)
+        digest = shake_256(preimage).digest(hash_size)
+        lock = tools.make_htlc2_shake256_lock(
+            receiver_pubkey=bytes(self.pubkeyB),
+            digest=digest,
             refund_pubkey=bytes(self.pubkeyA),
             timeout=timeout,
             hash_size=hash_size

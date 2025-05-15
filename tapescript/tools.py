@@ -37,7 +37,7 @@ from .functions import (
 from .interfaces import ScriptProtocol
 from .version import version
 from dataclasses import dataclass, field
-from hashlib import sha256
+from hashlib import sha256, shake_256
 from nacl.signing import SigningKey, VerifyKey
 from sys import argv
 from time import time
@@ -1142,7 +1142,8 @@ def make_graftroot_witness_surrogate(prvkey: bytes|SigningKey, script: str|Scrip
     ''')
 
 def make_htlc_sha256_lock(
-        receiver_pubkey: bytes|VerifyKey, preimage: bytes, refund_pubkey: bytes|VerifyKey,
+        receiver_pubkey: bytes|VerifyKey, refund_pubkey: bytes|VerifyKey,
+        preimage: bytes|None = None, digest: bytes|None = None,
         timeout: int = 60*60*24, sigflags: str = '00'
     ) -> Script:
     """Returns an HTLC that can be unlocked either with the preimage and
@@ -1150,13 +1151,22 @@ def make_htlc_sha256_lock(
         matching the refund_pubkey after the timeout has expired.
         Suitable only for systems with guaranteed causal ordering and
         non-repudiation of transactions. Preimage should be at least 16
-        random bytes but not more than 32.
+        random bytes but not more than 32; digest must be 32 bytes. Must
+        supply either the preimage or the digest.
     """
+    tert(type(preimage) is bytes or type(digest) is bytes,
+        'must supply either bytes preimage or bytes digest')
+    vert(type(digest) is not bytes or len(digest) == 32,
+        'digest must be 32 bytes')
+
+    if preimage and not digest:
+        digest = sha256(preimage).digest()
+
     receiver_pubkey = _pubkey(receiver_pubkey)
     refund_pubkey = _pubkey(refund_pubkey)
     return Script.from_src(f'''
         sha256
-        push x{sha256(preimage).digest().hex()}
+        push x{digest.hex()}
         equal
         if {{
             push x{receiver_pubkey.hex()}
@@ -1169,8 +1179,9 @@ def make_htlc_sha256_lock(
     ''')
 
 def make_htlc_shake256_lock(
-        receiver_pubkey: bytes|VerifyKey, preimage: bytes,
-        refund_pubkey: bytes|VerifyKey, hash_size: int = 20,
+        receiver_pubkey: bytes|VerifyKey, refund_pubkey: bytes|VerifyKey,
+        preimage: bytes|None = None, digest: bytes|None = None,
+        hash_size: int = 20,
         timeout: int = 60*60*24, sigflags: str = '00'
     ) -> Script:
     """Returns an HTLC that can be unlocked either with the preimage and
@@ -1180,13 +1191,22 @@ def make_htlc_shake256_lock(
         non-repudiation of transactions. Using a hash_size of 20 saves
         11 bytes compared to the sha256 version with a 96 bit reduction
         in security (remaining 160 bits) for the hash lock. Preimage
-        should be at least 16 random bytes but not more than 32.
+        should be at least 16 random bytes but not more than 32; digest
+        must be `hash_size` long. Must supply either preimage or digest.
     """
+    tert(type(preimage) is bytes or type(digest) is bytes,
+        'must supply either bytes preimage or bytes digest')
+    vert(type(digest) is not bytes or len(digest) == hash_size,
+        f'digest must be {hash_size} bytes (hash_size parameter)')
+
+    if preimage and not digest:
+        digest = shake_256(preimage).digest(hash_size)
+
     receiver_pubkey = _pubkey(receiver_pubkey)
     refund_pubkey = _pubkey(refund_pubkey)
     return Script.from_src(f'''
         shake256 d{hash_size}
-        push ~! {{ push x{preimage.hex()} shake256 d{hash_size} }}
+        push x{digest.hex()}
         equal
         if {{
             push x{receiver_pubkey.hex()}
@@ -1220,9 +1240,9 @@ def make_htlc_witness(
     ''')
 
 def make_htlc2_sha256_lock(
-        receiver_pubkey: bytes|VerifyKey, preimage: bytes,
-        refund_pubkey: bytes|VerifyKey, timeout: int = 60*60*24,
-        sigflags: str = '00'
+        receiver_pubkey: bytes|VerifyKey, refund_pubkey: bytes|VerifyKey,
+        preimage: bytes|None = None, digest: bytes|None = None,
+        timeout: int = 60*60*24, sigflags: str = '00'
     ) -> Script:
     """Returns an HTLC that can be unlocked either with the preimage and
         a signature matching receiver_pubkey or with a signature
@@ -1236,13 +1256,22 @@ def make_htlc2_sha256_lock(
         can trim witness data after consensus, the lock script size
         reduction is significant and useful; for other use cases, in
         particular systems where witness data cannot be trimmed, the
-        other version is more appropriate.
+        other version is more appropriate. Either preimage or digest
+        must be supplied.
     """
+    tert(type(preimage) is bytes or type(digest) is bytes,
+        'must supply either bytes preimage or bytes digest')
+    vert(type(digest) is not bytes or len(digest) == 32,
+        'digest must be 32 bytes')
+
+    if preimage and not digest:
+        digest = sha256(preimage).digest()
+
     receiver_pubkey = _pubkey(receiver_pubkey)
     refund_pubkey = _pubkey(refund_pubkey)
     return Script.from_src(f'''
         sha256
-        push x{sha256(preimage).digest().hex()}
+        push x{digest.hex()}
         equal
         if {{
             dup shake256 d20
@@ -1258,8 +1287,9 @@ def make_htlc2_sha256_lock(
     ''')
 
 def make_htlc2_shake256_lock(
-        receiver_pubkey: bytes|VerifyKey, preimage: bytes,
-        refund_pubkey: bytes|VerifyKey, hash_size: int = 20,
+        receiver_pubkey: bytes|VerifyKey, refund_pubkey: bytes|VerifyKey,
+        preimage: bytes|None = None, digest: bytes|None = None,
+        hash_size: int = 20,
         timeout: int = 60*60*24, sigflags: str = '00'
     ) -> Script:
     """Returns an HTLC that can be unlocked either with the preimage and
@@ -1276,13 +1306,22 @@ def make_htlc2_shake256_lock(
         set in memory and can trim witness data after consensus, the
         lock script size reduction is significant and useful; for other
         use cases, in particular systems where witness data cannot be
-        trimmed, the other version is more appropriate.
+        trimmed, the other version is more appropriate. Must supply
+        either preimage or digest.
     """
+    tert(type(preimage) is bytes or type(digest) is bytes,
+        'must supply either bytes preimage or bytes digest')
+    vert(type(digest) is not bytes or len(digest) == hash_size,
+        f'digest must be {hash_size} bytes (hash_size parameter)')
+
+    if preimage and not digest:
+        digest = shake_256(preimage).digest(hash_size)
+
     receiver_pubkey = _pubkey(receiver_pubkey)
     refund_pubkey = _pubkey(refund_pubkey)
     return Script.from_src(f'''
         shake256 d{hash_size}
-        push ~! {{ push x{preimage.hex()} shake256 d{hash_size} }}
+        push x{digest.hex()}
         equal
         if {{
             dup shake256 d{hash_size}
