@@ -584,6 +584,20 @@ class TestTools(unittest.TestCase):
         # run e2e
         assert functions.run_auth_scripts([unlock, lock.bytes], {**sigfields})
 
+    def test_Certificate_e2e(self):
+        cert = tools.Certificate(
+            bytes(self.pubkeyB), 0, 2**30
+        )
+        cert.signature = self.prvkeyA.sign(cert.preimage())[:64]
+        packed = cert.pack()
+        assert len(packed) == 105
+        unpacked = tools.Certificate.unpack(packed)
+        assert isinstance(unpacked, tools.Certificate)
+        assert cert.delegate_pubkey == unpacked.delegate_pubkey
+        assert cert.begin_ts == unpacked.begin_ts
+        assert cert.end_ts == unpacked.end_ts
+        assert cert.signature == unpacked.signature
+
     def test_make_delegate_key_lock_e2e(self):
         lock = tools.make_delegate_key_lock(bytes(self.pubkeyA))
 
@@ -592,8 +606,8 @@ class TestTools(unittest.TestCase):
         cert = tools.make_delegate_key_cert(
             bytes(self.prvkeyA), bytes(self.pubkeyB), begin_ts, end_ts
         )
-        assert type(cert) is bytes
-        assert len(cert) == 105, len(cert)
+        assert type(cert) is tools.Certificate
+        assert len(cert.pack()) == 105, len(cert.pack())
 
         cache = {'sigfield1': b'hello world'}
 
@@ -614,8 +628,8 @@ class TestTools(unittest.TestCase):
         cert1 = tools.make_delegate_key_cert(
             bytes(self.prvkeyA), bytes(self.pubkeyB), begin_ts, end_ts
         )
-        assert type(cert1) is bytes
-        assert len(cert1) == 105, len(cert1)
+        assert type(cert1) is tools.Certificate
+        assert len(cert1.pack()) == 105, len(cert1.pack())
 
         cache = {'sigfield1': b'hello world'}
 
@@ -631,8 +645,8 @@ class TestTools(unittest.TestCase):
         cert2 = tools.make_delegate_key_cert(
             bytes(self.prvkeyB), bytes(self.pubkeyC), begin_ts, end_ts
         )
-        assert type(cert2) is bytes
-        assert len(cert2) == 105, len(cert2)
+        assert type(cert2) is tools.Certificate
+        assert len(cert2.pack()) == 105, len(cert2.pack())
 
         unlock = tools.make_delegate_key_chain_witness(
             bytes(self.prvkeyC), [cert2, cert1], cache

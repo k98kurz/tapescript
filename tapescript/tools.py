@@ -33,6 +33,7 @@ from .functions import (
     bytes_to_float,
     bytes_to_int,
     xor,
+    int_to_bytes,
 )
 from .interfaces import ScriptProtocol
 from .version import version
@@ -220,6 +221,65 @@ class ScriptNode:
         left = ScriptLeaf.unpack(left_data) if left_type == b'L' else ScriptNode.unpack(left_data)
         right = ScriptLeaf.unpack(right_data) if right_type == b'L' else ScriptNode.unpack(right_data)
         return cls(left, right)
+
+
+@dataclass
+class Certificate:
+    delegate_pubkey: bytes = field()
+    begin_ts: int = field()
+    end_ts: int = field()
+    can_further_delegate: bool = field(default=True)
+    signature: bytes = field(default=None)
+
+    def preimage(self) -> bytes:
+        """Gets the serialized preimage for the signature. Raises
+            `TypeError` or `ValueError` if the non-signature certificate
+            fields are malformed.
+        """
+        tert(type(self.delegate_pubkey) is bytes, 'delegate_pubkey must be 32 bytes')
+        vert(len(self.delegate_pubkey) == 32, 'delegate_pubkey must be 32 bytes')
+        tert(type(self.begin_ts) is int, 'begin_ts must be int between 0 and 2^31-1')
+        vert(0 <= self.begin_ts < 2**31, 'begin_ts must be int between 0 and 2^31-1')
+        tert(type(self.end_ts) is int, 'end_ts must be int between 0 and 2^31-1')
+        vert(0 <= self.end_ts < 2**31, 'end_ts must be int between 0 and 2^31-1')
+        tert(type(self.can_further_delegate) is bool, 'can_further_delegate must be bool')
+
+        # pad timestamps to 4 bytes
+        begin_ts = int_to_bytes(self.begin_ts)
+        while len(begin_ts) < 4:
+            begin_ts = b'\x00' + begin_ts
+        end_ts = int_to_bytes(self.end_ts)
+        while len(end_ts) < 4:
+            end_ts = b'\x00' + end_ts
+
+        return self.delegate_pubkey + begin_ts + end_ts + \
+            (b'\xff' if self.can_further_delegate else b'\x00')
+
+    def pack(self) -> bytes:
+        """Serialize to bytes. Raises `TypeError` or `ValueError` if the
+            certificate is malformed (e.g. missing the signature).
+        """
+        tert(type(self.signature) is bytes, 'signature must be 64 bytes')
+        vert(len(self.signature) == 64, 'signature must be 64 bytes')
+
+        return self.preimage() + self.signature
+
+    @classmethod
+    def unpack(cls, data: bytes) -> Certificate:
+        """Deserialize from bytes. Raises `TypeError` or `ValueError`
+            for invalid serialized bytes.
+        """
+        tert(type(data) is bytes, 'data must be 105 bytes')
+        vert(len(data) == 105, 'data must be 105 bytes')
+        delegate_pubkey, data = data[:32], data[32:]
+        begin_ts, data = data[:4], data[4:]
+        end_ts, data = data[:4], data[4:]
+        can_further_delegate = data[0] == 255
+        signature = data[1:]
+        return cls(
+            delegate_pubkey, bytes_to_int(begin_ts), bytes_to_int(end_ts),
+            can_further_delegate, signature
+        )
 
 
 def _pubkey(pubkey: bytes|VerifyKey) -> bytes:
@@ -1029,7 +1089,7 @@ def make_delegate_key_chain_lock(root_pubkey: bytes|VerifyKey, sigflags: str = '
 def make_delegate_key_cert(
         root_skey: bytes|SigningKey, delegate_pubkey: bytes|VerifyKey,
         begin_ts: int, end_ts: int, can_further_delegate: bool = True
-    ) -> bytes:
+    ) -> Certificate:
     """Returns a signed key delegation cert. By default, this cert will
         authorize the delegate_pubkey holder to create further delegate
         certs, allowing authorization by a chain of certs. To disable
@@ -1038,22 +1098,20 @@ def make_delegate_key_cert(
     """
     root_skey = _prvkey(root_skey)
     delegate_pubkey = _pubkey(delegate_pubkey)
-    # cert form: delegate key + begin ts + end ts + sig + can #
+    # cert form: delegate key + begin ts + end ts + can + sig #
+    cert = Certificate(
+        delegate_pubkey, begin_ts, end_ts, can_further_delegate
+    )
     _, stack, _ = run_script(compile_script(f'''
-        push x{delegate_pubkey.hex()}
-        push d{begin_ts} concat
-        push d{end_ts} concat
-        {'true' if can_further_delegate else 'false'} concat
-        dup
-        push x{root_skey.hex()} sign_stack
-        concat
+        push x{cert.preimage().hex()} push x{root_skey.hex()} sign_stack
     '''))
     assert len(stack) == 1
-    return stack.get()
+    cert.signature = stack.get()
+    return cert
 
 def make_delegate_key_witness(
-        delegate_prvkey: bytes|SigningKey, cert: bytes, sigfields: dict,
-        sigflags: str = '00', sign_script_prefix: str = ''
+        delegate_prvkey: bytes|SigningKey, cert: bytes|Certificate,
+        sigfields: dict, sigflags: str = '00', sign_script_prefix: str = ''
     ) -> Script:
     """Returns an unlocking (witness) Script including a signature from
         the delegate key as well as the delegation certificate. Passing a
@@ -1061,6 +1119,7 @@ def make_delegate_key_witness(
         given script source.
     """
     delegate_prvkey = _prvkey(delegate_prvkey)
+    cert = cert.pack() if isinstance(cert, Certificate) else cert
     _, stack, _ = run_script(
         compile_script(f'{sign_script_prefix} push x{delegate_prvkey.hex()} sign x{sigflags}'),
         sigfields
@@ -1073,8 +1132,8 @@ def make_delegate_key_witness(
     ''')
 
 def make_delegate_key_chain_witness(
-        delegate_prvkey: bytes|SigningKey, certs: list[bytes], sigfields: dict,
-        sigflags: str = '00', sign_script_prefix: str = ''
+        delegate_prvkey: bytes|SigningKey, certs: list[bytes|Certificate],
+        sigfields: dict, sigflags: str = '00', sign_script_prefix: str = ''
     ) -> Script:
     """Returns an unlocking (witness) Script including a signature from
         the delegate key as well as the chain of delegation certificates
@@ -1083,6 +1142,7 @@ def make_delegate_key_chain_witness(
         the signing operation with the given script source.
     """
     delegate_prvkey = _prvkey(delegate_prvkey)
+    certs = [c.pack() if isinstance(c, Certificate) else c for c in certs]
     _, stack, _ = run_script(
         compile_script(f'{sign_script_prefix} push x{delegate_prvkey.hex()} sign x{sigflags}'),
         sigfields
