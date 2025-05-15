@@ -32,10 +32,10 @@ from .functions import (
     sign_with_scalar,
     bytes_to_float,
     bytes_to_int,
-    version,
     xor,
 )
 from .interfaces import ScriptProtocol
+from .version import version
 from dataclasses import dataclass, field
 from hashlib import sha256
 from nacl.signing import SigningKey, VerifyKey

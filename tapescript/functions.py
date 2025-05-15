@@ -87,13 +87,6 @@ except ImportError:
         return urandom(count)
 
 
-__version__ = '0.7.1'
-
-def version() -> str:
-    """Get the version of the tapescript library."""
-    return __version__
-
-
 def bytes_to_int(number: bytes) -> int:
     """Convert from bytes to a signed int."""
     tert(type(number) is bytes, 'number must be bytes')

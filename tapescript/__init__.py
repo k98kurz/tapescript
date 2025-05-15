@@ -33,7 +33,6 @@ from .functions import (
     remove_signature_extension,
     reset_signature_extensions,
     run_sig_extensions,
-    version,
 )
 from .interfaces import CanCheckTransfer, CanBeInvoked, ScriptProtocol
 from .parsing import (
@@ -95,3 +94,5 @@ from .tools import (
     setup_amhl,
     release_left_amhl_lock,
 )
+from .version import version
+
