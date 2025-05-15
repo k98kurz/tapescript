@@ -2301,6 +2301,12 @@ class TestFunctions(unittest.TestCase):
         assert functions.run_auth_scripts([b'\x01']) == True
         assert functions.run_auth_scripts([b'\x01\x01']) == False
 
+    def test_run_auth_scripts_copies_definitions_between_tapes(self):
+        assert functions.run_auth_scripts([
+            b'\x29\x00\x00\x01\x01', # define function that runs op_true
+            b'\x2a\x00', # call function 0
+        ]) == True
+
     def test_OP_RETURN_exits_local_context_and_returns_to_outer_context(self):
         # return from def before adding int false to stack
         code = b'\x29\x00\x00\x02\x30\x00\x2a\x00\x01'
