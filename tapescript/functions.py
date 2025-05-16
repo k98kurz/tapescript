@@ -443,8 +443,8 @@ def OP_ADD_INTS(tape: Tape, stack: Stack, cache: dict) -> None:
 def OP_SUBTRACT_INTS(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as uint count;
         pull that many values from the stack, interpreting them as
-        signed ints; subtract count-1 of them from the first one; put
-        the result onto the stack.
+        signed ints; subtract count-1 of them from the first (top) one;
+        put the result onto the stack.
     """
     count = int.from_bytes(tape.read(1), 'big')
     total = bytes_to_int(stack.get())
@@ -484,7 +484,8 @@ def OP_DIV_INT(tape: Tape, stack: Stack, cache: dict) -> None:
 
 def OP_DIV_INTS(tape: Tape, stack: Stack, cache: dict) -> None:
     """Pull two values from the stack, interpreting as signed ints;
-        divide the first by the second; put the result onto the stack.
+        divide the first (top) by the second; put the result onto the
+        stack.
     """
     dividend = bytes_to_int(stack.get())
     divisor = bytes_to_int(stack.get())
@@ -504,8 +505,8 @@ def OP_MOD_INT(tape: Tape, stack: Stack, cache: dict) -> None:
 
 def OP_MOD_INTS(tape: Tape, stack: Stack, cache: dict) -> None:
     """Pull two values from the stack, interpreting as signed ints;
-        perform integer modulus: first % second; put the result onto the
-        stack.
+        perform integer modulus: first (top) % second; put the result
+        onto the stack.
     """
     dividend = bytes_to_int(stack.get())
     divisor = bytes_to_int(stack.get())
@@ -533,8 +534,8 @@ def OP_ADD_FLOATS(tape: Tape, stack: Stack, cache: dict) -> None:
 def OP_SUBTRACT_FLOATS(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int;
         pull that many values from the stack, interpreting them as
-        floats; subtract them from the first one; put the result back
-        onto the stack.
+        floats; subtract them from the first (top) one; put the result
+        back onto the stack.
     """
     count = int.from_bytes(tape.read(1), 'big')
     item = stack.get()
@@ -570,7 +571,7 @@ def OP_DIV_FLOAT(tape: Tape, stack: Stack, cache: dict) -> None:
 
 def OP_DIV_FLOATS(tape: Tape, stack: Stack, cache: dict) -> None:
     """Pull two values from the stack, interpreting as floats; divide
-        the second by the first; put the result onto the stack.
+        the second by the first (top); put the result onto the stack.
     """
     item = stack.get()
     tert(len(item) == 4, 'OP_DIV_FLOATS malformed float')
@@ -600,7 +601,8 @@ def OP_MOD_FLOAT(tape: Tape, stack: Stack, cache: dict) -> None:
 
 def OP_MOD_FLOATS(tape: Tape, stack: Stack, cache: dict) -> None:
     """Pull two values from the stack, interpreting as floats; perform
-        float modulus: second % first; put the result onto the stack.
+        float modulus: second % first (top); put the result onto the
+        stack.
     """
     item = stack.get()
     tert(type(item) is bytes and len(item) == 4, 'OP_MOD_FLOATS malformed float')
@@ -1179,16 +1181,16 @@ def OP_TRY_EXCEPT(tape: Tape, stack: Stack, cache: dict) -> None:
         OP_RETURN(tape, stack, cache)
 
 def OP_LESS(tape: Tape, stack: Stack, cache: dict) -> None:
-    """Pull two signed ints val1 and val2 from stack; put (v1<v2) onto
-        stack.
+    """Pull two signed ints val1 (top) and val2 from stack; put (v1<v2)
+        onto stack.
     """
     val1 = bytes_to_int(stack.get())
     val2 = bytes_to_int(stack.get())
     stack.put(b'\xff' if val1 < val2 else b'\x00')
 
 def OP_LESS_OR_EQUAL(tape: Tape, stack: Stack, cache: dict) -> None:
-    """Pull two signed ints val1 and val2 from stack; put (v1<=v2) onto
-        stack.
+    """Pull two signed ints val1 (top) and val2 from stack; put (v1<=v2)
+        onto stack.
     """
     val1 = bytes_to_int(stack.get())
     val2 = bytes_to_int(stack.get())
@@ -1214,13 +1216,13 @@ def OP_GET_VALUE(tape: Tape, stack: Stack, cache: dict) -> None:
             stack.put(float_to_bytes(val))
 
 def OP_FLOAT_LESS(tape: Tape, stack: Stack, cache: dict) -> None:
-    """Pull two floats val1 and val2 from stack; put (v1<v2) onto stack."""
+    """Pull two floats val1 (top) and val2 from stack; put (v1<v2) onto stack."""
     val1 = bytes_to_float(stack.get())
     val2 = bytes_to_float(stack.get())
     stack.put(b'\xff' if val1 < val2 else b'\x00')
 
 def OP_FLOAT_LESS_OR_EQUAL(tape: Tape, stack: Stack, cache: dict) -> None:
-    """Pull two floats val1 and val2 from stack; put (v1<=v2) onto stack."""
+    """Pull two floats val1 (top) and val2 from stack; put (v1<=v2) onto stack."""
     val1 = bytes_to_float(stack.get())
     val2 = bytes_to_float(stack.get())
     stack.put(b'\xff' if val1 <= val2 else b'\x00')
@@ -1402,8 +1404,8 @@ def OP_ADD_SCALARS(tape: Tape, stack: Stack, cache: dict) -> None:
 def OP_SUBTRACT_SCALARS(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as uint count;
         pull that many values from the stack, interpreting them as
-        ed25519 scalars; subtract count-1 of them from the first one;
-        put the difference onto the stack.
+        ed25519 scalars; subtract count-1 of them from the first (top)
+        one; put the difference onto the stack.
     """
     count = int.from_bytes(tape.read(1), 'big')
     total = stack.get()
@@ -1429,8 +1431,8 @@ def OP_DERIVE_POINT(tape: Tape, stack: Stack, cache: dict) -> None:
 def OP_SUBTRACT_POINTS(tape: Tape, stack: Stack, cache: dict) -> None:
     """Read the next byte from the tape, interpreting as an unsigned int;
         pull that many values from the stack, interpreting them as
-        ed25519 scalars; subtract the rest from the first one; put the
-        result onto the stack.
+        ed25519 scalars; subtract the rest from the first (top) one; put
+        the result onto the stack.
     """
     count = int.from_bytes(tape.read(1), 'big')
     total = stack.get()
@@ -1442,8 +1444,8 @@ def OP_SUBTRACT_POINTS(tape: Tape, stack: Stack, cache: dict) -> None:
     stack.put(total)
 
 def OP_MAKE_ADAPTER_SIG_PUBLIC(tape: Tape, stack: Stack, cache: dict) -> None:
-    """Takes three items from stack: public tweak point T, message m,
-        and prvkey seed; creates a signature adapter sa; puts nonce
+    """Takes three items from stack: public tweak point T (top), message
+        m, and prvkey seed; creates a signature adapter sa; puts nonce
         point R onto stack; puts signature adapter sa onto stack; sets
         cache keys b'R' to R, b'T' to T, and b'sa' to sa if allowed by
         tape.flags (can be used in code with @R, @T, and @sa).
@@ -1473,7 +1475,7 @@ def OP_MAKE_ADAPTER_SIG_PUBLIC(tape: Tape, stack: Stack, cache: dict) -> None:
     stack.put(sa)
 
 def OP_MAKE_ADAPTER_SIG_PRIVATE(tape: Tape, stack: Stack, cache: dict) -> None:
-    """Takes three values from the stack: seed, t, and message m;
+    """Takes three values from the stack: seed (top), t, and message m;
         derives prvkey x from seed; derives pubkey X from x; derives
         private nonce r from seed and m; derives public nonce point R
         from r; derives public tweak point T from t; creates signature
@@ -1514,8 +1516,8 @@ def OP_MAKE_ADAPTER_SIG_PRIVATE(tape: Tape, stack: Stack, cache: dict) -> None:
     stack.put(sa)
 
 def OP_CHECK_ADAPTER_SIG(tape: Tape, stack: Stack, cache: dict) -> None:
-    """Takes public key X, tweak point T, message m, nonce point R, and
-        signature adapter sa from the stack; puts True onto stack
+    """Takes public key X (top), tweak point T, message m, nonce point R,
+        and signature adapter sa from the stack; puts True onto stack
         if the signature adapter is valid and False otherwise.
     """
     X = stack.get()
@@ -1531,8 +1533,8 @@ def OP_CHECK_ADAPTER_SIG(tape: Tape, stack: Stack, cache: dict) -> None:
     stack.put(b'\xff' if bytes_are_same(sa_G, RcaX) else b'\x00')
 
 def OP_DECRYPT_ADAPTER_SIG(tape: Tape, stack: Stack, cache: dict) -> None:
-    """Takes tweak scalar t, nonce point R, and signature adapter sa
-        from stack; calculates nonce RT; decrypts signature s from sa;
+    """Takes tweak scalar t (top), nonce point R, and signature adapter
+        sa from stack; calculates nonce RT; decrypts signature s from sa;
         puts RT onto the stack; puts s onto stack; sets cache keys b's'
         to s if tape.flags[9] and b'RT' to RT if tape.flags[7] (can be
         used in code with @s and @RT).
@@ -1632,6 +1634,9 @@ def OP_CHECK_TEMPLATE(tape: Tape, stack: Stack, cache: dict) -> None:
         extension plugins first if tape.flags[10] is set to True, which
         is the default behavior. (The stack passed to the plugin will
         contain the template on the top and the sigfield beneath.)
+        Templates will be pulled from the stack in order of ascending
+        sigfield number; e.g. for sigflag x03, sigfield1 and sigfield2
+        will be pulled from the top of the stack in that order.
     """
     if tape.flags.get(10, True):
         run_sig_extensions(tape, stack, cache)

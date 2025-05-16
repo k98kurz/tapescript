@@ -148,7 +148,7 @@ Aliases:
 
 Read the next byte from the tape, interpreting as uint count; pull that many
 values from the stack, interpreting them as signed ints; subtract count-1 of
-them from the first one; put the result onto the stack.
+them from the first (top) one; put the result onto the stack.
 
 Aliases:
 - SUBTRACT_INTS
@@ -178,8 +178,8 @@ Aliases:
 
 ## OP_DIV_INTS - 18 - x12
 
-Pull two values from the stack, interpreting as signed ints; divide the first by
-the second; put the result onto the stack.
+Pull two values from the stack, interpreting as signed ints; divide the first
+(top) by the second; put the result onto the stack.
 
 Aliases:
 - DIV_INTS
@@ -199,7 +199,7 @@ Aliases:
 ## OP_MOD_INTS - 20 - x14
 
 Pull two values from the stack, interpreting as signed ints; perform integer
-modulus: first % second; put the result onto the stack.
+modulus: first (top) % second; put the result onto the stack.
 
 Aliases:
 - MOD_INTS
@@ -219,7 +219,7 @@ Aliases:
 
 Read the next byte from the tape, interpreting as an unsigned int; pull that
 many values from the stack, interpreting them as floats; subtract them from the
-first one; put the result back onto the stack.
+first (top) one; put the result back onto the stack.
 
 Aliases:
 - SUBTRACT_FLOATS
@@ -238,7 +238,7 @@ Aliases:
 ## OP_DIV_FLOATS - 24 - x18
 
 Pull two values from the stack, interpreting as floats; divide the second by the
-first; put the result onto the stack.
+first (top); put the result onto the stack.
 
 Aliases:
 - DIV_FLOATS
@@ -257,7 +257,7 @@ Aliases:
 ## OP_MOD_FLOATS - 26 - x1A
 
 Pull two values from the stack, interpreting as floats; perform float modulus:
-second % first; put the result onto the stack.
+second % first (top); put the result onto the stack.
 
 Aliases:
 - MOD_FLOATS
@@ -591,14 +591,14 @@ Aliases:
 
 ## OP_LESS - 62 - x3E
 
-Pull two signed ints val1 and val2 from stack; put (v1<v2) onto stack.
+Pull two signed ints val1 (top) and val2 from stack; put (v1<v2) onto stack.
 
 Aliases:
 - LESS
 
 ## OP_LESS_OR_EQUAL - 63 - x3F
 
-Pull two signed ints val1 and val2 from stack; put (v1<=v2) onto stack.
+Pull two signed ints val1 (top) and val2 from stack; put (v1<=v2) onto stack.
 
 Aliases:
 - LESS_OR_EQUAL
@@ -618,7 +618,7 @@ Aliases:
 
 ## OP_FLOAT_LESS - 65 - x41
 
-Pull two floats val1 and val2 from stack; put (v1<v2) onto stack.
+Pull two floats val1 (top) and val2 from stack; put (v1<v2) onto stack.
 
 Aliases:
 - FLOAT_LESS
@@ -627,7 +627,7 @@ Aliases:
 
 ## OP_FLOAT_LESS_OR_EQUAL - 66 - x42
 
-Pull two floats val1 and val2 from stack; put (v1<=v2) onto stack.
+Pull two floats val1 (top) and val2 from stack; put (v1<=v2) onto stack.
 
 Aliases:
 - FLOAT_LESS_OR_EQUAL
@@ -747,7 +747,7 @@ Aliases:
 
 Read the next byte from the tape, interpreting as uint count; pull that many
 values from the stack, interpreting them as ed25519 scalars; subtract count-1 of
-them from the first one; put the difference onto the stack.
+them from the first (top) one; put the difference onto the stack.
 
 Aliases:
 - SUBTRACT_SCALARS
@@ -765,17 +765,17 @@ Aliases:
 
 Read the next byte from the tape, interpreting as an unsigned int; pull that
 many values from the stack, interpreting them as ed25519 scalars; subtract the
-rest from the first one; put the result onto the stack.
+rest from the first (top) one; put the result onto the stack.
 
 Aliases:
 - SUBTRACT_POINTS
 
 ## OP_MAKE_ADAPTER_SIG_PUBLIC - 81 - x51
 
-Takes three items from stack: public tweak point T, message m, and prvkey seed;
-creates a signature adapter sa; puts nonce point R onto stack; puts signature
-adapter sa onto stack; sets cache keys b'R' to R, b'T' to T, and b'sa' to sa if
-allowed by tape.flags (can be used in code with @R, @T, and @sa).
+Takes three items from stack: public tweak point T (top), message m, and prvkey
+seed; creates a signature adapter sa; puts nonce point R onto stack; puts
+signature adapter sa onto stack; sets cache keys b'R' to R, b'T' to T, and b'sa'
+to sa if allowed by tape.flags (can be used in code with @R, @T, and @sa).
 
 Aliases:
 - MAKE_ADAPTER_SIG_PUBLIC
@@ -784,14 +784,14 @@ Aliases:
 
 ## OP_MAKE_ADAPTER_SIG_PRIVATE - 82 - x52
 
-Takes three values from the stack: seed, t, and message m; derives prvkey x from
-seed; derives pubkey X from x; derives private nonce r from seed and m; derives
-public nonce point R from r; derives public tweak point T from t; creates
-signature adapter sa; puts T, R, and sa onto stack; sets cache keys b't' to t if
-tape.flags[5], b'T' to T if tape.flags[6], b'R' to R if tape.flags[4], and b'sa'
-to sa if tape.flags[8] (can be used in code with @t, @T, @R, and @sa). Values
-seed and t should be 32 bytes each. Values T, R, and sa are all public 32 byte
-values and necessary for verification; t is used to decrypt the signature.
+Takes three values from the stack: seed (top), t, and message m; derives prvkey
+x from seed; derives pubkey X from x; derives private nonce r from seed and m;
+derives public nonce point R from r; derives public tweak point T from t;
+creates signature adapter sa; puts T, R, and sa onto stack; sets cache keys b't'
+to t if tape.flags[5], b'T' to T if tape.flags[6], b'R' to R if tape.flags[4],
+and b'sa' to sa if tape.flags[8] (can be used in code with @t, @T, @R, and @sa).
+Values seed and t should be 32 bytes each. Values T, R, and sa are all public 32
+byte values and necessary for verification; t is used to decrypt the signature.
 
 Aliases:
 - MAKE_ADAPTER_SIG_PRIVATE
@@ -800,7 +800,7 @@ Aliases:
 
 ## OP_CHECK_ADAPTER_SIG - 83 - x53
 
-Takes public key X, tweak point T, message m, nonce point R, and signature
+Takes public key X (top), tweak point T, message m, nonce point R, and signature
 adapter sa from the stack; puts True onto stack if the signature adapter is
 valid and False otherwise.
 
@@ -811,7 +811,7 @@ Aliases:
 
 ## OP_DECRYPT_ADAPTER_SIG - 84 - x54
 
-Takes tweak scalar t, nonce point R, and signature adapter sa from stack;
+Takes tweak scalar t (top), nonce point R, and signature adapter sa from stack;
 calculates nonce RT; decrypts signature s from sa; puts RT onto the stack; puts
 s onto stack; sets cache keys b's' to s if tape.flags[9] and b'RT' to RT if
 tape.flags[7] (can be used in code with @s and @RT).
@@ -867,7 +867,9 @@ the stack if every sigfield validated against its template by at least one ctv
 plugin function, and False otherwise. Runs the signature extension plugins first
 if tape.flags[10] is set to True, which is the default behavior. (The stack
 passed to the plugin will contain the template on the top and the sigfield
-beneath.)
+beneath.) Templates will be pulled from the stack in order of ascending sigfield
+number; e.g. for sigflag x03, sigfield1 and sigfield2 will be pulled from the
+top of the stack in that order.
 
 Aliases:
 - CHECK_TEMPLATE
@@ -1244,20 +1246,20 @@ Takes a root_pubkey and returns a locking Script that is unlocked with a
 signature from the delegate key and a signed certificate from the root key
 authorizing the delegate key.
 
-## `make_delegate_key_cert(root_skey: bytes | SigningKey, delegate_pubkey: bytes | VerifyKey, begin_ts: int, end_ts: int, can_further_delegate: bool = True): -> bytes`
+## `make_delegate_key_cert(root_skey: bytes | SigningKey, delegate_pubkey: bytes | VerifyKey, begin_ts: int, end_ts: int, can_further_delegate: bool = True): -> Certificate`
 
 Returns a signed key delegation cert. By default, this cert will authorize the
 delegate_pubkey holder to create further delegate certs, allowing authorization
 by a chain of certs. To disable this behavior and create a terminal cert, pass
 `False` as the can_further_delegate argument.
 
-## `make_delegate_key_witness(delegate_prvkey: bytes | SigningKey, cert: bytes, sigfields: dict, sigflags: str = 00, sign_script_prefix: str = ): -> Script`
+## `make_delegate_key_witness(delegate_prvkey: bytes | SigningKey, cert: bytes | Certificate, sigfields: dict, sigflags: str = 00, sign_script_prefix: str = ): -> Script`
 
 Returns an unlocking (witness) Script including a signature from the delegate
 key as well as the delegation certificate. Passing a `sign_script_prefix` will
 prefix the signing operation with the given script source.
 
-## `make_delegate_key_chain_witness(delegate_prvkey: bytes | SigningKey, certs: list[bytes], sigfields: dict, sigflags: str = 00, sign_script_prefix: str = ): -> Script`
+## `make_delegate_key_chain_witness(delegate_prvkey: bytes | SigningKey, certs: list[bytes | Certificate], sigfields: dict, sigflags: str = 00, sign_script_prefix: str = ): -> Script`
 
 Returns an unlocking (witness) Script including a signature from the delegate
 key as well as the chain of delegation certificates ordered from the one
@@ -1265,15 +1267,16 @@ authorizing this key down to the first cert authorized by the root. Passing a
 `sign_script_prefix` will prefix the signing operation with the given script
 source.
 
-## `make_htlc_sha256_lock(receiver_pubkey: bytes | VerifyKey, preimage: bytes, refund_pubkey: bytes | VerifyKey, timeout: int = 86400, sigflags: str = 00): -> Script`
+## `make_htlc_sha256_lock(receiver_pubkey: bytes | VerifyKey, refund_pubkey: bytes | VerifyKey, preimage: bytes | None = None, digest: bytes | None = None, timeout: int = 86400, sigflags: str = 00): -> Script`
 
 Returns an HTLC that can be unlocked either with the preimage and a signature
 matching receiver_pubkey or with a signature matching the refund_pubkey after
 the timeout has expired. Suitable only for systems with guaranteed causal
 ordering and non-repudiation of transactions. Preimage should be at least 16
-random bytes but not more than 32.
+random bytes but not more than 32; digest must be 32 bytes. Must supply either
+the preimage or the digest.
 
-## `make_htlc_shake256_lock(receiver_pubkey: bytes | VerifyKey, preimage: bytes, refund_pubkey: bytes | VerifyKey, hash_size: int = 20, timeout: int = 86400, sigflags: str = 00): -> Script`
+## `make_htlc_shake256_lock(receiver_pubkey: bytes | VerifyKey, refund_pubkey: bytes | VerifyKey, preimage: bytes | None = None, digest: bytes | None = None, hash_size: int = 20, timeout: int = 86400, sigflags: str = 00): -> Script`
 
 Returns an HTLC that can be unlocked either with the preimage and a signature
 matching receiver_pubkey or with a signature matching the refund_pubkey after
@@ -1281,7 +1284,8 @@ the timeout has expired. Suitable only for systems with guaranteed causal
 ordering and non-repudiation of transactions. Using a hash_size of 20 saves 11
 bytes compared to the sha256 version with a 96 bit reduction in security
 (remaining 160 bits) for the hash lock. Preimage should be at least 16 random
-bytes but not more than 32.
+bytes but not more than 32; digest must be `hash_size` long. Must supply either
+preimage or digest.
 
 ## `make_htlc_witness(prvkey: bytes | SigningKey, preimage: bytes, sigfields: dict, sigflags: str = 00, sign_script_prefix: str = ): -> Script`
 
@@ -1291,7 +1295,7 @@ lock/refund path, pass a preimage of 1 byte to save space in the witness.
 Passing a `sign_script_prefix` will prefix the signing operation with the given
 script source.
 
-## `make_htlc2_sha256_lock(receiver_pubkey: bytes | VerifyKey, preimage: bytes, refund_pubkey: bytes | VerifyKey, timeout: int = 86400, sigflags: str = 00): -> Script`
+## `make_htlc2_sha256_lock(receiver_pubkey: bytes | VerifyKey, refund_pubkey: bytes | VerifyKey, preimage: bytes | None = None, digest: bytes | None = None, timeout: int = 86400, sigflags: str = 00): -> Script`
 
 Returns an HTLC that can be unlocked either with the preimage and a signature
 matching receiver_pubkey or with a signature matching the refund_pubkey after
@@ -1303,8 +1307,9 @@ the intended use case: for public blockchains where all nodes must hold a UTXO
 set in memory and can trim witness data after consensus, the lock script size
 reduction is significant and useful; for other use cases, in particular systems
 where witness data cannot be trimmed, the other version is more appropriate.
+Either preimage or digest must be supplied.
 
-## `make_htlc2_shake256_lock(receiver_pubkey: bytes | VerifyKey, preimage: bytes, refund_pubkey: bytes | VerifyKey, hash_size: int = 20, timeout: int = 86400, sigflags: str = 00): -> Script`
+## `make_htlc2_shake256_lock(receiver_pubkey: bytes | VerifyKey, refund_pubkey: bytes | VerifyKey, preimage: bytes | None = None, digest: bytes | None = None, hash_size: int = 20, timeout: int = 86400, sigflags: str = 00): -> Script`
 
 Returns an HTLC that can be unlocked either with the preimage and a signature
 matching receiver_pubkey or with a signature matching the refund_pubkey after
@@ -1318,6 +1323,7 @@ intended use case: for public blockchains where all nodes must hold a UTXO set
 in memory and can trim witness data after consensus, the lock script size
 reduction is significant and useful; for other use cases, in particular systems
 where witness data cannot be trimmed, the other version is more appropriate.
+Must supply either preimage or digest.
 
 ## `make_htlc2_witness(prvkey: bytes | SigningKey, preimage: bytes, sigfields: dict, sigflags: str = 00, sign_script_prefix: str = ): -> Script`
 
@@ -1451,7 +1457,7 @@ functions.flags[69] = 420
 Integer flags 0-255 can be set or unset by `OP_SET_FLAG` and `OP_UNSET_FLAG`.
 Flag keys must have type int or str, and flag values must have type int or bool.
 
-The script running functions, `run_tape`, `run_script`, and `run_auth_scripts`
+The script running functions, `run_tape`, `run_script`, and `run_auth_script`
 set all flags with keys contained in `functions.flags_to_set` before running the
 script; other flags must be enabled with `OP_SET_FLAG`.
 
