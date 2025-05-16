@@ -517,8 +517,8 @@ witnesses for HTLCs and PTLCs:
 
 The general idea behind an HTLC is that the main branch can be unlocked with the
 combination of a preimage matching a specific hash and a signature matching the
-receiver_pubkey, while the refund branch can be unlocked with a signature
-matching the refund_pubkey only after a timeout has expired. The PTLC by
+`receiver_pubkey`, while the refund branch can be unlocked with a signature
+matching the `refund_pubkey` only after a timeout has expired. The PTLC by
 comparison drops the hash lock and instead locks to a point on the ed25519
 curve, i.e. it simply uses a `check_sig` lock.
 
@@ -541,6 +541,7 @@ from tapescript import (
     derive_point_from_scalar,
     Script,
 )
+from hashlib import sha256
 from nacl.signing import SigningKey
 from os import urandom
 from time import time
@@ -556,9 +557,10 @@ get_refund_cache = lambda: {
     **sigfields
 }
 preimage = b'super secret: ' + urandom(16)
+digest = sha256(preimage).digest()
 
 # HTLC-SHA256
-lock = make_htlc_sha256_lock(receiver_pubkey, preimage, refund_pubkey, timeout=timeout)
+lock = make_htlc_sha256_lock(receiver_pubkey, refund_pubkey, digest=digest, timeout=timeout)
 # receiver gets the preimage
 receiver_witness = make_htlc_witness(receiver_prvkey, preimage, sigfields)
 assert run_auth_scripts([receiver_witness, lock], sigfields)
@@ -567,7 +569,7 @@ refund_witness = make_htlc_witness(sender_prvkey, b'1', sigfields)
 assert run_auth_scripts([refund_witness, lock], get_refund_cache())
 
 # HTLC-SHAKE256
-lock = make_htlc_shake256_lock(receiver_pubkey, preimage, refund_pubkey, timeout=timeout)
+lock = make_htlc_shake256_lock(receiver_pubkey, refund_pubkey, preimage=preimage, timeout=timeout)
 # receiver gets the preimage
 receiver_witness = make_htlc_witness(receiver_prvkey, preimage, sigfields)
 assert run_auth_scripts([receiver_witness, lock], sigfields)
@@ -575,7 +577,7 @@ assert run_auth_scripts([receiver_witness, lock], sigfields)
 assert run_auth_scripts([refund_witness, lock], get_refund_cache())
 
 # HTLC2-SHA256
-lock = make_htlc2_sha256_lock(receiver_pubkey, preimage, refund_pubkey, timeout=timeout)
+lock = make_htlc2_sha256_lock(receiver_pubkey, refund_pubkey, preimage=preimage, timeout=timeout)
 # receiver gets the preimage
 receiver_witness = make_htlc2_witness(receiver_prvkey, preimage, sigfields)
 assert run_auth_scripts([receiver_witness, lock], sigfields)
@@ -584,7 +586,7 @@ refund_witness = make_htlc2_witness(sender_prvkey, b'1', sigfields)
 assert run_auth_scripts([refund_witness, lock], get_refund_cache())
 
 # HTLC2-SHAKE256
-lock = make_htlc2_shake256_lock(receiver_pubkey, preimage, refund_pubkey, timeout=timeout)
+lock = make_htlc2_shake256_lock(receiver_pubkey, refund_pubkey, preimage=preimage, timeout=timeout)
 # receiver gets the preimage
 receiver_witness = make_htlc2_witness(receiver_prvkey, preimage, sigfields)
 assert run_auth_scripts([receiver_witness, lock], sigfields)
