@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "tapescript"
-version = "0.7.2-dev"
+version = "0.7.2"
 authors = [
   { name="k98kurz", email="k98kurz@gmail.com" },
 ]
