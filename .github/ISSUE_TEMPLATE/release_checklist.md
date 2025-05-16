@@ -23,7 +23,7 @@ Once all other issues are complete, prepare to release the next version.
 - [ ] Update changelog.md
 - [ ] Review and finalize documentation
 - [ ] Ensure version strings are set to `'M.m.p'`
-  - `functions.py`
+  - `version.py`
   - `pyproject.toml`
   - `readme.md` links
 - [ ] Close milestone on GitHub
