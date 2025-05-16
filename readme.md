@@ -33,8 +33,8 @@ pip install tapescript=={version}
 
 As of version 0.4.0, a simple CLI has been included with the following features:
 - `repl [cache_file]` -- activates a REPL (Read Execute Print Loop; default if
-CLI is executed without arguments added in 0.6.0; cache_file processing added in
-0.7.1)
+CLI is executed without arguments added in 0.6.0; `cache_file` processing added
+in 0.7.1)
 - `compile src_file bin_file` -- compiles the human-readable source into bytecode
 - `decompile bin_file` -- decompiles bytecode to human-readable source
 - `run bin_file [cache_file]` -- runs Tapescript bytecode and prints the cache
@@ -53,8 +53,8 @@ or plugins.
 ### Write, compile, decompile
 
 See the
-[langauge_spec.md](https://github.com/k98kurz/tapescript/blob/v0.7.1/language_spec.md)
-and [docs.md](https://github.com/k98kurz/tapescript/blob/v0.7.1/docs.md) files
+[langauge_spec.md](https://github.com/k98kurz/tapescript/blob/v0.7.2/language_spec.md)
+and [docs.md](https://github.com/k98kurz/tapescript/blob/v0.7.2/docs.md) files
 for syntax, operation specifics, and thorough tool documentation.
 
 Once you have a script written, use the `compile_script(code: str) -> bytes`
@@ -702,9 +702,9 @@ In the case where a signature is expected to be validated, the message parts for
 the signature must be passed in via the `cache_vals` dict at keys "sigfield[1-8]".
 In the case where `OP_CHECK_TRANSFER` or `OP_INVOKE` might be called, the
 contracts must be passed in via the `contracts` dict. See the
-[check_transfer](https://github.com/k98kurz/tapescript/blob/v0.7.1/language_spec.md#op_check_transfer)
+[check_transfer](https://github.com/k98kurz/tapescript/blob/v0.7.2/language_spec.md#op_check_transfer)
 and
-[invoke](https://github.com/k98kurz/tapescript/blob/v0.7.1/language_spec.md#op_invoke)
+[invoke](https://github.com/k98kurz/tapescript/blob/v0.7.2/language_spec.md#op_invoke)
 sections in the language_spec.md file for more informaiton about these two ops.
 
 #### Changing flags
@@ -1018,7 +1018,7 @@ python tests/test_e2e_eltoo.py
 python tests/test_e2e_extensions.py
 ```
 
-There are currently 260 tests and 107 test vectors used for validating the ops,
+There are currently 266 tests and 107 test vectors used for validating the ops,
 compiler, decompiler, and script running functions. This includes 3 e2e tests
 for a proof-of-concept implementation of the eltoo payment channel protocol, and
 e2e tests combining the anonymous multi-hop lock (AMHL) system with adapter
