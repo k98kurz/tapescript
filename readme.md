@@ -557,9 +557,9 @@ get_refund_cache = lambda: {
     **sigfields
 }
 preimage = b'super secret: ' + urandom(16)
-digest = sha256(preimage).digest()
 
 # HTLC-SHA256
+digest = sha256(preimage).digest()
 lock = make_htlc_sha256_lock(receiver_pubkey, refund_pubkey, digest=digest, timeout=timeout)
 # receiver gets the preimage
 receiver_witness = make_htlc_witness(receiver_prvkey, preimage, sigfields)
@@ -569,7 +569,8 @@ refund_witness = make_htlc_witness(sender_prvkey, b'1', sigfields)
 assert run_auth_scripts([refund_witness, lock], get_refund_cache())
 
 # HTLC-SHAKE256
-lock = make_htlc_shake256_lock(receiver_pubkey, refund_pubkey, preimage=preimage, timeout=timeout)
+digest = shake_256(preimage).digest(20)
+lock = make_htlc_shake256_lock(receiver_pubkey, refund_pubkey, digest=digest, timeout=timeout)
 # receiver gets the preimage
 receiver_witness = make_htlc_witness(receiver_prvkey, preimage, sigfields)
 assert run_auth_scripts([receiver_witness, lock], sigfields)
@@ -577,7 +578,8 @@ assert run_auth_scripts([receiver_witness, lock], sigfields)
 assert run_auth_scripts([refund_witness, lock], get_refund_cache())
 
 # HTLC2-SHA256
-lock = make_htlc2_sha256_lock(receiver_pubkey, refund_pubkey, preimage=preimage, timeout=timeout)
+digest = sha256(preimage).digest()
+lock = make_htlc2_sha256_lock(receiver_pubkey, refund_pubkey, digest=digest, timeout=timeout)
 # receiver gets the preimage
 receiver_witness = make_htlc2_witness(receiver_prvkey, preimage, sigfields)
 assert run_auth_scripts([receiver_witness, lock], sigfields)
@@ -586,7 +588,8 @@ refund_witness = make_htlc2_witness(sender_prvkey, b'1', sigfields)
 assert run_auth_scripts([refund_witness, lock], get_refund_cache())
 
 # HTLC2-SHAKE256
-lock = make_htlc2_shake256_lock(receiver_pubkey, refund_pubkey, preimage=preimage, timeout=timeout)
+digest = shake_256(preimage).digest(20)
+lock = make_htlc2_shake256_lock(receiver_pubkey, refund_pubkey, digest=digest, timeout=timeout)
 # receiver gets the preimage
 receiver_witness = make_htlc2_witness(receiver_prvkey, preimage, sigfields)
 assert run_auth_scripts([receiver_witness, lock], sigfields)
