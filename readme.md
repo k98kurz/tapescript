@@ -541,7 +541,7 @@ from tapescript import (
     derive_point_from_scalar,
     Script,
 )
-from hashlib import sha256
+from hashlib import sha256, shake_256
 from nacl.signing import SigningKey
 from os import urandom
 from time import time
