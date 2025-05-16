@@ -1,3 +1,21 @@
+## 0.7.2
+
+### VM
+
+- Bugfix: `run_auth_scripts` now copies definitions between `Tape`s used to
+  execute scripts in a sequence.
+- Documentation: clarified order that more ops pull values from the stack.
+
+### Tools
+
+- Added new `Certificate` utility class for parsing certs used in some tools.
+- Improved HTLC lock creation tools with ability to be created with either a
+  preimage or a hash digest. Useful for copying hash locks.
+
+### Misc
+
+- Moved `version()` into its own file.
+
 ## 0.7.1
 
 ### VM
@@ -21,7 +39,7 @@
 ### VM
 
 - Changed `OP_TAPROOT` to take the root from the stack instead of from the tape;
-  it also now takes an allowable_sigflag param from the tape instead of from
+  it also now takes an `allowable_sigflag` param from the tape instead of from
   cache key`b'trsf'`. Locking script syntax now consistent with `OP_CHECK_SIG`:
   `push x<root> taproot x<allowable_sigflags>`.
 - Fixed `OP_EVAL`: it will now cause a `ScriptExecutionError` with message
