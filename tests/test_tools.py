@@ -614,7 +614,8 @@ class TestTools(unittest.TestCase):
         unlock = tools.make_delegate_key_witness(
             bytes(self.prvkeyB), cert, cache
         )
-        assert len(lock.bytes) == 98, len(lock.bytes)
+        #assert len(lock.bytes) == 98, len(lock.bytes)
+        assert len(lock.bytes) == 85, len(lock.bytes)
         assert len(unlock.bytes) == 173, len(unlock.bytes)
 
         # run e2e
@@ -636,7 +637,8 @@ class TestTools(unittest.TestCase):
         unlock = tools.make_delegate_key_chain_witness(
             bytes(self.prvkeyB), [cert1], cache
         )
-        assert len(lock.bytes) == 128, len(lock.bytes)
+        #assert len(lock.bytes) == 128, len(lock.bytes)
+        assert len(lock.bytes) == 115, len(lock.bytes)
         assert len(unlock.bytes) == 174, (len(unlock.bytes), unlock.src)
 
         # run e2e 1 cert

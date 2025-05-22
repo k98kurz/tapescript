@@ -1039,8 +1039,10 @@ def make_delegate_key_lock(root_pubkey: bytes|VerifyKey, sigflags: str = '00') -
         push d32 split @= b 1 @= d 1 # begin ts and delegate pubkey #
 
         # prove the timestamp is within the cert bounds #
-        val s"timestamp" dup @b less verify
-        @e swap2 less verify
+        # val s"timestamp" dup @b less verify #
+        # @e swap2 less verify #
+        @b check_timestamp_verify
+        @e check_timestamp not verify
 
         @s swap2
         push x{root_pubkey.hex()} check_sig_stack verify
@@ -1073,8 +1075,10 @@ def make_delegate_key_chain_lock(root_pubkey: bytes|VerifyKey, sigflags: str = '
             push d32 split @= b 1 @= d 1 # begin ts and delegate pubkey #
 
             # prove the timestamp is within the cert bounds #
-            val s"timestamp" dup @b less verify
-            @e swap2 less verify
+            # val s"timestamp" dup @b less verify #
+            # @e swap2 less verify #
+            @b check_timestamp_verify
+            @e check_timestamp not verify
 
             @s swap2 @r check_sig_stack verify
             if ( @c and ) {{
