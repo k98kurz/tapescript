@@ -1166,6 +1166,29 @@ practice, the input scripts should be locking scripts, and then they should be
 used by concatenating the corresponding unlocking script and the unlocking
 script from this function.
 
+## `make_timestamp_after_lock(ts: int, op_verify: bool = False): -> Script`
+
+Makes a lock that enforces that the runtime timestamp is greater than the given
+ts but not greater than the local clock by more than the allowable slack
+configured in the runtime. If `op_verify` is set to `True`, it will use
+`OP_CHECK_TIMESTAMP_VERIFY` instead of `OP_CHECK_TIMESTAMP`, making it useful as
+an additional check within more complex scripts, e.g. to add time constraints to
+graftroot delegate scripts.
+
+## `make_timestamp_before_lock(ts: int, op_verify: bool = False): -> Script`
+
+Makes a lock that enforces that the runtime timestamp is less than the given ts.
+If `op_verify` is set to `True`, it will run `OP_VERIFY` instead of leaving the
+result on the stack, making it useful as an additional check within more complex
+scripts, e.g. to add time constraints to graftroot delegate scripts.
+
+## `make_timestamp_between_lock(begin_ts: int, end_ts: int, op_verify: bool = False): -> Script`
+
+Makes a lock that enforces that the runtime timestamp is greater than `begin_ts`
+and less than `end_ts`. If `op_verify` is `True`, the final check will run
+`OP_VERIFY` instead of leaving the result on the stack. Calls
+`OP_CHECK_TIMESTAMP_VERIFY` on the first check.
+
 ## `make_adapter_lock_pub(pubkey: bytes | VerifyKey, tweak_point: bytes, sigflags: str = 00): -> Script`
 
 Make an adapter locking script that verifies a sig adapter, decrypts it, and
