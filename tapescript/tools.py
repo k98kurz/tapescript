@@ -702,6 +702,9 @@ def generate_docs() -> list[str]:
     paragraphs.append(_format_function_doc(make_merklized_script_prioritized))
     paragraphs.append(_format_function_doc(make_script_tree_balanced))
     paragraphs.append(_format_function_doc(make_merklized_script_balanced))
+    paragraphs.append(_format_function_doc(make_timestamp_after_lock))
+    paragraphs.append(_format_function_doc(make_timestamp_before_lock))
+    paragraphs.append(_format_function_doc(make_timestamp_between_lock))
     paragraphs.append(_format_function_doc(make_adapter_lock_pub))
     paragraphs.append(_format_function_doc(make_adapter_lock_prv))
     paragraphs.append(_format_function_doc(make_single_sig_lock))
@@ -782,6 +785,43 @@ def add_soft_fork(code: int, name: str, op: Callable, aliases: list[str] = []) -
 
     add_opcode(code, name, op, aliases)
     add_opcode_parsing_handlers(name, compiler_handler, decompiler_handler)
+
+def make_timestamp_after_lock(ts: int, op_verify: bool = False) -> Script:
+    """Makes a lock that enforces that the runtime timestamp is greater
+        than the given ts but not greater than the local clock by more
+        than the allowable slack configured in the runtime. If
+        `op_verify` is set to `True`, it will use
+        `OP_CHECK_TIMESTAMP_VERIFY` instead of `OP_CHECK_TIMESTAMP`,
+        making it useful as an additional check within more complex
+        scripts, e.g. to add time constraints to graftroot delegate
+        scripts.
+    """
+    if op_verify:
+        return Script.from_src(f'push d{ts} check_timestamp_verify')
+    return Script.from_src(f'push d{ts} check_timestamp')
+
+def make_timestamp_before_lock(ts: int, op_verify: bool = False) -> Script:
+    """Makes a lock that enforces that the runtime timestamp is less
+        than the given ts. If `op_verify` is set to `True`, it will run
+        `OP_VERIFY` instead of leaving the result on the stack, making
+        it useful as an additional check within more complex scripts,
+        e.g. to add time constraints to graftroot delegate scripts.
+    """
+    if op_verify:
+        return Script.from_src(f'push d{ts} check_timestamp not verify')
+    return Script.from_src(f'push d{ts} check_timestamp not')
+
+def make_timestamp_between_lock(
+        begin_ts: int, end_ts: int, op_verify: bool = False
+    ) -> Script:
+    """Makes a lock that enforces that the runtime timestamp is greater
+        than `begin_ts` and less than `end_ts`. If `op_verify` is `True`,
+        the final check will run `OP_VERIFY` instead of leaving the
+        result on the stack. Calls `OP_CHECK_TIMESTAMP_VERIFY` on the
+        first check.
+    """
+    return make_timestamp_after_lock(begin_ts, True) + \
+        make_timestamp_before_lock(end_ts, op_verify)
 
 def make_scripthash_lock(script: Script, hashsize: int = 26) -> Script:
     """Makes a lock that commits to a script. When executed, the lock

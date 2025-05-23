@@ -395,6 +395,65 @@ class TestTools(unittest.TestCase):
             branch = bad_unlocking_scripts[i] + bad_locking_script + locking_script_old
             assert not functions.run_auth_scripts([branch])
 
+    def test_make_timestamp_after_lock_e2e(self):
+        ts1 = int(time() - 120)
+        ts2 = int(time() + 120)
+        # test without op_verify
+        lock1 = tools.make_timestamp_after_lock(ts1, False)
+        lock2 = tools.make_timestamp_after_lock(ts2, False)
+        assert len(lock1.bytes) == 7, len(lock1.bytes)
+        assert len(lock2.bytes) == 7, len(lock2.bytes)
+        assert functions.run_auth_scripts([lock1])
+        assert not functions.run_auth_scripts([lock2])
+        # test with op_verify
+        ok = tools.Script.from_src('true')
+        lock1 = tools.make_timestamp_after_lock(ts1, True)
+        lock2 = tools.make_timestamp_after_lock(ts2, True)
+        assert len(lock1.bytes) == 7, len(lock1.bytes)
+        assert len(lock2.bytes) == 7, len(lock2.bytes)
+        assert functions.run_auth_scripts([ok, lock1])
+        assert not functions.run_auth_scripts([ok, lock2])
+
+    def test_make_timestamp_before_lock_e2e(self):
+        ts1 = int(time() + 120)
+        ts2 = int(time() - 120)
+        # test without op_verify
+        lock1 = tools.make_timestamp_before_lock(ts1, False)
+        lock2 = tools.make_timestamp_before_lock(ts2, False)
+        assert len(lock1.bytes) == 8, len(lock1.bytes)
+        assert len(lock2.bytes) == 8, len(lock2.bytes)
+        assert functions.run_auth_scripts([lock1])
+        assert not functions.run_auth_scripts([lock2])
+        # test with op_verify
+        ok = tools.Script.from_src('true')
+        lock1 = tools.make_timestamp_before_lock(ts1, True)
+        lock2 = tools.make_timestamp_before_lock(ts2, True)
+        assert len(lock1.bytes) == 9, len(lock1.bytes)
+        assert len(lock2.bytes) == 9, len(lock2.bytes)
+        assert functions.run_auth_scripts([ok, lock1])
+        assert not functions.run_auth_scripts([ok, lock2])
+
+    def test_make_timestamp_between_lock_e2e(self):
+        begin_ts1 = int(time() - 120)
+        begin_ts2 = begin_ts1 - 500
+        end_ts1 = int(time() + 120)
+        end_ts2 = end_ts1 - 500
+        # test without op_verify
+        lock1 = tools.make_timestamp_between_lock(begin_ts1, end_ts1, False)
+        lock2 = tools.make_timestamp_between_lock(begin_ts2, end_ts2, False)
+        assert len(lock1.bytes) == 15, len(lock1.bytes)
+        assert len(lock2.bytes) == 15, len(lock2.bytes)
+        assert functions.run_auth_scripts([lock1])
+        assert not functions.run_auth_scripts([lock2])
+        # test with op_verify
+        ok = tools.Script.from_src('true')
+        lock1 = tools.make_timestamp_between_lock(begin_ts1, end_ts1, True)
+        lock2 = tools.make_timestamp_between_lock(begin_ts2, end_ts2, True)
+        assert len(lock1.bytes) == 16, len(lock1.bytes)
+        assert len(lock2.bytes) == 16, len(lock2.bytes)
+        assert functions.run_auth_scripts([ok, lock1])
+        assert not functions.run_auth_scripts([ok, lock2])
+
     def test_make_scripthash_lock_and_make_scripthash_witness_e2e(self):
         committed_script = tools.Script.from_src('true')
         lock = tools.make_scripthash_lock(committed_script)
