@@ -202,7 +202,9 @@ def _get_additional_opcode_args(
         symbol_index: int
     ) -> tuple[int, tuple[bytes]]:
     vert(opname in additional_opcodes, f'unrecognized opname {opname}')
-    return additional_opcodes[opname][0](opname, symbols, symbols_to_advance, symbol_index)
+    return additional_opcodes[opname][0](
+        opname, symbols, symbols_to_advance, symbol_index
+    )
 
 def _get_OP_PUSH_args(
         opname: str, symbols: list[str], symbols_to_advance: int, index: int
@@ -232,7 +234,7 @@ def _get_OP_PUSH_args(
                 val = bytes(val[1:], 'utf-8')
 
     if len(val) == 1:
-        ...
+        pass
     elif 1 < len(val) < 256:
         # tape syntax of OP_PUSH1 [size 0-255] [val]
         # human-readable decompiled syntax of OP_PUSH1 val
@@ -294,27 +296,34 @@ def _get_OP_WRITE_CACHE_args(
     yert(size < 256, 'cache_key max length of 255 exceeded for OP_WRITE_CACHE')
     yert(count < 256, 'count max size of 255 exceeded for OP_WRITE_CACHE')
 
-    return (symbols_to_advance, [size.to_bytes(1, 'big'), cache_key, count.to_bytes(1, 'big')])
+    return (
+        symbols_to_advance,
+        [size.to_bytes(1, 'big'), cache_key, count.to_bytes(1, 'big')]
+    )
 
 def _get_OP_PUSH0_type_args(
-        opname: str, symbols: list[str], symbols_to_advance: int, symbol_index: int
+        opname: str, symbols: list[str], symbols_to_advance: int,
+        symbol_index: int
     ) -> tuple[int, tuple[bytes]]:
     args = []
     symbols_to_advance += 1
     val = symbols[0]
     yert(val[0].lower() in ('d', 'x'),
-        f'{opname} - numeric args must be prefaced with d or x; {val} is invalid - symbol {symbol_index}')
+        f'{opname} - numeric args must be prefaced with d or x; {val} is '
+        f'invalid - symbol {symbol_index}')
 
     match val[0].lower():
         case 'd':
             vert(val[1:].lstrip('+-').isnumeric(),
-                f'{opname} - value prefaced by d must be decimal int; {val} is invalid - symbol {symbol_index}')
+                f'{opname} - value prefaced by d must be decimal int; {val} is '
+                f'invalid - symbol {symbol_index}')
             val = int_to_bytes(int(val[1:].split('.')[0]))
             assert len(val) == 1, 'value overflow'
             args.append(val)
         case 'x':
             vert(len(val[1:]) <= 2,
-                f'{opname} - value must be at most 1 byte long; {val} is invalid - symbol {symbol_index}')
+                f'{opname} - value must be at most 1 byte long; {val} is '
+                f'invalid - symbol {symbol_index}')
             val = bytes.fromhex(val[1:])
             args.append(val if len(val) == 1 else b'\x00')
     return (symbols_to_advance, args)
@@ -441,16 +450,19 @@ def _get_OP_DIV_FLOAT_args(
     symbols_to_advance += 1
     val = symbols[0]
     yert(val[0].lower() in ('f', 'x'),
-        f'{opname} - numeric args must be prefaced with f or x; {val} is invalid - symbol {symbol_index}')
+        f'{opname} - numeric args must be prefaced with f or x; {val} is '
+        f'invalid - symbol {symbol_index}')
 
     match val[0].lower():
         case 'f':
             vert(val[1:].lstrip('+-').isnumeric(),
-                f'{opname} - value prefaced by f must be decimal float; {val} is invalid - symbol {symbol_index}')
+                f'{opname} - value prefaced by f must be decimal float; {val} '
+                f'is invalid - symbol {symbol_index}')
             args.append(struct.pack('!f', float(val[1:])))
         case 'x':
             vert(len(val[1:]) == 8,
-                f'{opname} - value prefaced by x must be 8 long (4 bytes); {val} is invalid - symbol {symbol_index}')
+                f'{opname} - value prefaced by x must be 8 long (4 bytes); '
+                f'{val} is invalid - symbol {symbol_index}')
             args.append(bytes.fromhex(val[1:]))
     return (symbols_to_advance, args)
 
@@ -464,21 +476,25 @@ def _get_OP_SWAP_type_args(
 
     for val in vals:
         yert(val[0].lower() in ('d', 'x'),
-            f'{opname} - numeric args must be prefaced with d or x; {val} is invalid - symbol {symbol_index}')
+            f'{opname} - numeric args must be prefaced with d or x; {val} is '
+            f'invalid - symbol {symbol_index}')
 
         match val[0].lower():
             case 'd':
                 vert(val[1:].isnumeric(),
-                    f'{opname} - value prefaced by d must be decimal int; {val} is invalid - symbol {symbol_index}')
+                    f'{opname} - value prefaced by d must be decimal int; '
+                    f'{val} is invalid - symbol {symbol_index}')
                 if '.' in val:
                     val = int(val[1:].split('.')[0])
                 else:
                     val = int(val[1:])
-                yert(0 <= val < 256, f'{opname} - index overflow - symbol {symbol_index}')
+                yert(0 <= val < 256,
+                    f'{opname} - index overflow - symbol {symbol_index}')
                 args.append(val.to_bytes(1, 'big'))
             case 'x':
                 vert(len(val[1:]) == 2,
-                    f'{opname} - value prefaced by x must be 2 long (1 byte); {val} is invalid - symbol {symbol_index}')
+                    f'{opname} - value prefaced by x must be 2 long (1 byte); '
+                    f'{val} is invalid - symbol {symbol_index}')
                 args.append(bytes.fromhex(val[1:]))
     return (symbols_to_advance, args)
 
@@ -492,21 +508,25 @@ def _get_OP_CHECK_MULTISIG_args(
 
     for val in vals:
         yert(val[0].lower() in ('d', 'x'),
-            f'{opname} - numeric args must be prefaced with d or x; {val} is invalid - symbol {symbol_index}')
+            f'{opname} - numeric args must be prefaced with d or x; {val} is '
+            f'invalid - symbol {symbol_index}')
 
         match val[0].lower():
             case 'd':
                 vert(val[1:].isnumeric(),
-                    f'{opname} - value prefaced by d must be decimal int; {val} is invalid - symbol {symbol_index}')
+                    f'{opname} - value prefaced by d must be decimal int; '
+                    f'{val} is invalid - symbol {symbol_index}')
                 if '.' in val:
                     val = int(val[1:].split('.')[0])
                 else:
                     val = int(val[1:])
-                yert(0 <= val < 256, f'{opname} - index overflow - symbol {symbol_index}')
+                yert(0 <= val < 256,
+                    f'{opname} - index overflow - symbol {symbol_index}')
                 args.append(val.to_bytes(1, 'big'))
             case 'x':
                 vert(len(val[1:]) == 2,
-                    f'{opname} - value prefaced by x must be 2 long (1 byte); {val} is invalid - symbol {symbol_index}')
+                    f'{opname} - value prefaced by x must be 2 long (1 byte); '
+                    f'{val} is invalid - symbol {symbol_index}')
                 args.append(bytes.fromhex(val[1:]))
     return (symbols_to_advance, args)
 
@@ -517,8 +537,12 @@ def _get_OP_MERKLEVAL_args(
     args = []
     symbols_to_advance += 1
     val = symbols[0]
-    yert(val[0].lower() == 'x', f'OP_MERKLEVAL - arg must be hexadecimal hash; {val} is invalid - symbol {symbol_index}')
-    yert(len(val) == 65, f'OP_MERKLEVAL - arg must be hexadecimal hash; {val} is invalid - symbol {symbol_index}')
+    yert(val[0].lower() == 'x',
+        f'OP_MERKLEVAL - arg must be hexadecimal hash; {val} is invalid - '
+        f'symbol {symbol_index}')
+    yert(len(val) == 65,
+        f'OP_MERKLEVAL - arg must be hexadecimal hash; {val} is invalid - '
+        f'symbol {symbol_index}')
     args.append(bytes.fromhex(val[1:]))
     return (symbols_to_advance, args)
 
@@ -600,10 +624,14 @@ def get_args(
     return (symbols_to_advance, tuple(args))
 
 
-def parse_def(symbols: list[str], symbol_index: int, macros: dict = {}) -> tuple[int, tuple[bytes]]:
-    yert(len(symbols) > 0, f'missing OP_DEF clause contents at symbol {symbol_index}')
-    vert(symbols[0] in ('OP_DEF', 'DEF'), f'malformed OP_DEF clause: must begin OP_DEF not {symbols[0]}' +
-         f' at symbol {symbol_index}')
+def parse_def(
+        symbols: list[str], symbol_index: int, macros: dict = {}
+    ) -> tuple[int, tuple[bytes]]:
+    yert(len(symbols) > 0,
+        f'missing OP_DEF clause contents at symbol {symbol_index}')
+    vert(symbols[0] in ('OP_DEF', 'DEF'),
+        f'malformed OP_DEF clause: must begin OP_DEF not {symbols[0]}' +
+        f' at symbol {symbol_index}')
     code = []
     def_code = b''
     index = 0
@@ -641,7 +669,9 @@ def parse_def(symbols: list[str], symbol_index: int, macros: dict = {}) -> tuple
             try:
                 index = symbols.index(current_symbol, index+1) + 1
             except ValueError:
-                raise SyntaxError(f'unterminated comment starting with {current_symbol}') from None
+                raise SyntaxError(
+                    f'unterminated comment starting with {current_symbol}'
+                ) from None
             continue
         if current_symbol in opcode_aliases:
             current_symbol = 'OP_' + current_symbol
@@ -669,15 +699,18 @@ def parse_def(symbols: list[str], symbol_index: int, macros: dict = {}) -> tuple
     return (search_idx+1, tuple(code))
 
 
-def parse_if(symbols: list[str], symbol_index: int, macros: dict = {}) -> tuple[int, tuple[bytes]]:
+def parse_if(
+        symbols: list[str], symbol_index: int, macros: dict = {}
+    ) -> tuple[int, tuple[bytes]]:
     """Parses a statement starting with OP_IF. Returns tuple (int
         advance, tuple[bytes] parts). Called recursively to handle nested
         conditional clauses. The first element of tuple[bytes] will be
         the proper op code for the if statement.
     """
     yert(len(symbols) > 0, f'missing OP_IF clause contents - symbol {symbol_index}')
-    vert(symbols[0] in ('OP_IF', 'IF'), f'malformed OP_IF: must begin OP_IF not {symbols[0]}'+
-         f' at symbol {symbol_index}')
+    vert(symbols[0] in ('OP_IF', 'IF'),
+        f'malformed OP_IF: must begin OP_IF not {symbols[0]}' +
+        f' at symbol {symbol_index}')
     opcode = 'OP_IF'
     code = []
     index = 1
@@ -693,7 +726,8 @@ def parse_if(symbols: list[str], symbol_index: int, macros: dict = {}) -> tuple[
 
     if symbols[1] == '{':
         # case 1: OP_IF { statements }
-        yert('}' in symbols[1:], f'unterminated OP_IF: missing matching {"}"} - symbol {symbol_index}')
+        yert('}' in symbols[1:],
+            f'unterminated OP_IF: missing matching {"}"} - symbol {symbol_index}')
         index += 1
     else:
         # case 2: OP_IF statements END_IF
@@ -736,14 +770,17 @@ def parse_if(symbols: list[str], symbol_index: int, macros: dict = {}) -> tuple[
     )
 
 
-def parse_else(symbols: list[str], symbol_index: int, macros: dict = {}) -> tuple[int, tuple[bytes]]:
+def parse_else(
+        symbols: list[str], symbol_index: int, macros: dict = {}
+    ) -> tuple[int, tuple[bytes]]:
     """Parses an ELSE clause. Returns tuple (int advance, tuple[bytes]
         parts). Recursively calls parse_if to handle nested conditional
         clauses.
     """
     yert(len(symbols) > 0, f'missing ELSE clause contents - symbol {symbol_index}')
-    vert(symbols[0] == 'ELSE', f'malformed ELSE clause: must begin ELSE not {symbols[0]}' +
-         f' at symbol {symbol_index}')
+    vert(symbols[0] == 'ELSE',
+        f'malformed ELSE clause: must begin ELSE not {symbols[0]}'
+        f' at symbol {symbol_index}')
     code = []
     index = 1
 
@@ -776,21 +813,25 @@ def parse_else(symbols: list[str], symbol_index: int, macros: dict = {}) -> tupl
     )
 
 
-def parse_try(symbols: list[str], symbol_index: int, macros: dict = {}) -> tuple[int, tuple[bytes]]:
+def parse_try(
+        symbols: list[str], symbol_index: int, macros: dict = {}
+    ) -> tuple[int, tuple[bytes]]:
     """Parses a statement starting with OP_TRY. Returns tuple (int
         advance, tuple[bytes] parts). Called recursively to handle
         nested try clauses.
     """
     yert(len(symbols) > 0, f'missing OP_TRY clause contents - symbol {symbol_index}')
-    vert(symbols[0] in ('OP_TRY', 'TRY'), f'malformed OP_TRY clause: must begin OP_TRY not {symbols[0]}' +
-         f' at symbol {symbol_index}')
+    vert(symbols[0] in ('OP_TRY', 'TRY'),
+        f'malformed OP_TRY clause: must begin OP_TRY not {symbols[0]} at '
+        f'symbol {symbol_index}')
     code = []
     index = 1
     except_len = 0
 
     if symbols[1] == '{':
         # case 1: OP_TRY { statements }
-        yert('}' in symbols[1:], f'unterminated OP_TRY: missing matching }} - symbol {symbol_index}')
+        yert('}' in symbols[1:],
+            f'unterminated OP_TRY: missing matching }} - symbol {symbol_index}')
         index = 2
     else:
         # case 2: OP_TRY statements END_TRY
@@ -832,23 +873,28 @@ def parse_try(symbols: list[str], symbol_index: int, macros: dict = {}) -> tuple
     )
 
 
-def parse_except(symbols: list[str], symbol_index: int, macros: dict = {}) -> tuple[int, tuple[bytes]]:
+def parse_except(
+        symbols: list[str], symbol_index: int, macros: dict = {}
+    ) -> tuple[int, tuple[bytes]]:
     """Parses an EXCEPT clause. Returns tuple (int advance, tuple[bytes]
         parts). Recursively calls parse_try to handle nested exception
         handling clauses.
     """
     yert(len(symbols) > 0, f'missing EXCEPT clause contents - symbol {symbol_index}')
-    yert(symbols[0] == 'EXCEPT', f'malformed EXCEPT: must begin EXCEPT not {symbols[0]}'+
+    yert(symbols[0] == 'EXCEPT',
+        f'malformed EXCEPT: must begin EXCEPT not {symbols[0]}' +
          f'at symbol {symbol_index}')
     code = []
     index = 1
 
     if symbols[1] == '{':
         # case 1: EXCEPT { statements }
-        yert('}' in symbols[1:], f'unterminated EXCEPT: missing matching {"}"} - symbol {symbol_index}')
+        yert('}' in symbols[1:],
+            f'unterminated EXCEPT: missing matching {"}"} - symbol {symbol_index}')
         index = 2
     else:
-        yert('END_EXCEPT' in symbols[1:], f'missing END_EXCEPT - symbol {symbol_index}')
+        yert('END_EXCEPT' in symbols[1:],
+            f'missing END_EXCEPT - symbol {symbol_index}')
 
     while index < len(symbols):
         current_symbol = symbols[index]
@@ -871,20 +917,24 @@ def parse_except(symbols: list[str], symbol_index: int, macros: dict = {}) -> tu
     )
 
 
-def parse_loop(symbols: list[str], symbol_index: int, macros: dict = {}) -> tuple[int, tuple[bytes]]:
+def parse_loop(
+        symbols: list[str], symbol_index: int, macros: dict = {}
+    ) -> tuple[int, tuple[bytes]]:
     """Parses an OP_LOOP clause. Returns tuple (int advance, tuple[bytes]
         parts). Recursively calls parse_* functions to handle nested
         control flow clauses.
     """
     yert(len(symbols) > 0, f'missing OP_LOOP clause contents - symbol {symbol_index}')
-    vert(symbols[0] in ('OP_LOOP', 'LOOP'), f'malformed OP_LOOP clause: must begin OP_LOOP not {symbols[0]}' +
-         f' at symbol {symbol_index}')
+    vert(symbols[0] in ('OP_LOOP', 'LOOP'),
+        f'malformed OP_LOOP clause: must begin OP_LOOP not {symbols[0]}' +
+        f' at symbol {symbol_index}')
     code = []
     index = 1
 
     if symbols[1] == '{':
         # case 1: LOOP { statements }
-        yert('}' in symbols[1:], f'unterminated LOOP: missing matching {"}"} - symbol {symbol_index}')
+        yert('}' in symbols[1:],
+            f'unterminated LOOP: missing matching {"}"} - symbol {symbol_index}')
         index = 2
     else:
         yert('END_LOOP' in symbols[1:], f'missing END_LOOP - symbol {symbol_index}')
@@ -896,7 +946,9 @@ def parse_loop(symbols: list[str], symbol_index: int, macros: dict = {}) -> tupl
             index += 1
             break
 
-        advance, parts = parse_next(current_symbol, symbols, symbol_index, index, macros)
+        advance, parts = parse_next(
+            current_symbol, symbols, symbol_index, index, macros
+        )
         index += advance
         code.extend(parts)
 
@@ -913,7 +965,8 @@ def parse_loop(symbols: list[str], symbol_index: int, macros: dict = {}) -> tupl
 
 def parse_next(
         current_symbol: str, symbols: list[str], symbol_index: int, index: int,
-        macros: dict = {}) -> tuple[int, tuple[bytes]]:
+        macros: dict = {}
+    ) -> tuple[int, tuple[bytes]]:
     """Parse the next statement. Return the number by which to advance
         the index and a tuple of code bytes.
     """
@@ -925,7 +978,9 @@ def parse_next(
             advance = symbols.index(current_symbol, index+1) + 1 - index
             return (advance, parts)
         except ValueError:
-            raise SyntaxError(f'unterminated comment starting with {current_symbol}') from None
+            raise SyntaxError(
+                f'unterminated comment starting with {current_symbol}'
+            ) from None
 
     if current_symbol in opcode_aliases:
         current_symbol = opcode_aliases[current_symbol]
@@ -1070,7 +1125,8 @@ def decompile_script(script: bytes, indent: int = 0) -> list[str]:
 
     while not tape.has_terminated():
         op_code = tape.read(1)[0]
-        vert(op_code in opcodes or op_code in nopcodes, f'unrecognized opcode {op_code}')
+        vert(op_code in opcodes or op_code in nopcodes,
+            f'unrecognized opcode {op_code}')
         op_name = opcodes[op_code][0] if op_code in opcodes else nopcodes[op_code][0]
 
         match op_name:
@@ -1215,3 +1271,4 @@ def decompile_script(script: bytes, indent: int = 0) -> list[str]:
                     add_lines(lines)
 
     return code_lines
+

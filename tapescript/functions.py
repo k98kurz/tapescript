@@ -2135,8 +2135,10 @@ def set_tape_flags(tape: Tape, additional_flags: dict = {}) -> Tape:
             tape.flags[key] = additional_flags[key]
     return tape
 
-def run_tape(tape: Tape, stack: Stack, cache: dict,
-             additional_flags: dict = {}) -> None:
+def run_tape(
+        tape: Tape, stack: Stack, cache: dict,
+        additional_flags: dict = {}
+    ) -> None:
     """Run the given tape using the stack and cache."""
     tape = set_tape_flags(tape, additional_flags)
     while not tape.has_terminated():
@@ -2147,11 +2149,13 @@ def run_tape(tape: Tape, stack: Stack, cache: dict,
             op = nopcodes[op_code][1]
         op(tape, stack, cache)
 
-def run_script(script: bytes|ScriptProtocol, cache_vals: dict = {},
-               contracts: dict = {}, additional_flags: dict = {},
-               plugins: dict = {}, stack_max_items: int = 1024,
-               stack_max_item_size: int = 1024,
-               callstack_limit: int = 128) -> tuple[Tape, Stack, dict]:
+def run_script(
+        script: bytes|ScriptProtocol, cache_vals: dict = {},
+        contracts: dict = {}, additional_flags: dict = {},
+        plugins: dict = {}, stack_max_items: int = 1024,
+        stack_max_item_size: int = 1024,
+        callstack_limit: int = 128
+    ) -> tuple[Tape, Stack, dict]:
     """Run the given script byte code. Returns a tape, stack, and dict."""
     tert(type(script) is bytes or isinstance(script, ScriptProtocol),
          'script must be bytes or ScriptProtocol implementation')
@@ -2164,10 +2168,12 @@ def run_script(script: bytes|ScriptProtocol, cache_vals: dict = {},
     run_tape(tape, stack, cache, additional_flags=additional_flags)
     return (tape, stack, cache)
 
-def run_auth_scripts(scripts: list[bytes|ScriptProtocol], cache_vals: dict = {},
-                    contracts: dict = {}, plugins: dict = {},
-                    stack_max_items: int = 1024, stack_max_item_size: int = 1024,
-                    callstack_limit: int = 128) -> bool:
+def run_auth_scripts(
+        scripts: list[bytes|ScriptProtocol], cache_vals: dict = {},
+        contracts: dict = {}, plugins: dict = {},
+        stack_max_items: int = 1024, stack_max_item_size: int = 1024,
+        callstack_limit: int = 128
+    ) -> bool:
     """Run the given auth scripts in order. Returns True iff the stack
         has a single \\xff value after all scripts have executed and no
         errors were raised; otherwise, returns False. Each script is
@@ -2216,10 +2222,12 @@ def run_auth_scripts(scripts: list[bytes|ScriptProtocol], cache_vals: dict = {},
     except BaseException as e:
         return False
 
-def run_auth_script(script: bytes|ScriptProtocol, cache_vals: dict = {},
-                    contracts: dict = {}, plugins: dict = {},
-                    stack_max_items: int = 1024, stack_max_item_size: int = 1024,
-                    callstack_limit: int = 128) -> bool:
+def run_auth_script(
+        script: bytes|ScriptProtocol, cache_vals: dict = {},
+        contracts: dict = {}, plugins: dict = {},
+        stack_max_items: int = 1024, stack_max_item_size: int = 1024,
+        callstack_limit: int = 128
+    ) -> bool:
     """Deprecated. Functionality will be maintained until the 0.8.0
         release. See documentation for details on how to use the
         replacement function `run_auth_scripts`.
@@ -2229,3 +2237,4 @@ def run_auth_script(script: bytes|ScriptProtocol, cache_vals: dict = {},
         [script], cache_vals, contracts, plugins, stack_max_items,
         stack_max_item_size, callstack_limit
     )
+

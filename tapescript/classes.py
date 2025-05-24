@@ -104,3 +104,4 @@ class Stack:
         """
         index = len(self) - index - 1
         return self.deque[index]
+

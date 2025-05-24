@@ -93,3 +93,4 @@ class AMHL:
     def verify_lock_key(l: bytes, k: bytes) -> bool:
         """Verify that a key opens a lock."""
         return bytes_are_same(l, AMHL.oneway(k))
+

@@ -1592,7 +1592,8 @@ def make_taproot_witness_keyspend(
     return Script.from_src(f'push x{sig.hex()}')
 
 def make_taproot_witness_scriptspend(
-        pubkey: bytes|VerifyKey, committed_script: Script) -> Script:
+        pubkey: bytes|VerifyKey, committed_script: Script
+    ) -> Script:
     """Returns a Script witness for a taproot scriptspend, i.e. a
         witness that causes the committed script to be executed.
     """
@@ -1718,7 +1719,8 @@ def setup_amhl(
     return result
 
 def release_left_amhl_lock(
-        adapter_witness: bytes|ScriptProtocol, signature: bytes, y: bytes) -> bytes:
+        adapter_witness: bytes|ScriptProtocol, signature: bytes, y: bytes
+    ) -> bytes:
     """Release the next lock using an adapter witness and a decrypted
         signature from right lock. Returns the tweak scalar used to
         decrypt the left adapter signature.
