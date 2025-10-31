@@ -1023,7 +1023,7 @@ python tests/test_e2e_eltoo.py
 python tests/test_e2e_extensions.py
 ```
 
-There are currently 266 tests and 107 test vectors used for validating the ops,
+There are currently 267 tests and 107 test vectors used for validating the ops,
 compiler, decompiler, and script running functions. This includes 3 e2e tests
 for a proof-of-concept implementation of the eltoo payment channel protocol, and
 e2e tests combining the anonymous multi-hop lock (AMHL) system with adapter

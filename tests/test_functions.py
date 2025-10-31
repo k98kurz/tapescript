@@ -1765,6 +1765,16 @@ class TestFunctions(unittest.TestCase):
             functions.OP_CHECK_MULTISIG_VERIFY(self.tape, self.stack, self.cache)
         assert len(self.stack) == 0
 
+    def test_OP_GET_MESSAGE(self):
+        self.tape.data = b'\x02'
+        self.cache['sigfield1'] = b'hello'
+        self.cache['sigfield2'] = b'excluded by sigflag'
+        self.cache['sigfield3'] = b'world'
+        functions.OP_GET_MESSAGE(self.tape, self.stack, self.cache)
+        assert len(self.stack) == 1, len(self.stack)
+        msg = self.stack.get()
+        assert msg == b'helloworld'
+
     def test_OP_SIGN_creates_valid_signatures(self):
         seed = token_bytes(32)
         self.tape.data = b'\x02'
