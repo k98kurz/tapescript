@@ -1062,7 +1062,9 @@ def make_adapter_witness(
         push x{R.hex()}
     ''')
 
-def make_delegate_key_lock(root_pubkey: bytes|VerifyKey, sigflags: str = '00') -> Script:
+def make_delegate_key_lock(
+        root_pubkey: bytes|VerifyKey, sigflags: str = '00'
+    ) -> Script:
     """Takes a root_pubkey and returns a locking Script that is unlocked
         with a signature from the delegate key and a signed certificate
         from the root key authorizing the delegate key.
@@ -1090,7 +1092,9 @@ def make_delegate_key_lock(root_pubkey: bytes|VerifyKey, sigflags: str = '00') -
         @d check_sig x{sigflags}
     ''')
 
-def make_delegate_key_chain_lock(root_pubkey: bytes|VerifyKey, sigflags: str = '00') -> Script:
+def make_delegate_key_chain_lock(
+        root_pubkey: bytes|VerifyKey, sigflags: str = '00'
+    ) -> Script:
     """Takes a root_pubkey and returns a locking Script that is unlocked
         with a signature from the delegate key, the delegated public key,
         and a certificate from the root key committing to the delegate
@@ -1232,7 +1236,9 @@ def make_graftroot_witness_keyspend(
     return make_single_sig_witness(prvkey, sigfields, sigflags, sign_script_prefix) + \
         Script.from_src('false')
 
-def make_graftroot_witness_surrogate(prvkey: bytes|SigningKey, script: str|Script) -> Script:
+def make_graftroot_witness_surrogate(
+        prvkey: bytes|SigningKey, script: str|Script
+    ) -> Script:
     """Creates a graftroot witness consisting of a signed surrogate script."""
     prvkey = _prvkey(prvkey)
     script = Script.from_src(script) if type(script) is str else script
@@ -1558,7 +1564,9 @@ def make_taproot_lock(
          'must supply either committed_script or script_commitment')
     script_commitment = script_commitment or script.commitment()
     vert(len(script_commitment) == 32, 'script_commitment must be 32 bytes')
-    X = derive_point_from_scalar(clamp_scalar(sha256(pubkey + script_commitment).digest()))
+    X = derive_point_from_scalar(
+        clamp_scalar(sha256(pubkey + script_commitment).digest())
+    )
     root = aggregate_points((pubkey, X))
     return Script.from_src(f'push x{root.hex()} tr x{sigflags}')
 
@@ -1641,12 +1649,14 @@ def _make_graftap_committed_script(pubkey: bytes|VerifyKey) -> Script:
         eval
     ''')
 
-def make_graftap_lock(pubkey: bytes|VerifyKey) -> Script:
+def make_graftap_lock(pubkey: bytes|VerifyKey, sigflags: str = '00') -> Script:
     """Make a taproot lock committing to the (internal) pubkey and a
         graftroot lock.
     """
     pubkey = _pubkey(pubkey)
-    return make_taproot_lock(pubkey, _make_graftap_committed_script(pubkey))
+    return make_taproot_lock(
+        pubkey, _make_graftap_committed_script(pubkey), sigflags=sigflags
+    )
 
 def make_graftap_witness_keyspend(
         prvkey: bytes|SigningKey, sigfields: dict, sigflags: str = '00',

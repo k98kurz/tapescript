@@ -42,7 +42,8 @@ except ImportError:
             return 'sha512'
 
     def sha512(preimage: bytes):
-        warn('sha512 is not available on this system; this replacement will not give correct outputs')
+        warn('sha512 is not available on this system; this replacement will '
+            'not give correct outputs')
         return Sha512Replacement(preimage)
 
 try:
@@ -76,7 +77,8 @@ except ImportError:
             return 'shake_256'
 
     def shake_256(preimage: bytes):
-        warn('shake_256 is not available on this system; this replacement will not give correct outputs')
+        warn('shake_256 is not available on this system; this replacement will '
+            'not give correct outputs')
         return Shake256Replacement(preimage)
 
 try:
@@ -277,8 +279,7 @@ def OP_TRUE(tape: Tape, stack: Stack, cache: dict) -> None:
     stack.put(b'\xff')
 
 def OP_PUSH0(tape: Tape, stack: Stack, cache: dict) -> None:
-    """Read the next byte from the tape; put it onto the stack.
-    """
+    """Read the next byte from the tape; put it onto the stack."""
     stack.put(tape.read(1))
 
 def OP_PUSH1(tape: Tape, stack: Stack, cache: dict) -> None:
@@ -708,8 +709,9 @@ def OP_CHECK_SIG(tape: Tape, stack: Stack, cache: dict) -> None:
     vkey = stack.get()
     sig = stack.get()
 
-    vert((type(vkey) is bytes and len(vkey) == nacl.bindings.crypto_sign_PUBLICKEYBYTES)
-        or type(vkey) is VerifyKey,
+    vert((  type(vkey) is bytes
+            and len(vkey) == nacl.bindings.crypto_sign_PUBLICKEYBYTES
+        ) or type(vkey) is VerifyKey,
         'OP_CHECK_SIG invalid vkey encountered')
     vert(type(sig) is bytes and len(sig) in (
         nacl.bindings.crypto_sign_BYTES, nacl.bindings.crypto_sign_BYTES + 1
@@ -1114,11 +1116,15 @@ def OP_CHECK_TRANSFER(tape: Tape, stack: Stack, cache: dict) -> None:
             all_proofs_valid = False
         if not contract.verify_transfer(txn_proofs[i], sources[i], destination):
             all_proofs_valid = False
-        if len(constraint) and not contract.verify_txn_constraint(txn_proofs[i], constraint):
+        if  (   len(constraint)
+                and not contract.verify_txn_constraint(txn_proofs[i], constraint)
+            ):
             all_proofs_valid = False
 
     # calculate aggregate
-    aggregate = contract.calc_txn_aggregates(txn_proofs, scope=destination)[destination]
+    aggregate = contract.calc_txn_aggregates(
+        txn_proofs, scope=destination
+    )[destination]
 
     stack.put(b'\xff' if all_proofs_valid and amount <= aggregate else b'\x00')
 
@@ -1822,7 +1828,10 @@ opcodes = [
     ('OP_CHECK_TEMPLATE_VERIFY', OP_CHECK_TEMPLATE_VERIFY),
     ('OP_TAPROOT', OP_TAPROOT),
 ]
-opcodes: dict[int, tuple[str, Callable]] = {x: opcodes[x] for x in range(len(opcodes))}
+opcodes: dict[int, tuple[str, Callable]] = {
+    x: opcodes[x]
+    for x in range(len(opcodes))
+}
 
 nopcodes = {}
 
@@ -2017,7 +2026,9 @@ def remove_contract_interface(interface: type) -> None:
     if interface.__name__ in _contract_interfaces:
         del _contract_interfaces[interface.__name__]
 
-def add_opcode(code: int, name: str, function: Callable, aliases: list[str] = []) -> None:
+def add_opcode(
+        code: int, name: str, function: Callable, aliases: list[str] = []
+    ) -> None:
     """Adds an OP implementation with the code, name, and function.
         Raises TypeError for invalid arg types and ValueError for
         invalid code or name.
@@ -2063,7 +2074,8 @@ def add_plugin(scope: str, plugin: Callable[[Tape, Stack, dict], Any]) -> None:
         not str or if plugin is not callable.
     """
     tert(type(scope) is str, 'scope must be str')
-    tert(callable(plugin), f'plugin (for {scope}) must be Callable[[Tape, Stack, dict], Any]')
+    tert(callable(plugin),
+        f'plugin (for {scope}) must be Callable[[Tape, Stack, dict], Any]')
 
     if scope not in _plugins:
         _plugins[scope] = []
@@ -2184,7 +2196,8 @@ def run_auth_scripts(
         last item in the scripts list so it is executed last and thus
         properly enforced.
     """
-    tert(type(scripts) in (list, tuple), 'scripts must be list[bytes|ScriptProtocol]')
+    tert(type(scripts) in (list, tuple),
+        'scripts must be list[bytes|ScriptProtocol]')
     vert(len(scripts), 'scripts must contain at least 1 script')
     tert(all([type(s) is bytes or isinstance(s, ScriptProtocol) for s in scripts]),
          'scripts must be list[bytes|ScriptProtocol]')

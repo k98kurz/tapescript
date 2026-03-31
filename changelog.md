@@ -7,6 +7,7 @@
 - Added new `make_timestamp_between_lock`: 15-16 bytes
 - Optimized `make_delegate_key_lock`: saved 13 bytes (98-85)
 - Optimized `make_delegate_key_chain_lock`: saved 13 bytes (128-115)
+- Corrected `make_graftap_lock`: added sigflags passthrough parameter
 
 ## 0.7.2
 
