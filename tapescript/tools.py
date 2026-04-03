@@ -494,7 +494,11 @@ def repl(
                 val = stack.peek()
                 print(bytes_to_float(val))
                 continue
-            if src.split()[0][:2] == '~s':
+            if src == '~s':
+                val = stack.peek()
+                print(val.decode())
+                continue
+            if src.split()[0][:3] == '~sf':
                 src = src.split(maxsplit=1)
                 src2 = ''.join(src[1:])
                 src = f'sigfield{src[0][2:]}'
