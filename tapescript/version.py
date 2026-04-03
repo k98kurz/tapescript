@@ -1,5 +1,5 @@
 
-__version__ = '0.7.3-dev'
+__version__ = '0.7.3'
 
 def version() -> str:
     """Get the version of the tapescript library."""

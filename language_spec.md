@@ -286,6 +286,9 @@ arguments to ops, e.g. `OP_MERKLEVAL @root` will not work. To see the number of
 items held in a cache location, you can use `rcz s"name"` or `@#name`; this will
 put the number of items onto the stack as an encoded signed int.
 
+Note that reading and writing multiple values with either this or the assembly
+syntax will reverse the order of items.
+
 ### Comptime
 
 Version 0.6.0 added two comptime features: inline compilation and inline

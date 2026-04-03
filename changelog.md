@@ -1,4 +1,8 @@
-## 0.?.?
+## 0.7.3
+
+## Compiler
+
+- Bug fix: `@#name` syntax did not work with names of a single char
 
 ### Tools
 
@@ -8,6 +12,14 @@
 - Optimized `make_delegate_key_lock`: saved 13 bytes (98-85)
 - Optimized `make_delegate_key_chain_lock`: saved 13 bytes (128-115)
 - Corrected `make_graftap_lock`: added sigflags passthrough parameter
+- REPL:
+  - Changed sigfield macros `~s[1-8]` to `~sf[1-8]`
+  - Added new `~s` helper that decodes top stack item as utf-8 string
+
+### Misc
+
+- Clarified in docstrings for `int_to_bytes` and `uint_to_bytes` that only the
+  former is correct for encoding stack values; deprecated `uint_to_bytes`
 
 ## 0.7.2
 

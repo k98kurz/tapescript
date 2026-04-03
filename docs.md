@@ -1406,7 +1406,7 @@ the committed script to be executed.
 Returns a locking Script for non-native taproot. This Script exists primarily to
 compare against the native taproot lock and the nonnative graftroot lock.
 
-## `make_graftap_lock(pubkey: bytes | VerifyKey): -> Script`
+## `make_graftap_lock(pubkey: bytes | VerifyKey, sigflags: str = 00): -> Script`
 
 Make a taproot lock committing to the (internal) pubkey and a graftroot lock.
 

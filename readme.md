@@ -53,8 +53,8 @@ or plugins.
 ### Write, compile, decompile
 
 See the
-[langauge_spec.md](https://github.com/k98kurz/tapescript/blob/v0.7.2/language_spec.md)
-and [docs.md](https://github.com/k98kurz/tapescript/blob/v0.7.2/docs.md) files
+[langauge_spec.md](https://github.com/k98kurz/tapescript/blob/v0.7.3/language_spec.md)
+and [docs.md](https://github.com/k98kurz/tapescript/blob/v0.7.3/docs.md) files
 for syntax, operation specifics, and thorough tool documentation.
 
 Once you have a script written, use the `compile_script(code: str) -> bytes`
@@ -74,7 +74,6 @@ values are case-sensitive.
 The following functions are also available for VM-compatible serialization:
 - `bytes_to_int`
 - `int_to_bytes`
-- `uint_to_bytes`
 - `bytes_to_bool`
 - `bytes_to_float`
 - `float_to_bytes`
@@ -369,8 +368,8 @@ seemed a bit too much.
 However, delegating access after the lock is set still makes sense, and for this
 purpose I have included some tooling around delegating access:
 
-- `make_delegate_key_lock` - 98 bytes
-- `make_delegate_key_chain_lock` - 128 bytes
+- `make_delegate_key_lock` - 85 bytes
+- `make_delegate_key_chain_lock` - 115 bytes
 - `make_delegate_key_cert` - 105 bytes
 - `make_delegate_key_witness` - 173 bytes
 - `make_delegate_key_chain_witness` - 66 bytes + 108 bytes per cert
@@ -514,13 +513,17 @@ witnesses for HTLCs and PTLCs:
 - `make_ptlc_lock`
 - `make_ptlc_witness`
 - `make_ptlc_refund_witness`
+- `make_timestamp_after_lock`
+- `make_timestamp_before_lock`
+- `make_timestamp_between_lock`
 
 The general idea behind an HTLC is that the main branch can be unlocked with the
 combination of a preimage matching a specific hash and a signature matching the
 `receiver_pubkey`, while the refund branch can be unlocked with a signature
 matching the `refund_pubkey` only after a timeout has expired. The PTLC by
 comparison drops the hash lock and instead locks to a point on the ed25519
-curve, i.e. it simply uses a `check_sig` lock.
+curve, i.e. it simply uses a `check_sig` lock. 3 additional timestamp lock
+generation tools are provided for custom lock composition using time locks.
 
 <details>
 <summary>Example</summary>
@@ -707,9 +710,9 @@ In the case where a signature is expected to be validated, the message parts for
 the signature must be passed in via the `cache_vals` dict at keys "sigfield[1-8]".
 In the case where `OP_CHECK_TRANSFER` or `OP_INVOKE` might be called, the
 contracts must be passed in via the `contracts` dict. See the
-[check_transfer](https://github.com/k98kurz/tapescript/blob/v0.7.2/language_spec.md#op_check_transfer)
+[check_transfer](https://github.com/k98kurz/tapescript/blob/v0.7.3/language_spec.md#op_check_transfer)
 and
-[invoke](https://github.com/k98kurz/tapescript/blob/v0.7.2/language_spec.md#op_invoke)
+[invoke](https://github.com/k98kurz/tapescript/blob/v0.7.3/language_spec.md#op_invoke)
 sections in the language_spec.md file for more informaiton about these two ops.
 
 #### Changing flags
@@ -1023,14 +1026,14 @@ python tests/test_e2e_eltoo.py
 python tests/test_e2e_extensions.py
 ```
 
-There are currently 267 tests and 107 test vectors used for validating the ops,
+There are currently 270 tests and 107 test vectors used for validating the ops,
 compiler, decompiler, and script running functions. This includes 3 e2e tests
 for a proof-of-concept implementation of the eltoo payment channel protocol, and
 e2e tests combining the anonymous multi-hop lock (AMHL) system with adapter
 signatures, as well as tests for the contract system, signature extension
-plugins, hard-forks, and the soft-fork system. There are an additional 8
-security tests, including a test proving the one-way homomorphic quality of
-ed25519 and a test proving that all symmetric script trees share the same root.
+plugins, hard-forks, and the soft-fork system. There are also 8 security tests,
+including a test proving the one-way homomorphic quality of ed25519 and a test
+proving that all symmetric script trees share the same root.
 
 ## Contributing
 
@@ -1042,11 +1045,11 @@ Github.
 
 ## ISC License
 
-Copyleft (c) 2025 Jonathan Voss (k98kurz)
+Copyright (c) 2026 Jonathan Voss (k98kurz)
 
 Permission to use, copy, modify, and/or distribute this software
 for any purpose with or without fee is hereby granted, provided
-that the above copyleft notice and this permission notice appear in
+that the above copyright notice and this permission notice appear in
 all copies.
 
 THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL
