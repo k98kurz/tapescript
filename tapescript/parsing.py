@@ -74,13 +74,13 @@ def define_macro(symbols: list[str], macros: dict = {}) -> int:
     name = symbols[1].lower()
     yert(name.isalnum(), 'macro name must be alphanumeric')
     yert(symbols[2] == '[',
-         'macro definition must be of form != name [ args ] { statements }')
+        'macro definition must be of form != name [ args ] { statements }')
     closing_brace_index = _find_matching_brace(symbols, '[', ']')
     args = symbols[3:closing_brace_index]
     for arg in args:
         yert(arg.isalnum(), f'macro arg names must be alphanumeric, not {arg}')
     yert(symbols[closing_brace_index+1] == '{',
-         'macro definition must be of form != name [ args ] { statements }')
+        'macro definition must be of form != name [ args ] { statements }')
     open_brace_index = closing_brace_index+1
     closing_brace_index = _find_matching_brace(
         symbols, '{', '}'
@@ -104,7 +104,7 @@ def invoke_macro(symbols: list[str], macros: dict = {}) -> tuple[int, tuple[byte
     closing_brace_index = _find_matching_brace(symbols, '[', ']')
     args = symbols[2:closing_brace_index]
     yert(len(args) == len(macros[name]['args']),
-         f'call to macro {name} must have args {macros[name]["args"]}')
+        f'call to macro {name} must have args {macros[name]["args"]}')
     args = zip(macros[name]['args'], args)
     args = { a:v for a,v in args }
 
@@ -122,11 +122,11 @@ def set_variable(symbols: list[str]) -> tuple[int, tuple[bytes]]:
         and the bytecode.
     """
     yert(symbols[0] == '@=',
-         f'set_variable statement must start with @=, not {symbols[0]}')
+        f'set_variable statement must start with @=, not {symbols[0]}')
     name = symbols[1]
     yert(name.isalnum(), f'set_variable name must be alphanumeric, not {name}')
     yert(symbols[2] == '[' or symbols[2].isnumeric(),
-         'set_variable statement must be of form @= name [ vals ] or @= name int')
+        'set_variable statement must be of form @= name [ vals ] or @= name int')
 
     if symbols[2].isnumeric():
         count = int(symbols[2])
@@ -163,7 +163,7 @@ def load_variable(symbols: list[str]) -> tuple[int, tuple[bytes]]:
         the bytecode.
     """
     yert(symbols[0][0] == '@',
-         f"load_variable statement must be of form @name, not {symbols[0]}")
+        f"load_variable statement must be of form @name, not {symbols[0]}")
     name = symbols[0][1:]
     yert(name.isalnum(), f'load_variable name must be alphanumeric, not {name}')
 
@@ -176,7 +176,7 @@ def size_variable(symbols: list[str]) -> tuple[int, tuple[bytes]]:
         the bytecode.
     """
     yert(symbols[0][:2] == '@#',
-         f"size_variable statement must be of form @#name, not {symbols[0]}")
+        f"size_variable statement must be of form @#name, not {symbols[0]}")
     name = symbols[0][2:]
     yert(name.isalnum(), f'size_variable name must be alphanumeric, not {name}')
 
@@ -337,9 +337,12 @@ def _get_OP_PUSH1_type_args(
 
     if opname == 'OP_PUSH1':
         # human-readable syntax of OP_PUSH1 [size] [val] or OP_PUSH1 [val]
-        if (len(symbols[1]) < 3 or symbols[1][:3] != 'OP_') and \
-            symbols[1] not in opcodes_inverse and symbols[1] not in nopcodes_inverse and \
-            symbols[1] not in opcode_aliases and symbols[1] not in _special_symbols:
+        if  (   (len(symbols[1]) < 3 or symbols[1][:3] != 'OP_')
+                and symbols[1] not in opcodes_inverse
+                and symbols[1] not in nopcodes_inverse
+                and symbols[1] not in opcode_aliases
+                and symbols[1] not in _special_symbols
+            ):
             symbols_to_advance += 2
             val = symbols[1]
         else:
@@ -393,9 +396,12 @@ def _get_OP_PUSH2_args(
 
     if opname == 'OP_PUSH2':
         # human-readable syntax of OP_PUSH2 [size] [val] or OP_PUSH2 [val]
-        if (len(symbols[1]) < 3 or symbols[1][:3] != 'OP_') and \
-            symbols[1] not in opcodes_inverse and symbols[1] not in nopcodes_inverse and \
-            symbols[1] not in opcode_aliases and symbols[1] not in _special_symbols:
+        if  (   (len(symbols[1]) < 3 or symbols[1][:3] != 'OP_')
+                and symbols[1] not in opcodes_inverse
+                and symbols[1] not in nopcodes_inverse
+                and symbols[1] not in opcode_aliases
+                and symbols[1] not in _special_symbols
+            ):
             symbols_to_advance += 2
             val = symbols[1]
         else:
@@ -560,66 +566,92 @@ def get_args(
     args = []
 
     match opname:
-        case 'OP_FALSE' | 'OP_TRUE' | 'OP_POP0' | 'OP_SIZE' | \
-            'OP_READ_CACHE_STACK' | 'OP_READ_CACHE_STACK_SIZE' | 'OP_DIV_INTS' | \
-            'OP_MOD_INTS' | 'OP_DIV_FLOATS' | 'OP_MOD_FLOATS' | 'OP_DUP' | \
-            'OP_SHA256' | 'OP_VERIFY' | 'OP_EQUAL' | 'OP_EQUAL_VERIFY' | \
-            'OP_CHECK_TIMESTAMP' | 'OP_CHECK_TIMESTAMP_VERIFY' | \
-            'OP_CHECK_EPOCH' | 'OP_CHECK_EPOCH_VERIFY' | 'OP_EVAL' | \
-            'OP_RANDOM' | 'OP_NOT' | 'OP_RETURN' | 'OP_DEPTH' | 'OP_SWAP2' | \
-            'OP_CONCAT' | 'OP_CONCAT_STR' | 'OP_CHECK_TRANSFER' | 'OP_LESS' | \
-            'OP_LESS_OR_EQUAL' | 'OP_FLOAT_LESS' | 'OP_FLOAT_LESS_OR_EQUAL' | \
-            'OP_INT_TO_FLOAT' | 'OP_FLOAT_TO_INT' | 'OP_SIGN_STACK' | \
-            'OP_CHECK_SIG_STACK' | 'OP_DERIVE_SCALAR' | 'OP_DERIVE_POINT' | \
-            'OP_MAKE_ADAPTER_SIG_PUBLIC' | 'OP_MAKE_ADAPTER_SIG_PRIVATE' | \
-            'OP_CHECK_ADAPTER_SIG' | 'OP_DECRYPT_ADAPTER_SIG' | 'OP_INVOKE' | \
-            'OP_SPLIT' | 'OP_SPLIT_STR' | 'OP_XOR' | 'OP_OR' | 'OP_AND':
+        case (
+            'OP_FALSE' | 'OP_TRUE' | 'OP_POP0' | 'OP_SIZE' |
+            'OP_READ_CACHE_STACK' | 'OP_READ_CACHE_STACK_SIZE' | 'OP_DIV_INTS' |
+            'OP_MOD_INTS' | 'OP_DIV_FLOATS' | 'OP_MOD_FLOATS' | 'OP_DUP' |
+            'OP_SHA256' | 'OP_VERIFY' | 'OP_EQUAL' | 'OP_EQUAL_VERIFY' |
+            'OP_CHECK_TIMESTAMP' | 'OP_CHECK_TIMESTAMP_VERIFY' |
+            'OP_CHECK_EPOCH' | 'OP_CHECK_EPOCH_VERIFY' | 'OP_EVAL' |
+            'OP_RANDOM' | 'OP_NOT' | 'OP_RETURN' | 'OP_DEPTH' | 'OP_SWAP2' |
+            'OP_CONCAT' | 'OP_CONCAT_STR' | 'OP_CHECK_TRANSFER' | 'OP_LESS' |
+            'OP_LESS_OR_EQUAL' | 'OP_FLOAT_LESS' | 'OP_FLOAT_LESS_OR_EQUAL'  |
+            'OP_INT_TO_FLOAT' | 'OP_FLOAT_TO_INT' | 'OP_SIGN_STACK' |
+            'OP_CHECK_SIG_STACK' | 'OP_DERIVE_SCALAR' | 'OP_DERIVE_POINT' |
+            'OP_MAKE_ADAPTER_SIG_PUBLIC' | 'OP_MAKE_ADAPTER_SIG_PRIVATE' |
+            'OP_CHECK_ADAPTER_SIG' | 'OP_DECRYPT_ADAPTER_SIG' | 'OP_INVOKE' |
+            'OP_SPLIT' | 'OP_SPLIT_STR' | 'OP_XOR' | 'OP_OR' | 'OP_AND'
+            ):
             # ops that have no arguments on the tape
             # human-readable syntax of OP_[whatever]
             pass
         case 'OP_PUSH':
             # special case: OP_PUSH is a short hand for OP_PUSH[0,1,2,4]
-            return _get_OP_PUSH_args(opname, symbols, symbols_to_advance, symbol_index)
+            return _get_OP_PUSH_args(
+                opname, symbols, symbols_to_advance, symbol_index
+            )
         case 'OP_WRITE_CACHE':
             # op with tape arguments of form [size 0-255] [val] [count 0-255]
             return _get_OP_WRITE_CACHE_args(opname, symbols, symbols_to_advance)
-        case 'OP_PUSH1' | 'OP_READ_CACHE' | \
-            'OP_READ_CACHE_SIZE' | 'OP_DIV_INT' | \
-            'OP_MOD_INT' | 'OP_SET_FLAG' | 'OP_UNSET_FLAG' | 'OP_GET_VALUE':
+        case (
+            'OP_PUSH1' | 'OP_READ_CACHE' |
+            'OP_READ_CACHE_SIZE' | 'OP_DIV_INT' |
+            'OP_MOD_INT' | 'OP_SET_FLAG' | 'OP_UNSET_FLAG' | 'OP_GET_VALUE'
+            ):
             # ops that have tape arguments of form [size 0-255] [val]
-            return _get_OP_PUSH1_type_args(opname, symbols, symbols_to_advance, symbol_index)
-        case 'OP_PUSH0' | 'OP_POP1' | 'OP_ADD_INTS' | 'OP_SUBTRACT_INTS' | \
-            'OP_MULT_INTS' | 'OP_ADD_FLOATS' | \
-            'OP_SUBTRACT_FLOATS' | 'OP_ADD_POINTS' | 'OP_CALL' | \
-            'OP_COPY' | 'OP_SHAKE256' | 'OP_REVERSE' | \
-            'OP_CHECK_SIG' | 'OP_SIGN' | 'OP_TAPROOT' | \
-            'OP_CHECK_SIG_VERIFY' | 'OP_CLAMP_SCALAR' | 'OP_ADD_SCALARS' | \
-            'OP_SUBTRACT_SCALARS' | 'OP_SUBTRACT_POINTS' | \
-            'OP_GET_MESSAGE' | 'OP_CHECK_TEMPLATE' | 'OP_CHECK_TEMPLATE_VERIFY':
+            return _get_OP_PUSH1_type_args(
+                opname, symbols, symbols_to_advance, symbol_index
+            )
+        case (
+            'OP_PUSH0' | 'OP_POP1' | 'OP_ADD_INTS' | 'OP_SUBTRACT_INTS' |
+            'OP_MULT_INTS' | 'OP_ADD_FLOATS' |
+            'OP_SUBTRACT_FLOATS' | 'OP_ADD_POINTS' | 'OP_CALL' |
+            'OP_COPY' | 'OP_SHAKE256' | 'OP_REVERSE' |
+            'OP_CHECK_SIG' | 'OP_SIGN' | 'OP_TAPROOT' |
+            'OP_CHECK_SIG_VERIFY' | 'OP_CLAMP_SCALAR' | 'OP_ADD_SCALARS' |
+            'OP_SUBTRACT_SCALARS' | 'OP_SUBTRACT_POINTS' |
+            'OP_GET_MESSAGE' | 'OP_CHECK_TEMPLATE' | 'OP_CHECK_TEMPLATE_VERIFY'
+            ):
             # ops that have tape argument of form [-128 to 127] or [x00-ff]
             # human-readable syntax of OP_[whatever] [int]
-            return _get_OP_PUSH0_type_args(opname, symbols, symbols_to_advance, symbol_index)
+            return _get_OP_PUSH0_type_args(
+                opname, symbols, symbols_to_advance, symbol_index
+            )
         case 'OP_PUSH2':
             # ops that have tape argument of form [0-65535] [val]
             # human-readable syntax of simply OP_PUSH2 [val]
-            return _get_OP_PUSH2_args(opname, symbols, symbols_to_advance, symbol_index)
+            return _get_OP_PUSH2_args(
+                opname, symbols, symbols_to_advance, symbol_index
+            )
         case 'OP_DIV_FLOAT' | 'OP_MOD_FLOAT':
             # ops that have tape argument of form [4-byte float]
             # human-readable syntax of OP_[DIV|MOD]_FLOAT [val]
-            return _get_OP_DIV_FLOAT_args(opname, symbols, symbols_to_advance, symbol_index)
+            return _get_OP_DIV_FLOAT_args(
+                opname, symbols, symbols_to_advance, symbol_index
+            )
         case 'OP_SWAP':
             # ops that have tape arguments of form [0-255] [0-255]
             # human-readable syntax of OP_SWAP [idx1] [idx2]
-            return _get_OP_SWAP_type_args(opname, symbols, symbols_to_advance, symbol_index)
+            return _get_OP_SWAP_type_args(
+                opname, symbols, symbols_to_advance, symbol_index
+            )
         case 'OP_CHECK_MULTISIG' | 'OP_CHECK_MULTISIG_VERIFY':
-            return _get_OP_CHECK_MULTISIG_args(opname, symbols, symbols_to_advance, symbol_index)
+            return _get_OP_CHECK_MULTISIG_args(
+                opname, symbols, symbols_to_advance, symbol_index
+            )
         case 'OP_MERKLEVAL':
             # op has tape argument of form [32-byte val]
-            return _get_OP_MERKLEVAL_args(opname, symbols, symbols_to_advance, symbol_index)
+            return _get_OP_MERKLEVAL_args(
+                opname, symbols, symbols_to_advance, symbol_index
+            )
         case _:
             if opname[:3] == 'NOP':
-                return _get_nopcode_args(opname, symbols, symbols_to_advance, symbol_index)
-            return _get_additional_opcode_args(opname, symbols, symbols_to_advance, symbol_index)
+                return _get_nopcode_args(
+                    opname, symbols, symbols_to_advance, symbol_index
+                )
+            return _get_additional_opcode_args(
+                opname, symbols, symbols_to_advance, symbol_index
+            )
 
     return (symbols_to_advance, tuple(args))
 
@@ -630,8 +662,8 @@ def parse_def(
     yert(len(symbols) > 0,
         f'missing OP_DEF clause contents at symbol {symbol_index}')
     vert(symbols[0] in ('OP_DEF', 'DEF'),
-        f'malformed OP_DEF clause: must begin OP_DEF not {symbols[0]}' +
-        f' at symbol {symbol_index}')
+        f'malformed OP_DEF clause: must begin OP_DEF not {symbols[0]} '
+        f'at symbol {symbol_index}')
     code = []
     def_code = b''
     index = 0
@@ -753,7 +785,9 @@ def parse_if(
             else_len = len(b''.join(parts))
             break
         else:
-            advance, parts = parse_next(current_symbol, symbols, symbol_index, index, macros)
+            advance, parts = parse_next(
+                current_symbol, symbols, symbol_index, index, macros
+            )
             index += advance
             code.extend(parts)
 
@@ -787,10 +821,12 @@ def parse_else(
     if symbols[1] == '{':
         # case 1: ELSE { statements }
         yert('}' in symbols[1:],
-             f'unterminated ELSE: missing matching {"}"} - starting symbol {symbol_index}')
+            f'unterminated ELSE: missing matching {"}"} - starting symbol '
+            f'{symbol_index}')
         index = 2
     else:
-        yert('END_IF' in symbols[1:], f'missing END_IF - starting symbol {symbol_index}')
+        yert('END_IF' in symbols[1:],
+            f'missing END_IF - starting symbol {symbol_index}')
 
     while index < len(symbols):
         current_symbol = symbols[index]
@@ -799,7 +835,9 @@ def parse_else(
             index += 1
             break
         else:
-            advance, parts = parse_next(current_symbol, symbols, symbol_index, index, macros)
+            advance, parts = parse_next(
+                current_symbol, symbols, symbol_index, index, macros
+            )
             index += advance
             code.extend(parts)
 
@@ -837,7 +875,7 @@ def parse_try(
         # case 2: OP_TRY statements END_TRY
         # case 3: OP_TRY statements EXCEPT
         yert('END_TRY' in symbols[1:] or 'EXCEPT' in symbols[1:],
-             f'missing END_TRY or EXCEPT - starting symbol {symbol_index}')
+            f'missing END_TRY or EXCEPT - starting symbol {symbol_index}')
 
     while index < len(symbols):
         current_symbol = symbols[index]
@@ -847,13 +885,17 @@ def parse_try(
             if len(symbols) < index+2 or symbols[index] != 'EXCEPT':
                 break
         elif current_symbol == 'EXCEPT':
-            advance, parts = parse_except(symbols[index:], symbol_index+index, macros)
+            advance, parts = parse_except(
+                symbols[index:], symbol_index+index, macros
+            )
             index += advance
             code.extend(parts)
             except_len = len(b''.join(parts))
             break
         else:
-            advance, parts = parse_next(current_symbol, symbols, symbol_index, index, macros)
+            advance, parts = parse_next(
+                current_symbol, symbols, symbol_index, index, macros
+            )
             index += advance
             code.extend(parts)
 
@@ -880,10 +922,11 @@ def parse_except(
         parts). Recursively calls parse_try to handle nested exception
         handling clauses.
     """
-    yert(len(symbols) > 0, f'missing EXCEPT clause contents - symbol {symbol_index}')
+    yert(len(symbols) > 0,
+        f'missing EXCEPT clause contents - symbol {symbol_index}')
     yert(symbols[0] == 'EXCEPT',
         f'malformed EXCEPT: must begin EXCEPT not {symbols[0]}' +
-         f'at symbol {symbol_index}')
+        f'at symbol {symbol_index}')
     code = []
     index = 1
 
@@ -903,7 +946,9 @@ def parse_except(
             break
         elif current_symbol == 'EXCEPT':
             raise SyntaxError('cannot have multiple EXCEPT clauses')
-        advance, parts = parse_next(current_symbol, symbols, symbol_index, index, macros)
+        advance, parts = parse_next(
+            current_symbol, symbols, symbol_index, index, macros
+        )
         index += advance
         code.extend(parts)
 
@@ -924,10 +969,11 @@ def parse_loop(
         parts). Recursively calls parse_* functions to handle nested
         control flow clauses.
     """
-    yert(len(symbols) > 0, f'missing OP_LOOP clause contents - symbol {symbol_index}')
+    yert(len(symbols) > 0,
+        f'missing OP_LOOP clause contents - symbol {symbol_index}')
     vert(symbols[0] in ('OP_LOOP', 'LOOP'),
-        f'malformed OP_LOOP clause: must begin OP_LOOP not {symbols[0]}' +
-        f' at symbol {symbol_index}')
+        f'malformed OP_LOOP clause: must begin OP_LOOP not {symbols[0]} '
+        f'at symbol {symbol_index}')
     code = []
     index = 1
 
@@ -987,13 +1033,16 @@ def parse_next(
     if current_symbol in ('PUSH', 'TRY', 'DEF', 'IF'):
         current_symbol = 'OP_' + current_symbol
 
-    yert(current_symbol in opcodes_inverse or current_symbol in nopcodes_inverse
-            or current_symbol in ('OP_PUSH', 'OP_TRY', '@=', '!=') or
-            (current_symbol[0] in ('!', '@') and current_symbol[1:].isalnum()) or
-            (current_symbol[:2] == '@#' and current_symbol[2:].isalnum()),
-            f'unrecognized symbol: {current_symbol} at symbol {index}' +
-            (f' (after {symbols[index-1]})' if index > 0 else '') +
-            (f' (before {symbols[index+1]})' if index < len(symbols)-1 else ''))
+    yert(
+        current_symbol in opcodes_inverse
+        or current_symbol in nopcodes_inverse
+        or current_symbol in ('OP_PUSH', 'OP_TRY', '@=', '!=')
+        or (current_symbol[0] in ('!', '@') and current_symbol[1:].isalnum())
+        or (current_symbol[:2] == '@#' and current_symbol[2:].isalnum()),
+        f'unrecognized symbol: {current_symbol} at symbol {index}' +
+        (f' (after {symbols[index-1]})' if index > 0 else '') +
+        (f' (before {symbols[index+1]})' if index < len(symbols)-1 else '')
+    )
 
     if current_symbol == '@=':
         advance, parts = set_variable(symbols[index:])
@@ -1014,10 +1063,13 @@ def parse_next(
     elif current_symbol == 'OP_LOOP':
         advance, parts = parse_loop(symbols[index:], symbol_index+index, macros)
     else:
-        vert(current_symbol in opcodes_inverse or current_symbol in nopcodes_inverse
-                or current_symbol == 'OP_PUSH',
+        vert(current_symbol in opcodes_inverse
+            or current_symbol in nopcodes_inverse
+            or current_symbol == 'OP_PUSH',
             f'unrecognized opcode: {current_symbol} - symbol {symbol_index+index}')
-        advance, args = get_args(current_symbol, symbols[index+1:], symbol_index+index)
+        advance, args = get_args(
+            current_symbol, symbols[index+1:], symbol_index+index
+        )
         if current_symbol in ('OP_PUSH', 'PUSH'):
             if len(args) < 2:
                 parts.append(opcodes_inverse['OP_PUSH0'][0].to_bytes(1, 'big'))
@@ -1033,7 +1085,9 @@ def parse_next(
     return (advance, parts)
 
 
-def _find_matching_brace(symbols: list[str], open_brace: str, close_brace: str) -> int:
+def _find_matching_brace(
+        symbols: list[str], open_brace: str, close_brace: str
+    ) -> int:
     """Finds the index of the matching closing brace, adjusting for any
         additional open braces encountered before the closing brace.
     """
@@ -1081,10 +1135,12 @@ def parse_comptime(symbols: list[str], macros: dict = {}) -> list[str]:
             index += 1
             continue
         yert(symbols[index+1] == "{",
-                f'Error at symbol {index}: comptime syntax is `~ {{ ops }}`')
+            f'Error at symbol {index}: comptime syntax is `~ {{ ops }}`')
         end = _find_matching_brace(symbols[index:], "{", "}")
         if symbol == "~":
-            new_symbols.append(f'x{assemble(symbols[index+2:index+end], macros).hex()}')
+            new_symbols.append(
+                f'x{assemble(symbols[index+2:index+end], macros).hex()}'
+            )
         else:
             _, stack, _ = run_script(assemble(symbols[index+2:index+end], macros))
             if not stack.empty():
@@ -1177,21 +1233,23 @@ def decompile_script(script: bytes, indent: int = 0) -> list[str]:
                 add_line('OP_LOOP {')
                 code_lines.extend(loop_lines)
                 add_line('}')
-            case 'OP_FALSE' | 'OP_TRUE' | 'OP_POP0' | 'OP_SIZE' | \
-                'OP_READ_CACHE_STACK' | 'OP_READ_CACHE_STACK_SIZE' | 'OP_DIV_INTS' | \
-                'OP_MOD_INTS' | 'OP_DIV_FLOATS' | 'OP_MOD_FLOATS' | 'OP_DUP' | \
-                'OP_SHA256' | 'OP_VERIFY' | 'OP_EQUAL' | 'OP_EQUAL_VERIFY' | \
-                'OP_CHECK_TIMESTAMP' | 'OP_CHECK_TIMESTAMP_VERIFY' | \
-                'OP_CHECK_EPOCH' | 'OP_CHECK_EPOCH_VERIFY' | 'OP_EVAL' | \
-                'OP_RANDOM' | 'OP_NOT' | 'OP_RETURN' | 'OP_DEPTH' | 'OP_SWAP2' | \
-                'OP_CONCAT' | 'OP_CONCAT_STR' | 'OP_CHECK_TRANSFER' | \
-                'OP_LESS' | 'OP_LESS_OR_EQUAL' | 'OP_FLOAT_LESS' | \
-                'OP_FLOAT_LESS_OR_EQUAL' | 'OP_INT_TO_FLOAT' | \
-                'OP_FLOAT_TO_INT' | 'OP_SIGN_STACK' | 'OP_CHECK_SIG_STACK' | \
-                'OP_DERIVE_SCALAR' | 'OP_DERIVE_POINT' | \
-                'OP_MAKE_ADAPTER_SIG_PUBLIC' | 'OP_MAKE_ADAPTER_SIG_PRIVATE' | \
-                'OP_CHECK_ADAPTER_SIG' | 'OP_DECRYPT_ADAPTER_SIG' | 'OP_XOR' | \
-                'OP_INVOKE' | 'OP_OR' | 'OP_AND' | 'OP_SPLIT' | 'OP_SPLIT_STR':
+            case (
+                'OP_FALSE' | 'OP_TRUE' | 'OP_POP0' | 'OP_SIZE' |
+                'OP_READ_CACHE_STACK' | 'OP_READ_CACHE_STACK_SIZE' | 'OP_DIV_INTS' |
+                'OP_MOD_INTS' | 'OP_DIV_FLOATS' | 'OP_MOD_FLOATS' | 'OP_DUP' |
+                'OP_SHA256' | 'OP_VERIFY' | 'OP_EQUAL' | 'OP_EQUAL_VERIFY' |
+                'OP_CHECK_TIMESTAMP' | 'OP_CHECK_TIMESTAMP_VERIFY' |
+                'OP_CHECK_EPOCH' | 'OP_CHECK_EPOCH_VERIFY' | 'OP_EVAL' |
+                'OP_RANDOM' | 'OP_NOT' | 'OP_RETURN' | 'OP_DEPTH' | 'OP_SWAP2' |
+                'OP_CONCAT' | 'OP_CONCAT_STR' | 'OP_CHECK_TRANSFER' |
+                'OP_LESS' | 'OP_LESS_OR_EQUAL' | 'OP_FLOAT_LESS' |
+                'OP_FLOAT_LESS_OR_EQUAL' | 'OP_INT_TO_FLOAT' |
+                'OP_FLOAT_TO_INT' | 'OP_SIGN_STACK' | 'OP_CHECK_SIG_STACK' |
+                'OP_DERIVE_SCALAR' | 'OP_DERIVE_POINT' |
+                'OP_MAKE_ADAPTER_SIG_PUBLIC' | 'OP_MAKE_ADAPTER_SIG_PRIVATE' |
+                'OP_CHECK_ADAPTER_SIG' | 'OP_DECRYPT_ADAPTER_SIG' | 'OP_XOR' |
+                'OP_INVOKE' | 'OP_OR' | 'OP_AND' | 'OP_SPLIT' | 'OP_SPLIT_STR'
+                ):
                 # ops that have no arguments on the tape
                 # human-readable syntax of OP_[whatever]
                 add_line(op_name)
@@ -1200,8 +1258,10 @@ def decompile_script(script: bytes, indent: int = 0) -> list[str]:
                 size = tape.read(1)[0]
                 val = tape.read(size)
                 add_line(f'{op_name} d{size} x{val.hex()}')
-            case 'OP_READ_CACHE' | 'OP_READ_CACHE_SIZE' | \
-                'OP_SET_FLAG' | 'OP_UNSET_FLAG' | 'OP_GET_VALUE':
+            case (
+                'OP_READ_CACHE' | 'OP_READ_CACHE_SIZE' |
+                'OP_SET_FLAG' | 'OP_UNSET_FLAG' | 'OP_GET_VALUE'
+                ):
                 # ops that have tape arguments of form [size 0-255] [val]
                 size = tape.read(1)[0]
                 val = tape.read(size)
@@ -1217,19 +1277,23 @@ def decompile_script(script: bytes, indent: int = 0) -> list[str]:
                 val = tape.read(size)
                 count = tape.read(1)[0]
                 add_line(f'{op_name} x{val.hex()} d{count}')
-            case 'OP_PUSH0' | 'OP_POP1' | 'OP_ADD_INTS' | 'OP_SUBTRACT_INTS' | \
-                'OP_MULT_INTS' | 'OP_ADD_FLOATS' | \
-                'OP_SUBTRACT_FLOATS' | 'OP_ADD_POINTS' | 'OP_CALL' | \
-                'OP_COPY' | 'OP_SHAKE256' | 'OP_REVERSE' | \
-                'OP_CLAMP_SCALAR' | \
-                'OP_ADD_SCALARS' | 'OP_SUBTRACT_SCALARS' | 'OP_SUBTRACT_POINTS':
+            case (
+                'OP_PUSH0' | 'OP_POP1' | 'OP_ADD_INTS' | 'OP_SUBTRACT_INTS' |
+                'OP_MULT_INTS' | 'OP_ADD_FLOATS' |
+                'OP_SUBTRACT_FLOATS' | 'OP_ADD_POINTS' | 'OP_CALL' |
+                'OP_COPY' | 'OP_SHAKE256' | 'OP_REVERSE' |
+                'OP_CLAMP_SCALAR' |
+                'OP_ADD_SCALARS' | 'OP_SUBTRACT_SCALARS' | 'OP_SUBTRACT_POINTS'
+                ):
                 # ops that have tape argument of form [0-255]
                 # human-readable syntax of OP_[whatever] [int]
                 val = bytes_to_int(tape.read(1))
                 add_line(f'{op_name} d{val}')
-            case 'OP_CHECK_SIG' | 'OP_CHECK_SIG_VERIFY' | 'OP_SIGN' | \
-                'OP_TAPROOT' | 'OP_GET_MESSAGE' | 'OP_CHECK_TEMPLATE' | \
-                'OP_CHECK_TEMPLATE_VERIFY':
+            case (
+                'OP_CHECK_SIG' | 'OP_CHECK_SIG_VERIFY' | 'OP_SIGN' |
+                'OP_TAPROOT' | 'OP_GET_MESSAGE' | 'OP_CHECK_TEMPLATE' |
+                'OP_CHECK_TEMPLATE_VERIFY'
+                ):
                 # ops that have tape argument of form x[00-ff]
                 # human-readable syntax of OP_[whatever] x[00-ff]
                 val = tape.read(1)
