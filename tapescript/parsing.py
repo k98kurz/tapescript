@@ -990,7 +990,7 @@ def parse_next(
     yert(current_symbol in opcodes_inverse or current_symbol in nopcodes_inverse
             or current_symbol in ('OP_PUSH', 'OP_TRY', '@=', '!=') or
             (current_symbol[0] in ('!', '@') and current_symbol[1:].isalnum()) or
-            (current_symbol[:2] == '@#' and current_symbol[3:].isalnum()),
+            (current_symbol[:2] == '@#' and current_symbol[2:].isalnum()),
             f'unrecognized symbol: {current_symbol} at symbol {index}' +
             (f' (after {symbols[index-1]})' if index > 0 else '') +
             (f' (before {symbols[index+1]})' if index < len(symbols)-1 else ''))
