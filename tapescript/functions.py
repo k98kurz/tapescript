@@ -100,7 +100,10 @@ def bytes_to_int(number: bytes) -> int:
     return number - 2**size if negative else number
 
 def int_to_bytes(number: int) -> bytes:
-    """Convert from arbitrarily large signed int to bytes."""
+    """Convert from arbitrarily large signed int to bytes. This is the
+        format used within the tapescript VM -- values on the stack take
+        this form.
+    """
     tert(type(number) is int, 'number must be int')
     negative = number < 0
     number = abs(number)
@@ -117,7 +120,11 @@ def int_to_bytes(number: int) -> bytes:
     return number.to_bytes(n_bytes, 'big')
 
 def uint_to_bytes(number: int) -> bytes:
-    """Convert from arbitrarily large unsigned int to bytes."""
+    """Convert from arbitrarily large unsigned int to bytes. Note that
+        this is not actively used within the tapescript VM; for most use
+        cases, `int_to_bytes` is the correct choice. For all intents and
+        purposes, this is deprecated.
+    """
     tert(type(number) is int, 'number must be int')
     n_bits = floor(log2(number)) + 1 if number != 0 else 1
     n_bytes = ceil(n_bits/8)

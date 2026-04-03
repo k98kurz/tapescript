@@ -6,3 +6,4 @@ dist/
 build/
 temp/
 **/debug.py
+**.sw?
